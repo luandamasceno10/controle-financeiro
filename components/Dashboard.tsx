@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { Lancamento, ContaPagar, ContaReceber, Previsao } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { analyzeFinances } from '@/lib/analyzeWithAI';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
@@ -75,6 +76,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [payable, setPayable] = useState<ContaPagar[]>([]);
   const [receivable, setReceivable] = useState<ContaReceber[]>([]);
   const [forecast, setForecast] = useState<Record<string, number>>({});
+  const [saldoInicial, setSaldoInicial] = useState(0);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
   
@@ -91,6 +93,11 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [settlePayment, setSettlePayment] = useState<'pix' | 'cartao'>('pix');
   const [editingForecast, setEditingForecast] = useState(false);
   const [forecastInput, setForecastInput] = useState('');
+  const [editingSaldoInicial, setEditingSaldoInicial] = useState(false);
+  const [saldoInicialInput, setSaldoInicialInput] = useState('');
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisText, setAnalysisText] = useState('');
   
   const [filterPayment, setFilterPayment] = useState('todos');
   const [filterCategory, setFilterCategory] = useState('todas');
@@ -118,11 +125,12 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [lancResult, pagarResult, receberResult, previsaoResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, saldoResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
+        supabase.from('saldos_iniciais').select('*').eq('user_id', userId).eq('mes', currentMonth).single(),
       ]);
 
       if (lancResult.data) setEntries(lancResult.data);
@@ -134,6 +142,11 @@ export default function Dashboard({ userId }: { userId: string }) {
           f[p.mes] = p.valor_previsto;
         });
         setForecast(f);
+      }
+      if (saldoResult.data) {
+        setSaldoInicial(saldoResult.data.saldo_inicial);
+      } else {
+        setSaldoInicial(0);
       }
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
@@ -171,10 +184,11 @@ export default function Dashboard({ userId }: { userId: string }) {
   const commitment = useMemo(() => {
     const prevCarry = carryOver - totals.saldo;
     const forecastValue = forecast[currentMonth] || 0;
-    const disponivel = prevCarry + forecastValue;
+    const saldoInicialValue = saldoInicial || 0;
+    const disponivel = prevCarry + forecastValue + saldoInicialValue;
     const pct = disponivel > 0 ? Math.min(Math.round((totals.saida / disponivel) * 100), 999) : null;
-    return { disponivel, prevCarry, forecastValue, pct, gasto: totals.saida };
-  }, [carryOver, totals, forecast, currentMonth]);
+    return { disponivel, prevCarry, forecastValue, pct, gasto: totals.saida, saldoInicial: saldoInicialValue };
+  }, [carryOver, totals, forecast, currentMonth, saldoInicial]);
 
   const billTotals = useMemo(() => {
     const aPagar = payable.filter(p => p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0);
@@ -250,6 +264,56 @@ export default function Dashboard({ userId }: { userId: string }) {
     entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida').forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
     return Object.entries(map).map(([name, value]) => ({ name, value, color: CATEGORY_META[name]?.color || '#64748B' })).sort((a, b) => b.value - a.value);
   }, [entries, currentYear]);
+
+  const saveSaldoInicial = async () => {
+    const v = parseFloat(saldoInicialInput);
+    if (!isNaN(v)) {
+      try {
+        const existing = await supabase
+          .from('saldos_iniciais')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('mes', currentMonth)
+          .single();
+
+        if (existing.data) {
+          await supabase
+            .from('saldos_iniciais')
+            .update({ saldo_inicial: v })
+            .eq('id', existing.data.id);
+        } else {
+          await supabase.from('saldos_iniciais').insert([
+            {
+              user_id: userId,
+              mes: currentMonth,
+              saldo_inicial: v,
+            },
+          ]);
+        }
+
+        setSaldoInicial(v);
+        setEditingSaldoInicial(false);
+        addToast('Saldo inicial salvo!', 'success');
+        await loadData();
+      } catch (err: any) {
+        addToast('Erro ao salvar saldo inicial: ' + err.message, 'error');
+      }
+    }
+  };
+
+  const runAnalysis = async () => {
+    setAnalysisLoading(true);
+    try {
+      const monthIdx = MONTH_NAMES.findIndex((_, i) => currentMonth === `${currentYear}-${String(i + 1).padStart(2, '0')}`);
+      const text = await analyzeFinances(monthEntries, totals, MONTH_NAMES_FULL[monthIdx]);
+      setAnalysisText(text);
+      setShowAnalysis(true);
+    } catch (err: any) {
+      addToast('Erro na análise: ' + err.message, 'error');
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -512,21 +576,32 @@ export default function Dashboard({ userId }: { userId: string }) {
                   <p className="text-xs text-slate-400">Gasto realizado vs. renda disponível</p>
                 </div>
               </div>
-              {!editingForecast ? (
-                <button onClick={() => { setForecastInput(String(forecast[currentMonth] || '')); setEditingForecast(true); }} className="text-xs font-semibold text-violet-600 hover:text-violet-700 border border-violet-200 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-colors">Editar previsão</button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <input type="number" autoFocus value={forecastInput} onChange={(e) => setForecastInput(e.target.value)} className="border border-violet-300 rounded-lg px-2.5 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-violet-400" placeholder="0,00" />
-                  <button onClick={saveForecast} disabled={savingForecast} className="text-xs font-semibold bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white px-3 py-1.5 rounded-lg">{savingForecast ? 'Salvando...' : 'Salvar'}</button>
-                  <button onClick={() => setEditingForecast(false)} className="text-xs text-slate-400 hover:text-slate-600 px-1">Cancelar</button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {!editingForecast ? (
+                  <button onClick={() => { setForecastInput(String(forecast[currentMonth] || '')); setEditingForecast(true); }} className="text-xs font-semibold text-violet-600 hover:text-violet-700 border border-violet-200 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-colors">Previsão</button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input type="number" autoFocus value={forecastInput} onChange={(e) => setForecastInput(e.target.value)} className="border border-violet-300 rounded-lg px-2.5 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-violet-400" placeholder="0,00" />
+                    <button onClick={saveForecast} disabled={savingForecast} className="text-xs font-semibold bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white px-3 py-1.5 rounded-lg">{savingForecast ? '...' : '✓'}</button>
+                    <button onClick={() => setEditingForecast(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                  </div>
+                )}
+                {!editingSaldoInicial ? (
+                  <button onClick={() => { setSaldoInicialInput(String(saldoInicial || '')); setEditingSaldoInicial(true); }} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 border border-emerald-200 hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors">Saldo Inicial</button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input type="number" autoFocus value={saldoInicialInput} onChange={(e) => setSaldoInicialInput(e.target.value)} className="border border-emerald-300 rounded-lg px-2.5 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-emerald-400" placeholder="0,00" />
+                    <button onClick={saveSaldoInicial} className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg">✓</button>
+                    <button onClick={() => setEditingSaldoInicial(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <MiniStat label="Saldo Inicial" value={commitment.saldoInicial} tone="emerald" />
               <MiniStat label="Previsão" value={commitment.forecastValue} tone="violet" />
-              <MiniStat label="Saldo anterior" value={commitment.prevCarry} tone={commitment.prevCarry >= 0 ? 'blue' : 'rose'} />
+              <MiniStat label="Saldo Anterior" value={commitment.prevCarry} tone={commitment.prevCarry >= 0 ? 'blue' : 'rose'} />
               <MiniStat label="Disponível" value={commitment.disponivel} tone="slate" bold />
-              <MiniStat label="Gasto" value={commitment.gasto} tone="rose" />
             </div>
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
@@ -544,6 +619,22 @@ export default function Dashboard({ userId }: { userId: string }) {
             <SummaryCard label="Saídas (mês)" value={totals.saida} icon={ArrowDownRight} tone="rose" />
             <SummaryCard label="Saldo do mês" value={totals.saldo} icon={Wallet} tone={totals.saldo >= 0 ? 'blue' : 'rose'} />
             <SummaryCard label="Saldo projetado" value={billTotals.saldoProjetado} icon={Calendar} tone={billTotals.saldoProjetado >= 0 ? 'violet' : 'rose'} />
+          </div>
+
+          <div className="flex gap-2">
+            <button 
+              onClick={runAnalysis}
+              disabled={analysisLoading || monthEntries.length === 0}
+              className="flex-1 bg-purple-500 hover:bg-purple-400 disabled:bg-slate-400 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+            >
+              {analysisLoading ? (
+                <>
+                  <Loader size={16} className="animate-spin" /> Analisando...
+                </>
+              ) : (
+                <>🤖 Analisar com IA</>
+              )}
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -691,7 +782,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowBillForm(null)}>
           <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Nova conta a {showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3><button onClick={() => setShowBillForm(null)} disabled={savingBill}><X size={18} /></button></div>
-            <formonSubmit={handleBillSubmit} className="space-y-4">
+            <form onSubmit={handleBillSubmit} className="space-y-4">
               <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={billForm.desc} onChange={(e) => setBillForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
@@ -742,6 +833,23 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </div>
               </>
             ) : <p className="text-center text-slate-400 text-sm py-10">Nenhuma compra no cartão neste mês.</p>}
+          </div>
+        </div>
+      )}
+
+      {showAnalysis && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAnalysis(false)}>
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-800 text-lg">💡 Análise Financeira IA</h3>
+              <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+              {analysisText}
+            </div>
+            <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">
+              Fechar
+            </button>
           </div>
         </div>
       )}
@@ -855,7 +963,7 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentY
 }
 
 function MiniStat({ label, value, tone, bold }: any) {
-  const tones: any = { violet: 'text-violet-600', blue: 'text-blue-600', rose: 'text-rose-600', slate: 'text-slate-800' };
+  const tones: any = { violet: 'text-violet-600', emerald: 'text-emerald-600', blue: 'text-blue-600', rose: 'text-rose-600', slate: 'text-slate-800' };
   return (<div><p className="text-[11px] text-slate-400 mb-0.5">{label}</p><p className={`text-base tabular-nums ${bold ? 'font-bold' : 'font-semibold'} ${tones[tone]}`}>{currency(value)}</p></div>);
 }
 
