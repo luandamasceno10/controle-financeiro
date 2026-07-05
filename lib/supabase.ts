@@ -48,3 +48,11 @@ export interface Previsao {
   valor_previsto: number;
   created_at: string;
 }
+export interface SaldoInicial {
+  id: number;
+  user_id: string;
+  mes: string;
+  saldo_inicial: number;
+  created_at: string;
+  updated_at: string;
+}
