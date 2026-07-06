@@ -71,14 +71,15 @@ function monthKey(iso: string) {
 
 export default function Dashboard({ userId }: { userId: string }) {
   const { toasts, addToast, removeToast } = useToast();
-  
+
   const [entries, setEntries] = useState<Lancamento[]>([]);
   const [payable, setPayable] = useState<ContaPagar[]>([]);
   const [receivable, setReceivable] = useState<ContaReceber[]>([]);
   const [forecast, setForecast] = useState<Record<string, number>>({});
+  const [saldosAbertura, setSaldosAbertura] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
-  
+
   const now = new Date();
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -92,17 +93,20 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [settlePayment, setSettlePayment] = useState<'pix' | 'cartao'>('pix');
   const [editingForecast, setEditingForecast] = useState(false);
   const [forecastInput, setForecastInput] = useState('');
+  const [editingSaldoAbertura, setEditingSaldoAbertura] = useState(false);
+  const [saldoAberturaInput, setSaldoAberturaInput] = useState('');
+  const [savingSaldoAbertura, setSavingSaldoAbertura] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisText, setAnalysisText] = useState('');
-  
+
   const [filterPayment, setFilterPayment] = useState('todos');
   const [filterCategory, setFilterCategory] = useState('todas');
   const [filterType, setFilterType] = useState('todos');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento' | 'payable' | 'receivable'; id: number } | null>(null);
-  
+
   const [savingForecast, setSavingForecast] = useState(false);
   const [savingForm, setSavingForm] = useState(false);
   const [savingBill, setSavingBill] = useState(false);
@@ -122,11 +126,12 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [lancResult, pagarResult, receberResult, previsaoResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, saldosResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
+        supabase.from('saldos_abertura').select('*').eq('user_id', userId),
       ]);
 
       if (lancResult.data) setEntries(lancResult.data);
@@ -138,6 +143,13 @@ export default function Dashboard({ userId }: { userId: string }) {
           f[p.mes] = p.valor_previsto;
         });
         setForecast(f);
+      }
+      if (saldosResult.data) {
+        const s: Record<number, number> = {};
+        saldosResult.data.forEach((row: any) => {
+          s[row.ano] = Number(row.valor);
+        });
+        setSaldosAbertura(s);
       }
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
@@ -161,7 +173,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const carryOver = useMemo(() => {
     const [year, month] = currentMonth.split('-').map(Number);
-    let acc = 0;
+    let acc = saldosAbertura[year] || 0;
     for (let m = 1; m < month; m++) {
       const key = `${year}-${String(m).padStart(2, '0')}`;
       const me = entries.filter(e => monthKey(e.data) === key);
@@ -170,7 +182,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       acc += (ent - sai);
     }
     return acc;
-  }, [entries, currentMonth]);
+  }, [entries, currentMonth, saldosAbertura]);
 
   const commitment = useMemo(() => {
     const saldoInicial = carryOver;
@@ -178,11 +190,11 @@ export default function Dashboard({ userId }: { userId: string }) {
     const disponivel = saldoInicial + totals.entrada - totals.saida;
     const recursosPlanejados = saldoInicial + forecastValue;
     const pct = recursosPlanejados > 0 ? Math.min(Math.round((totals.saida / recursosPlanejados) * 100), 999) : null;
-    return { 
-      disponivel, 
-      forecastValue, 
-      pct, 
-      gasto: totals.saida, 
+    return {
+      disponivel,
+      forecastValue,
+      pct,
+      gasto: totals.saida,
       saldoInicial
     };
   }, [totals, forecast, currentMonth, carryOver]);
@@ -461,12 +473,42 @@ export default function Dashboard({ userId }: { userId: string }) {
     }
   };
 
+  const saveSaldoAbertura = async () => {
+    const v = parseFloat(saldoAberturaInput);
+    if (isNaN(v)) return;
+
+    setSavingSaldoAbertura(true);
+    try {
+      const existing = await supabase
+        .from('saldos_abertura')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('ano', currentYear)
+        .single();
+
+      if (existing.data) {
+        await supabase.from('saldos_abertura').update({ valor: v }).eq('id', existing.data.id);
+      } else {
+        await supabase.from('saldos_abertura').insert([{ user_id: userId, ano: currentYear, valor: v }]);
+      }
+
+      await loadData();
+      setEditingSaldoAbertura(false);
+      addToast('Saldo de abertura salvo!', 'success');
+    } catch (err: any) {
+      addToast('Erro ao salvar saldo de abertura: ' + err.message, 'error');
+    } finally {
+      setSavingSaldoAbertura(false);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
   const monthIdx = MONTH_NAMES.findIndex((_, i) => currentMonth === `${currentYear}-${String(i + 1).padStart(2, '0')}`);
   const isEmpty = entries.length === 0;
+  const isJaneiro = currentMonth.endsWith('-01');
 
   if (loading) {
     return (
@@ -561,6 +603,29 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <div className={`h-full rounded-full transition-all ${commitment.pct === null ? 'bg-slate-300' : commitment.pct >= 100 ? 'bg-rose-500' : commitment.pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${commitment.pct === null ? 0 : Math.min(commitment.pct, 100)}%` }} />
               </div>
             </div>
+
+            {isJaneiro && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-slate-500 block">Saldo de Abertura ({currentYear})</label>
+                    <p className="text-[11px] text-slate-400">Saldo da conta em 01/01/{currentYear} — base para todo o ano</p>
+                  </div>
+                  {!editingSaldoAbertura ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-emerald-600">{currency(saldosAbertura[currentYear] || 0)}</span>
+                      <button onClick={() => { setSaldoAberturaInput(String(saldosAbertura[currentYear] || '')); setEditingSaldoAbertura(true); }} className="text-xs font-semibold text-violet-600 hover:text-violet-700 border border-violet-200 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input type="number" autoFocus value={saldoAberturaInput} onChange={(e) => setSaldoAberturaInput(e.target.value)} className="border border-violet-300 rounded-lg px-2.5 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-violet-400" placeholder="0,00" />
+                      <button onClick={saveSaldoAbertura} disabled={savingSaldoAbertura} className="text-xs font-semibold bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white px-3 py-1.5 rounded-lg">{savingSaldoAbertura ? '...' : '✓'}</button>
+                      <button onClick={() => setEditingSaldoAbertura(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -571,7 +636,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           </div>
 
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={runAnalysis}
               disabled={analysisLoading || monthEntries.length === 0}
               className="flex-1 bg-purple-500 hover:bg-purple-400 disabled:bg-slate-400 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
@@ -703,123 +768,122 @@ export default function Dashboard({ userId }: { userId: string }) {
         </main>
       ) : (
         <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
+      )}{showForm && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Novo lançamento</h3><button onClick={() => setShowForm(false)} disabled={savingForm}><X size={18} /></button></div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
+              </div>
+              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
+                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingForm} /></div>
+              </div>
+              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingForm}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>
+              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, payment: p.id as any }))} disabled={savingForm} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
+              <button type="submit" disabled={savingForm} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">{savingForm ? 'Salvando...' : 'Salvar lançamento'}</button>
+            </form>
+          </div>
+        </div>
       )}
-      {showForm && (
-  <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
-    <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Novo lançamento</h3><button onClick={() => setShowForm(false)} disabled={savingForm}><X size={18} /></button></div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
-          <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
-        </div>
-        <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
-          <div><label className="text-xs font-medium text-slate-500 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingForm} /></div>
-        </div>
-        <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingForm}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>
-        <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, payment: p.id as any }))} disabled={savingForm} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
-        <button type="submit" disabled={savingForm} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">{savingForm ? 'Salvando...' : 'Salvar lançamento'}</button>
-      </form>
-    </div>
-  </div>
-)}
 
-{showBillForm && (
-  <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowBillForm(null)}>
-    <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Nova conta a {showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3><button onClick={() => setShowBillForm(null)} disabled={savingBill}><X size={18} /></button></div>
-      <form onSubmit={handleBillSubmit} className="space-y-4">
-        <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={billForm.desc} onChange={(e) => setBillForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
-          <div><label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label><input type="date" value={billForm.due} onChange={(e) => setBillForm(f => ({ ...f, due: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
+      {showBillForm && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowBillForm(null)}>
+          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Nova conta a {showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3><button onClick={() => setShowBillForm(null)} disabled={savingBill}><X size={18} /></button></div>
+            <form onSubmit={handleBillSubmit} className="space-y-4">
+              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={billForm.desc} onChange={(e) => setBillForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
+                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label><input type="date" value={billForm.due} onChange={(e) => setBillForm(f => ({ ...f, due: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
+              </div>
+              {showBillForm === 'pagar' && (<div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>)}
+              <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50"><input type="checkbox" checked={billForm.recurring} onChange={(e) => setBillForm(f => ({ ...f, recurring: e.target.checked }))} className="w-4 h-4 accent-slate-800" disabled={savingBill} /><Repeat size={15} className="text-slate-500" /><span className="text-sm text-slate-600">Repetir todo mês</span></label>
+              <button type="submit" disabled={savingBill} className={`w-full font-semibold py-2.5 rounded-lg text-sm transition-colors ${showBillForm === 'pagar' ? 'bg-rose-500 hover:bg-rose-400 disabled:bg-slate-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900'}`}>{savingBill ? 'Salvando...' : 'Salvar conta'}</button>
+            </form>
+          </div>
         </div>
-        {showBillForm === 'pagar' && (<div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>)}
-        <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50"><input type="checkbox" checked={billForm.recurring} onChange={(e) => setBillForm(f => ({ ...f, recurring: e.target.checked }))} className="w-4 h-4 accent-slate-800" disabled={savingBill} /><Repeat size={15} className="text-slate-500" /><span className="text-sm text-slate-600">Repetir todo mês</span></label>
-        <button type="submit" disabled={savingBill} className={`w-full font-semibold py-2.5 rounded-lg text-sm transition-colors ${showBillForm === 'pagar' ? 'bg-rose-500 hover:bg-rose-400 disabled:bg-slate-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900'}`}>{savingBill ? 'Salvando...' : 'Salvar conta'}</button>
-      </form>
-    </div>
-  </div>
-)}
+      )}
 
-{settleTarget && (
-  <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setSettleTarget(null)}>
-    <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-      <h3 className="font-semibold text-slate-800 mb-1">Como foi {settleTarget.kind === 'pagar' ? 'pago' : 'recebido'}?</h3>
-      <p className="text-xs text-slate-400 mb-4">Isso será usado para categorizar corretamente.</p>
-      <div className="grid grid-cols-2 gap-2 mb-5">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setSettlePayment(p.id as any)} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${settlePayment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div>
-      <div className="flex gap-2"><button onClick={() => setSettleTarget(null)} className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600">Cancelar</button><button onClick={confirmSettle} className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-900">Confirmar</button></div>
-    </div>
-  </div>
-)}
+      {settleTarget && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setSettleTarget(null)}>
+          <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 mb-1">Como foi {settleTarget.kind === 'pagar' ? 'pago' : 'recebido'}?</h3>
+            <p className="text-xs text-slate-400 mb-4">Isso será usado para categorizar corretamente.</p>
+            <div className="grid grid-cols-2 gap-2 mb-5">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setSettlePayment(p.id as any)} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${settlePayment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div>
+            <div className="flex gap-2"><button onClick={() => setSettleTarget(null)} className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600">Cancelar</button><button onClick={confirmSettle} className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-900">Confirmar</button></div>
+          </div>
+        </div>
+      )}
 
-{showCardDetail && (
-  <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowCardDetail(false)}>
-    <div className="bg-white rounded-xl w-full max-w-2xl p-6 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-1"><h3 className="font-semibold text-slate-800 flex items-center gap-2"><CreditCard size={18} className="text-amber-600" /> Fatura do cartão</h3><button onClick={() => setShowCardDetail(false)}><X size={18} /></button></div>
-      <p className="text-xs text-slate-400 mb-5">Total no cartão em {monthIdx >= 0 ? MONTH_NAMES_FULL[monthIdx] : 'mês'}: <span className="font-semibold text-slate-600">{currency(cardTotal)}</span></p>
-      {cardByCategory.length > 0 ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart><Pie data={cardByCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>{cardByCategory.map((entry, i) => <Cell key={i} fill={entry.color} stroke="white" strokeWidth={2} />)}</Pie><Tooltip formatter={(v: any) => currency(v)} /></PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-2">
-              {cardByCategory.map((c, i) => {
-                const pct = cardTotal > 0 ? Math.round((c.value / cardTotal) * 100) : 0;
-                return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 font-medium">{CATEGORY_META[c.name]?.emoji} {c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
-              })}
+      {showCardDetail && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowCardDetail(false)}>
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1"><h3 className="font-semibold text-slate-800 flex items-center gap-2"><CreditCard size={18} className="text-amber-600" /> Fatura do cartão</h3><button onClick={() => setShowCardDetail(false)}><X size={18} /></button></div>
+            <p className="text-xs text-slate-400 mb-5">Total no cartão em {monthIdx >= 0 ? MONTH_NAMES_FULL[monthIdx] : 'mês'}: <span className="font-semibold text-slate-600">{currency(cardTotal)}</span></p>
+            {cardByCategory.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart><Pie data={cardByCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>{cardByCategory.map((entry, i) => <Cell key={i} fill={entry.color} stroke="white" strokeWidth={2} />)}</Pie><Tooltip formatter={(v: any) => currency(v)} /></PieChart>
+                  </ResponsiveContainer>
+                  <div className="space-y-2">
+                    {cardByCategory.map((c, i) => {
+                      const pct = cardTotal > 0 ? Math.round((c.value / cardTotal) * 100) : 0;
+                      return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 font-medium">{CATEGORY_META[c.name]?.emoji} {c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
+                    })}
+                  </div>
+                </div>
+                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras no cartão</h4>
+                <div className="border border-slate-100 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm"><tbody>
+                    {cardEntries.map((e) => { const meta = CATEGORY_META[e.categoria]; return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
+                  </tbody></table>
+                </div>
+              </>
+            ) : <p className="text-center text-slate-400 text-sm py-10">Nenhuma compra no cartão neste mês.</p>}
+          </div>
+        </div>
+      )}
+
+      {showAnalysis && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAnalysis(false)}>
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-800 text-lg">💡 Análise Financeira IA</h3>
+              <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
             </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+              {analysisText}
+            </div>
+            <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">
+              Fechar
+            </button>
           </div>
-          <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras no cartão</h4>
-          <div className="border border-slate-100 rounded-lg overflow-hidden">
-            <table className="w-full text-sm"><tbody>
-              {cardEntries.map((e) => { const meta = CATEGORY_META[e.categoria]; return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
-            </tbody></table>
-          </div>
-        </>
-      ) : <p className="text-center text-slate-400 text-sm py-10">Nenhuma compra no cartão neste mês.</p>}
-    </div>
-  </div>
-)}
+        </div>
+      )}
 
-{showAnalysis && (
-  <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAnalysis(false)}>
-    <div className="bg-white rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-slate-800 text-lg">💡 Análise Financeira IA</h3>
-        <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
-      </div>
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-        {analysisText}
-      </div>
-      <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">
-        Fechar
-      </button>
-    </div>
-  </div>
-)}
+      <ConfirmDialog
+        open={deleteConfirm !== null}
+        title="Confirmar exclusão"
+        message={deleteConfirm?.type === 'lancamento' ? 'Tem certeza que quer deletar este lançamento?' : 'Tem certeza que quer deletar esta conta?'}
+        confirmText="Deletar"
+        cancelText="Cancelar"
+        danger
+        onConfirm={() => {
+          if (!deleteConfirm) return;
+          if (deleteConfirm.type === 'lancamento') removeEntry(deleteConfirm.id);
+          else if (deleteConfirm.type === 'payable') removePayable(deleteConfirm.id);
+          else removeReceivable(deleteConfirm.id);
+          setDeleteConfirm(null);
+        }}
+        onCancel={() => setDeleteConfirm(null)}
+      />
 
-<ConfirmDialog
-  open={deleteConfirm !== null}
-  title="Confirmar exclusão"
-  message={deleteConfirm?.type === 'lancamento' ? 'Tem certeza que quer deletar este lançamento?' : 'Tem certeza que quer deletar esta conta?'}
-  confirmText="Deletar"
-  cancelText="Cancelar"
-  danger
-  onConfirm={() => {
-    if (!deleteConfirm) return;
-    if (deleteConfirm.type === 'lancamento') removeEntry(deleteConfirm.id);
-    else if (deleteConfirm.type === 'payable') removePayable(deleteConfirm.id);
-    else removeReceivable(deleteConfirm.id);
-    setDeleteConfirm(null);
-  }}
-  onCancel={() => setDeleteConfirm(null)}
-/>
-
-<ToastContainer toasts={toasts} onRemove={removeToast} />
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }
@@ -880,8 +944,6 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentY
             </ResponsiveContainer>
             <div className="space-y-2 self-center">
               {yearCategoryData.map((c: any, i: number) => {
-                const total = yearCategoryData.reduce((s: number, x: any) => s + x.value, 0);
-                const pct = total > 0 ? Math.round((c.value / total) * 100) : 0;
                 return (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{CATEGORY_META[c.name]?.emoji} {c.name}</span></div><span className="font-semibold tabular-nums">{currency(c.value)}</span></div>);
               })}
             </div>
