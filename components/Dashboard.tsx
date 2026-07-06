@@ -11,7 +11,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
 } from 'recharts';
 import {
-  Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2,
+  Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
   ArrowUpRight, ArrowDownRight, Home, Apple, Car, HeartPulse,
   GraduationCap, Clapperboard, Gift, Users, PiggyBank, Landmark,
   CircleEllipsis, Calendar, AlertTriangle, CheckCircle2, Clock,
@@ -87,6 +87,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   });
 
   const [showForm, setShowForm] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<Lancamento | null>(null);
   const [showBillForm, setShowBillForm] = useState<'pagar' | 'receber' | null>(null);
   const [showCardDetail, setShowCardDetail] = useState(false);
   const [settleTarget, setSettleTarget] = useState<{ kind: 'pagar' | 'receber'; id: number } | null>(null);
@@ -288,27 +289,62 @@ export default function Dashboard({ userId }: { userId: string }) {
     }
   };
 
+  const openNewEntry = () => {
+    setEditingEntry(null);
+    setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO() });
+    setShowForm(true);
+  };
+
+  const openEditEntry = (entry: Lancamento) => {
+    setEditingEntry(entry);
+    setForm({
+      desc: entry.descricao,
+      type: entry.tipo,
+      category: entry.categoria,
+      payment: entry.forma_pagamento,
+      amount: String(entry.valor),
+      date: entry.data,
+    });
+    setShowForm(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.desc || !form.amount) return;
 
     setSavingForm(true);
     try {
-      const { error } = await supabase.from('lancamentos').insert([{
-        user_id: userId,
-        data: form.date,
-        descricao: form.desc,
-        tipo: form.type,
-        categoria: form.category,
-        forma_pagamento: form.payment,
-        valor: parseFloat(form.amount),
-      }]);
+      if (editingEntry) {
+        const { error } = await supabase.from('lancamentos').update({
+          data: form.date,
+          descricao: form.desc,
+          tipo: form.type,
+          categoria: form.category,
+          forma_pagamento: form.payment,
+          valor: parseFloat(form.amount),
+        }).eq('id', editingEntry.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        addToast('Lançamento atualizado com sucesso!', 'success');
+      } else {
+        const { error } = await supabase.from('lancamentos').insert([{
+          user_id: userId,
+          data: form.date,
+          descricao: form.desc,
+          tipo: form.type,
+          categoria: form.category,
+          forma_pagamento: form.payment,
+          valor: parseFloat(form.amount),
+        }]);
+
+        if (error) throw error;
+        addToast('Lançamento salvo com sucesso!', 'success');
+      }
+
       await loadData();
       setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO() });
+      setEditingEntry(null);
       setShowForm(false);
-      addToast('Lançamento salvo com sucesso!', 'success');
     } catch (err: any) {
       addToast('Erro ao salvar: ' + err.message, 'error');
     } finally {
@@ -535,7 +571,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               <button onClick={() => setView('anual')} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === 'anual' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}>Anual</button>
             </div>
             {view === 'mensal' && (
-              <button onClick={() => setShowForm(true)} disabled={savingForm} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+              <button onClick={openNewEntry} disabled={savingForm} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
                 {savingForm ? <Loader size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.5} />} {savingForm ? 'Salvando...' : 'Novo'}
               </button>
             )}
@@ -740,7 +776,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
-                    <th className="px-5 py-3 font-medium">Data</th><th className="px-5 py-3 font-medium">Descrição</th><th className="px-5 py-3 font-medium">Categoria</th><th className="px-5 py-3 font-medium">Pagamento</th><th className="px-5 py-3 font-medium text-right">Valor</th><th className="px-5 py-3 font-medium w-10"></th>
+                    <th className="px-5 py-3 font-medium">Data</th><th className="px-5 py-3 font-medium">Descrição</th><th className="px-5 py-3 font-medium">Categoria</th><th className="px-5 py-3 font-medium">Pagamento</th><th className="px-5 py-3 font-medium text-right">Valor</th><th className="px-5 py-3 font-medium w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -751,13 +787,18 @@ export default function Dashboard({ userId }: { userId: string }) {
                     const meta = CATEGORY_META[e.categoria];
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
                     return (
-                      <tr key={e.id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group">
+                      <tr key={e.id} onClick={() => openEditEntry(e)} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer">
                         <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{fmtDate(e.data)}</td>
                         <td className="px-5 py-3 font-medium text-slate-700">{e.descricao}</td>
                         <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td>
                         <td className="px-5 py-3 text-slate-500"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
                         <td className={`px-5 py-3 text-right font-semibold tabular-nums ${e.tipo === 'entrada' ? 'text-emerald-600' : 'text-slate-700'}`}>{e.tipo === 'entrada' ? '+' : '-'}{currency(Number(e.valor))}</td>
-                        <td className="px-5 py-3 text-right"><button onClick={() => setDeleteConfirm({ type: 'lancamento', id: e.id })} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={15} /></button></td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={(ev) => { ev.stopPropagation(); openEditEntry(e); }} className="text-slate-300 hover:text-violet-600 p-1"><Pencil size={14} /></button>
+                            <button onClick={(ev) => { ev.stopPropagation(); setDeleteConfirm({ type: 'lancamento', id: e.id }); }} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -768,10 +809,11 @@ export default function Dashboard({ userId }: { userId: string }) {
         </main>
       ) : (
         <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
-      )}{showForm && (
+      )}
+      {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
           <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Novo lançamento</h3><button onClick={() => setShowForm(false)} disabled={savingForm}><X size={18} /></button></div>
+            <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">{editingEntry ? 'Editar lançamento' : 'Novo lançamento'}</h3><button onClick={() => setShowForm(false)} disabled={savingForm}><X size={18} /></button></div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
@@ -784,7 +826,14 @@ export default function Dashboard({ userId }: { userId: string }) {
               </div>
               <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingForm}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>
               <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, payment: p.id as any }))} disabled={savingForm} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
-              <button type="submit" disabled={savingForm} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">{savingForm ? 'Salvando...' : 'Salvar lançamento'}</button>
+              <div className="flex gap-2">
+                {editingEntry && (
+                  <button type="button" onClick={() => { setShowForm(false); setDeleteConfirm({ type: 'lancamento', id: editingEntry.id }); }} className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors">
+                    <Trash2 size={16} />
+                  </button>
+                )}
+                <button type="submit" disabled={savingForm} className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">{savingForm ? 'Salvando...' : editingEntry ? 'Salvar alterações' : 'Salvar lançamento'}</button>
+              </div>
             </form>
           </div>
         </div>
