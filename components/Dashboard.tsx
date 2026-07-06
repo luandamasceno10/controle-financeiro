@@ -701,6 +701,9 @@ export default function Dashboard({ userId }: { userId: string }) {
             </div>
           </div>
         </main>
+      ) : (
+        <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
+      )}
       {showForm && (
   <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
     <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
