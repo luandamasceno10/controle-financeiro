@@ -1,10 +1,10 @@
 'use client';
 
 import { useUser } from '@/contexts/UserContext';
-import Dashboard from '@/components/Dashboard';
+import Home from '@/components/Home';
 
-export default function Home() {
+export default function HomePage() {
   const { user } = useUser();
   if (!user) return null;
-  return <Dashboard userId={user.id} />;
+  return <Home userId={user.id} />;
 }
