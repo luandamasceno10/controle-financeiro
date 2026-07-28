@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, LogOut, Menu, X } from 'lucide-react';
+import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const NAV_ITEMS = [
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/cartoes', label: 'Cartões de Crédito', icon: CreditCard },
   { href: '/metas', label: 'Metas', icon: Target },
   { href: '/categorias', label: 'Categorias', icon: Tag },
+  { href: '/perfil', label: 'Perfil', icon: UserCircle },
 ];
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

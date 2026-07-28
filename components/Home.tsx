@@ -30,7 +30,7 @@ const TONE_CLASSES: Record<string, string> = {
   amber: 'bg-amber-50 text-amber-600',
 };
 
-export default function Home({ userId }: { userId: string }) {
+export default function Home({ userId, nome }: { userId: string; nome?: string }) {
   const [loading, setLoading] = useState(true);
   const [entriesThisMonth, setEntriesThisMonth] = useState(0);
   const [nextBill, setNextBill] = useState<ContaPagar | null>(null);
@@ -62,7 +62,7 @@ export default function Home({ userId }: { userId: string }) {
     <main className="max-w-3xl mx-auto px-5 py-8 space-y-6">
       <div>
         <p className="text-xs text-slate-400 capitalize">{hoje}</p>
-        <h1 className="text-xl font-semibold text-slate-800">Olá! 👋</h1>
+        <h1 className="text-xl font-semibold text-slate-800">Olá{nome ? `, ${nome}` : ''}! 👋</h1>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
