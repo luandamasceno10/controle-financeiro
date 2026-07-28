@@ -10,9 +10,11 @@ export interface Lancamento {
   id: number;
   user_id: string;
   data: string;
+  hora: string | null;
   descricao: string;
   tipo: 'entrada' | 'saida';
   categoria: string;
+  categoria_id: number | null;
   forma_pagamento: 'pix' | 'cartao';
   valor: number;
   created_at: string;
@@ -23,6 +25,7 @@ export interface ContaPagar {
   user_id: string;
   descricao: string;
   categoria: string;
+  categoria_id: number | null;
   valor: number;
   vencimento: string;
   status: 'pendente' | 'pago';
@@ -48,11 +51,16 @@ export interface Previsao {
   valor_previsto: number;
   created_at: string;
 }
-export interface SaldoInicial {
+
+export interface Categoria {
   id: number;
   user_id: string;
-  mes: string;
-  saldo_inicial: number;
+  nome: string;
+  tipo: 'entrada' | 'saida';
+  cor: string;
+  icone: string;
+  emoji: string | null;
+  ativa: boolean;
+  ordem: number;
   created_at: string;
-  updated_at: string;
 }

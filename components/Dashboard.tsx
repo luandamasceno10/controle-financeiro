@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria } from '@/lib/supabase';
+import { ICONS } from '@/lib/categorias';
+import { sortByDataHora } from '@/lib/sort';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { analyzeFinances } from '@/lib/analyzeWithAI';
@@ -12,28 +14,12 @@ import {
 } from 'recharts';
 import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
-  ArrowUpRight, ArrowDownRight, Home, Apple, Car, HeartPulse,
-  GraduationCap, Clapperboard, Gift, Users, PiggyBank, Landmark,
-  CircleEllipsis, Calendar, AlertTriangle, CheckCircle2, Clock,
+  ArrowUpRight, ArrowDownRight, CircleEllipsis,
+  Calendar, AlertTriangle, CheckCircle2, Clock,
   ArrowDownToLine, ArrowUpFromLine, Repeat, ChevronLeft, ChevronRight,
-  Target, TrendingUp, BarChart3, Inbox, LogOut, Loader, Search
+  Target, TrendingUp, BarChart3, Inbox, Loader, Search
 } from 'lucide-react';
 
-const CATEGORY_META: Record<string, any> = {
-  'Moradia': { color: '#2563EB', icon: Home, emoji: '🏠' },
-  'Alimentação': { color: '#16A34A', icon: Apple, emoji: '🍎' },
-  'Transporte': { color: '#0891B2', icon: Car, emoji: '🚗' },
-  'Saúde & Bem-estar': { color: '#DC2626', icon: HeartPulse, emoji: '🩺' },
-  'Educação': { color: '#7C3AED', icon: GraduationCap, emoji: '🎓' },
-  'Assinaturas & Lazer': { color: '#DB2777', icon: Clapperboard, emoji: '🎬' },
-  'Doações e Presentes': { color: '#EA580C', icon: Gift, emoji: '🎁' },
-  'Família & Dependentes': { color: '#0D9488', icon: Users, emoji: '👥' },
-  'Investimentos & Futuro': { color: '#059669', icon: PiggyBank, emoji: '💰' },
-  'Dívidas & Empréstimos': { color: '#B91C1C', icon: Landmark, emoji: '🏦' },
-  'Diversos': { color: '#64748B', icon: CircleEllipsis, emoji: '✳️' },
-};
-
-const CATEGORIES = Object.keys(CATEGORY_META);
 const PAYMENTS = [
   { id: 'pix', label: 'Pix', icon: QrCode },
   { id: 'cartao', label: 'Cartão', icon: CreditCard },
@@ -47,6 +33,10 @@ function currency(v: number) {
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function nowTime() {
+  return new Date().toTimeString().slice(0, 5);
 }
 
 function fmtDate(iso: string) {
@@ -77,6 +67,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [receivable, setReceivable] = useState<ContaReceber[]>([]);
   const [forecast, setForecast] = useState<Record<string, number>>({});
   const [saldosAbertura, setSaldosAbertura] = useState<Record<number, number>>({});
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
 
@@ -113,7 +104,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [savingBill, setSavingBill] = useState(false);
 
   const [form, setForm] = useState({
-    desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(),
+    desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(), hora: nowTime(),
   });
 
   const [billForm, setBillForm] = useState({
@@ -127,12 +118,13 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [lancResult, pagarResult, receberResult, previsaoResult, saldosResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, saldosResult, categoriasResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
         supabase.from('saldos_abertura').select('*').eq('user_id', userId),
+        supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       ]);
 
       if (lancResult.data) setEntries(lancResult.data);
@@ -152,11 +144,25 @@ export default function Dashboard({ userId }: { userId: string }) {
         });
         setSaldosAbertura(s);
       }
+      if (categoriasResult.data) setCategorias(categoriasResult.data);
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const categoriasSaida = useMemo(() => categorias.filter(c => c.tipo === 'saida'), [categorias]);
+  const categoriasEntrada = useMemo(() => categorias.filter(c => c.tipo === 'entrada'), [categorias]);
+  const categoriaByName = useMemo(() => {
+    const map: Record<string, Categoria> = {};
+    categorias.forEach(c => { if (!map[c.nome]) map[c.nome] = c; });
+    return map;
+  }, [categorias]);
+
+  const catMeta = (nome: string): { color: string; emoji: string } | undefined => {
+    const c = categoriaByName[nome];
+    return c ? { color: c.cor, emoji: c.emoji || '' } : undefined;
   };
 
   const monthEntries = useMemo(
@@ -213,7 +219,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor);
     });
     return Object.entries(map).map(([name, value]) => ({
-      name, value, color: CATEGORY_META[name]?.color || '#64748B',
+      name, value, color: catMeta(name)?.color || '#64748B',
     })).sort((a, b) => b.value - a.value);
   }, [monthEntries]);
 
@@ -227,14 +233,14 @@ export default function Dashboard({ userId }: { userId: string }) {
   }, [monthEntries]);
 
   const cardEntries = useMemo(
-    () => monthEntries.filter(e => e.tipo === 'saida' && e.forma_pagamento === 'cartao').sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()),
+    () => monthEntries.filter(e => e.tipo === 'saida' && e.forma_pagamento === 'cartao').sort(sortByDataHora),
     [monthEntries]
   );
 
   const cardByCategory = useMemo(() => {
     const map: Record<string, number> = {};
     cardEntries.forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
-    return Object.entries(map).map(([name, value]) => ({ name, value, color: CATEGORY_META[name]?.color || '#64748B' })).sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B' })).sort((a, b) => b.value - a.value);
   }, [cardEntries]);
 
   const cardTotal = useMemo(() => cardEntries.reduce((s, e) => s + Number(e.valor), 0), [cardEntries]);
@@ -245,7 +251,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       .filter(e => filterCategory === 'todas' || e.categoria === filterCategory)
       .filter(e => filterType === 'todos' || e.tipo === filterType)
       .filter(e => e.descricao.toLowerCase().includes(searchQuery.toLowerCase()))
-      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      .sort(sortByDataHora);
   }, [monthEntries, filterPayment, filterCategory, filterType, searchQuery]);
 
   const upcomingPayable = useMemo(() => [...payable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [payable]);
@@ -272,7 +278,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const yearCategoryData = useMemo(() => {
     const map: Record<string, number> = {};
     entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida').forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
-    return Object.entries(map).map(([name, value]) => ({ name, value, color: CATEGORY_META[name]?.color || '#64748B' })).sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B', emoji: catMeta(name)?.emoji || '' })).sort((a, b) => b.value - a.value);
   }, [entries, currentYear]);
 
   const runAnalysis = async () => {
@@ -291,7 +297,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const openNewEntry = () => {
     setEditingEntry(null);
-    setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO() });
+    setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(), hora: nowTime() });
     setShowForm(true);
   };
 
@@ -304,6 +310,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       payment: entry.forma_pagamento,
       amount: String(entry.valor),
       date: entry.data,
+      hora: entry.hora ? entry.hora.slice(0, 5) : '00:00',
     });
     setShowForm(true);
   };
@@ -314,12 +321,15 @@ export default function Dashboard({ userId }: { userId: string }) {
 
     setSavingForm(true);
     try {
+      const categoriaId = categoriaByName[form.category]?.id ?? null;
       if (editingEntry) {
         const { error } = await supabase.from('lancamentos').update({
           data: form.date,
+          hora: form.hora,
           descricao: form.desc,
           tipo: form.type,
           categoria: form.category,
+          categoria_id: categoriaId,
           forma_pagamento: form.payment,
           valor: parseFloat(form.amount),
         }).eq('id', editingEntry.id);
@@ -330,9 +340,11 @@ export default function Dashboard({ userId }: { userId: string }) {
         const { error } = await supabase.from('lancamentos').insert([{
           user_id: userId,
           data: form.date,
+          hora: form.hora,
           descricao: form.desc,
           tipo: form.type,
           categoria: form.category,
+          categoria_id: categoriaId,
           forma_pagamento: form.payment,
           valor: parseFloat(form.amount),
         }]);
@@ -342,7 +354,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       }
 
       await loadData();
-      setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO() });
+      setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(), hora: nowTime() });
       setEditingEntry(null);
       setShowForm(false);
     } catch (err: any) {
@@ -371,6 +383,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       if (showBillForm === 'pagar') {
         await supabase.from('contas_pagar').insert([{
           user_id: userId, descricao: billForm.desc, categoria: billForm.category,
+          categoria_id: categoriaByName[billForm.category]?.id ?? null,
           valor: parseFloat(billForm.amount), vencimento: billForm.due, status: 'pendente', recorrente: billForm.recurring,
         }]);
       } else {
@@ -405,15 +418,16 @@ export default function Dashboard({ userId }: { userId: string }) {
         if (!target) return;
 
         await supabase.from('lancamentos').insert([{
-          user_id: userId, data: todayISO(), descricao: target.descricao,
-          tipo: 'saida', categoria: target.categoria, forma_pagamento: settlePayment, valor: target.valor,
+          user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
+          tipo: 'saida', categoria: target.categoria, categoria_id: categoriaByName[target.categoria]?.id ?? null,
+          forma_pagamento: settlePayment, valor: target.valor,
         }]);
 
         await supabase.from('contas_pagar').update({ status: 'pago' }).eq('id', id);
 
         if (target.recorrente) {
           await supabase.from('contas_pagar').insert([{
-            user_id: userId, descricao: target.descricao, categoria: target.categoria,
+            user_id: userId, descricao: target.descricao, categoria: target.categoria, categoria_id: target.categoria_id,
             valor: target.valor, vencimento: addMonths(target.vencimento, 1), status: 'pendente', recorrente: true,
           }]);
         }
@@ -422,8 +436,9 @@ export default function Dashboard({ userId }: { userId: string }) {
         if (!target) return;
 
         await supabase.from('lancamentos').insert([{
-          user_id: userId, data: todayISO(), descricao: target.descricao,
-          tipo: 'entrada', categoria: 'Diversos', forma_pagamento: settlePayment, valor: target.valor,
+          user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
+          tipo: 'entrada', categoria: 'Diversos', categoria_id: categoriaByName['Diversos']?.id ?? null,
+          forma_pagamento: settlePayment, valor: target.valor,
         }]);
 
         await supabase.from('contas_receber').update({ status: 'recebido' }).eq('id', id);
@@ -538,10 +553,6 @@ export default function Dashboard({ userId }: { userId: string }) {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
   const monthIdx = MONTH_NAMES.findIndex((_, i) => currentMonth === `${currentYear}-${String(i + 1).padStart(2, '0')}`);
   const isEmpty = entries.length === 0;
   const isJaneiro = currentMonth.endsWith('-01');
@@ -575,7 +586,6 @@ export default function Dashboard({ userId }: { userId: string }) {
                 {savingForm ? <Loader size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.5} />} {savingForm ? 'Salvando...' : 'Novo'}
               </button>
             )}
-            <button onClick={handleLogout} className="text-slate-400 hover:text-slate-200 p-2 rounded-lg hover:bg-slate-800 transition-colors"><LogOut size={18} /></button>
           </div>
         </div>
         {view === 'mensal' && (
@@ -723,7 +733,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                   <div className="space-y-1.5 mt-2 max-h-44 overflow-y-auto pr-1">
                     {categoryData.map((c, i) => (
                       <div key={i} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{CATEGORY_META[c.name]?.emoji} {c.name}</span></div>
+                        <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{catMeta(c.name)?.emoji} {c.name}</span></div>
                         <span className="font-semibold tabular-nums shrink-0 ml-2">{currency(c.value)}</span>
                       </div>
                     ))}
@@ -755,7 +765,7 @@ export default function Dashboard({ userId }: { userId: string }) {
             <BillsPanel title="Contas a pagar" icon={ArrowUpFromLine} tone="rose" total={billTotals.aPagar} totalLabel="Em aberto" items={upcomingPayable}
               onAdd={() => { setBillForm({ desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false }); setShowBillForm('pagar'); }}
               onToggle={(id) => requestSettle('pagar', id)} onRemove={(id) => { setDeleteConfirm({ type: 'payable', id }); }} doneLabel="pago"
-              renderMeta={(item) => <span className="text-[11px] text-slate-400">{CATEGORY_META[item.categoria]?.emoji} {item.categoria}</span>} />
+              renderMeta={(item) => <span className="text-[11px] text-slate-400">{catMeta(item.categoria)?.emoji} {item.categoria}</span>} />
             <BillsPanel title="Contas a receber" icon={ArrowDownToLine} tone="emerald" total={billTotals.aReceber} totalLabel="Em aberto" items={upcomingReceivable}
               onAdd={() => { setBillForm({ desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false }); setShowBillForm('receber'); }}
               onToggle={(id) => requestSettle('receber', id)} onRemove={(id) => { setDeleteConfirm({ type: 'receivable', id }); }} doneLabel="recebido" />
@@ -770,7 +780,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               </div>
               <FilterSelect value={filterType} onChange={setFilterType} options={[{ v: 'todos', l: 'Todos os tipos' }, { v: 'entrada', l: 'Entradas' }, { v: 'saida', l: 'Saídas' }]} />
               <FilterSelect value={filterPayment} onChange={setFilterPayment} options={[{ v: 'todos', l: 'Todas formas' }, { v: 'pix', l: 'Pix' }, { v: 'cartao', l: 'Cartão' }]} />
-              <FilterSelect value={filterCategory} onChange={setFilterCategory} options={[{ v: 'todas', l: 'Todas categorias' }, ...CATEGORIES.map(c => ({ v: c, l: `${CATEGORY_META[c].emoji} ${c}` }))]} />
+              <FilterSelect value={filterCategory} onChange={setFilterCategory} options={[{ v: 'todas', l: 'Todas categorias' }, ...Array.from(new Set(categorias.map(c => c.nome))).map(c => ({ v: c, l: `${catMeta(c)?.emoji || ''} ${c}` }))]} />
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -784,7 +794,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                     <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Nenhum lançamento encontrado.</td></tr>
                   )}
                   {filtered.map((e) => {
-                    const meta = CATEGORY_META[e.categoria];
+                    const meta = catMeta(e.categoria);
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
                     return (
                       <tr key={e.id} onClick={() => openEditEntry(e)} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer">
@@ -816,15 +826,16 @@ export default function Dashboard({ userId }: { userId: string }) {
             <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">{editingEntry ? 'Editar lançamento' : 'Novo lançamento'}</h3><button onClick={() => setShowForm(false)} disabled={savingForm}><X size={18} /></button></div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
               </div>
               <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
+              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
                 <div><label className="text-xs font-medium text-slate-500 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingForm} /></div>
+                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingForm} /></div>
               </div>
-              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingForm}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>
+              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingForm}>{(form.type === 'entrada' ? categoriasEntrada : categoriasSaida).map(c => <option key={c.id} value={c.nome}>{c.emoji} {c.nome}</option>)}</select></div>
               <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, payment: p.id as any }))} disabled={savingForm} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
               <div className="flex gap-2">
                 {editingEntry && (
@@ -849,7 +860,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
                 <div><label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label><input type="date" value={billForm.due} onChange={(e) => setBillForm(f => ({ ...f, due: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
               </div>
-              {showBillForm === 'pagar' && (<div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>{CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_META[c].emoji} {c}</option>)}</select></div>)}
+              {showBillForm === 'pagar' && (<div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>{categoriasSaida.map(c => <option key={c.id} value={c.nome}>{c.emoji} {c.nome}</option>)}</select></div>)}
               <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50"><input type="checkbox" checked={billForm.recurring} onChange={(e) => setBillForm(f => ({ ...f, recurring: e.target.checked }))} className="w-4 h-4 accent-slate-800" disabled={savingBill} /><Repeat size={15} className="text-slate-500" /><span className="text-sm text-slate-600">Repetir todo mês</span></label>
               <button type="submit" disabled={savingBill} className={`w-full font-semibold py-2.5 rounded-lg text-sm transition-colors ${showBillForm === 'pagar' ? 'bg-rose-500 hover:bg-rose-400 disabled:bg-slate-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900'}`}>{savingBill ? 'Salvando...' : 'Salvar conta'}</button>
             </form>
@@ -882,14 +893,14 @@ export default function Dashboard({ userId }: { userId: string }) {
                   <div className="space-y-2">
                     {cardByCategory.map((c, i) => {
                       const pct = cardTotal > 0 ? Math.round((c.value / cardTotal) * 100) : 0;
-                      return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 font-medium">{CATEGORY_META[c.name]?.emoji} {c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
+                      return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 font-medium">{catMeta(c.name)?.emoji} {c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
                     })}
                   </div>
                 </div>
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 rounded-lg overflow-hidden">
                   <table className="w-full text-sm"><tbody>
-                    {cardEntries.map((e) => { const meta = CATEGORY_META[e.categoria]; return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
+                    {cardEntries.map((e) => { const meta = catMeta(e.categoria); return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
                   </tbody></table>
                 </div>
               </>
@@ -993,7 +1004,7 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentY
             </ResponsiveContainer>
             <div className="space-y-2 self-center">
               {yearCategoryData.map((c: any, i: number) => {
-                return (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{CATEGORY_META[c.name]?.emoji} {c.name}</span></div><span className="font-semibold tabular-nums">{currency(c.value)}</span></div>);
+                return (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{c.emoji} {c.name}</span></div><span className="font-semibold tabular-nums">{currency(c.value)}</span></div>);
               })}
             </div>
           </div>
