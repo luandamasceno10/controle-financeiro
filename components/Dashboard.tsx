@@ -569,12 +569,9 @@ export default function Dashboard({ userId }: { userId: string }) {
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="bg-slate-900 text-white sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-5 py-5 flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-slate-900">R$</div>
-            <div>
-              <h1 className="text-lg font-semibold leading-tight">Controle Financeiro Pessoal</h1>
-              <p className="text-xs text-slate-400">{view === 'mensal' ? `${MONTH_NAMES_FULL[monthIdx]} ${currentYear}` : `${currentYear}`}</p>
-            </div>
+          <div>
+            <h1 className="text-lg font-semibold leading-tight">Dashboard</h1>
+            <p className="text-xs text-slate-400">{view === 'mensal' ? `${MONTH_NAMES_FULL[monthIdx]} ${currentYear}` : `${currentYear}`}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex bg-slate-800 rounded-lg p-1">
