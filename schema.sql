@@ -120,3 +120,62 @@ ALTER TABLE contas_pagar ADD COLUMN categoria_id BIGINT REFERENCES categorias(id
 
 -- Campo de hora do lançamento (para ordenação cronológica tipo extrato bancário)
 ALTER TABLE lancamentos ADD COLUMN hora TIME;
+
+-- ============================================================
+-- Fase 2: contas bancárias (saldo por conta) + análise de IA limitada
+-- ============================================================
+
+CREATE TABLE contas_bancarias (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  banco TEXT,
+  saldo_inicial DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  cor TEXT NOT NULL DEFAULT '#0F172A',
+  ativa BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX contas_bancarias_user_id ON contas_bancarias(user_id);
+ALTER TABLE contas_bancarias ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own contas_bancarias" ON contas_bancarias
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Cada lançamento passa a pertencer a uma conta bancária. Nullable para não
+-- quebrar nada antes da migração de dados (rodada logo abaixo neste mesmo script).
+ALTER TABLE lancamentos ADD COLUMN conta_id BIGINT REFERENCES contas_bancarias(id) ON DELETE SET NULL;
+CREATE INDEX lancamentos_conta_id ON lancamentos(conta_id);
+
+-- Migração: cria uma "Conta Principal" por usuário com saldo_inicial calculado
+-- para que o saldo total (soma das contas) continue batendo com o que o
+-- dashboard já mostrava antes desta mudança (o cálculo antigo reiniciava a
+-- cada ano a partir de saldos_abertura[ano], sem carregar anos anteriores).
+INSERT INTO contas_bancarias (user_id, nome, saldo_inicial)
+SELECT DISTINCT l.user_id, 'Conta Principal',
+  COALESCE((SELECT valor FROM saldos_abertura sa WHERE sa.user_id = l.user_id AND sa.ano = EXTRACT(YEAR FROM CURRENT_DATE)), 0)
+    - COALESCE((
+        SELECT SUM(CASE WHEN l2.tipo = 'entrada' THEN l2.valor ELSE -l2.valor END)
+        FROM lancamentos l2
+        WHERE l2.user_id = l.user_id AND EXTRACT(YEAR FROM l2.data) <> EXTRACT(YEAR FROM CURRENT_DATE)
+      ), 0)
+FROM lancamentos l
+WHERE NOT EXISTS (SELECT 1 FROM contas_bancarias cb WHERE cb.user_id = l.user_id);
+
+UPDATE lancamentos l SET conta_id = cb.id
+FROM contas_bancarias cb
+WHERE cb.user_id = l.user_id AND cb.nome = 'Conta Principal' AND l.conta_id IS NULL;
+
+-- Histórico de análises de IA — permite cachear o resultado do dia (evita
+-- gastar créditos da API mais de uma vez por dia) e limitar o uso a 1x/dia.
+CREATE TABLE analises_ia (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  data DATE NOT NULL,
+  mes_referencia TEXT,
+  texto TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, data)
+);
+CREATE INDEX analises_ia_user_id ON analises_ia(user_id);
+ALTER TABLE analises_ia ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own analises_ia" ON analises_ia
+  FOR ALL USING (auth.uid() = user_id);

@@ -16,6 +16,7 @@ export interface Lancamento {
   categoria: string;
   categoria_id: number | null;
   forma_pagamento: 'pix' | 'cartao';
+  conta_id: number | null;
   valor: number;
   created_at: string;
 }
@@ -62,5 +63,25 @@ export interface Categoria {
   emoji: string | null;
   ativa: boolean;
   ordem: number;
+  created_at: string;
+}
+
+export interface ContaBancaria {
+  id: number;
+  user_id: string;
+  nome: string;
+  banco: string | null;
+  saldo_inicial: number;
+  cor: string;
+  ativa: boolean;
+  created_at: string;
+}
+
+export interface AnaliseIA {
+  id: number;
+  user_id: string;
+  data: string;
+  mes_referencia: string | null;
+  texto: string;
   created_at: string;
 }

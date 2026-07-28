@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria } from '@/lib/supabase';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
+import { PAYMENTS } from '@/lib/payments';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
-import { analyzeFinances } from '@/lib/analyzeWithAI';
+import LancamentoForm from './LancamentoForm';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
@@ -20,10 +21,6 @@ import {
   Target, TrendingUp, BarChart3, Inbox, Loader, Search
 } from 'lucide-react';
 
-const PAYMENTS = [
-  { id: 'pix', label: 'Pix', icon: QrCode },
-  { id: 'cartao', label: 'Cartão', icon: CreditCard },
-];
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const MONTH_NAMES_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -66,7 +63,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [payable, setPayable] = useState<ContaPagar[]>([]);
   const [receivable, setReceivable] = useState<ContaReceber[]>([]);
   const [forecast, setForecast] = useState<Record<string, number>>({});
-  const [saldosAbertura, setSaldosAbertura] = useState<Record<number, number>>({});
+  const [contas, setContas] = useState<ContaBancaria[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
@@ -85,27 +82,18 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [settlePayment, setSettlePayment] = useState<'pix' | 'cartao'>('pix');
   const [editingForecast, setEditingForecast] = useState(false);
   const [forecastInput, setForecastInput] = useState('');
-  const [editingSaldoAbertura, setEditingSaldoAbertura] = useState(false);
-  const [saldoAberturaInput, setSaldoAberturaInput] = useState('');
-  const [savingSaldoAbertura, setSavingSaldoAbertura] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [analysisText, setAnalysisText] = useState('');
 
   const [filterPayment, setFilterPayment] = useState('todos');
   const [filterCategory, setFilterCategory] = useState('todas');
   const [filterType, setFilterType] = useState('todos');
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 15;
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento' | 'payable' | 'receivable'; id: number } | null>(null);
 
   const [savingForecast, setSavingForecast] = useState(false);
-  const [savingForm, setSavingForm] = useState(false);
   const [savingBill, setSavingBill] = useState(false);
-
-  const [form, setForm] = useState({
-    desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(), hora: nowTime(),
-  });
 
   const [billForm, setBillForm] = useState({
     desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false,
@@ -118,12 +106,12 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [lancResult, pagarResult, receberResult, previsaoResult, saldosResult, categoriasResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, categoriasResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
-        supabase.from('saldos_abertura').select('*').eq('user_id', userId),
+        supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       ]);
 
@@ -137,13 +125,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         });
         setForecast(f);
       }
-      if (saldosResult.data) {
-        const s: Record<number, number> = {};
-        saldosResult.data.forEach((row: any) => {
-          s[row.ano] = Number(row.valor);
-        });
-        setSaldosAbertura(s);
-      }
+      if (contasResult.data) setContas(contasResult.data);
       if (categoriasResult.data) setCategorias(categoriasResult.data);
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
@@ -178,18 +160,19 @@ export default function Dashboard({ userId }: { userId: string }) {
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
 
-  const carryOver = useMemo(() => {
-    const [year, month] = currentMonth.split('-').map(Number);
-    let acc = saldosAbertura[year] || 0;
-    for (let m = 1; m < month; m++) {
-      const key = `${year}-${String(m).padStart(2, '0')}`;
-      const me = entries.filter(e => monthKey(e.data) === key);
-      const ent = me.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-      const sai = me.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
-      acc += (ent - sai);
-    }
-    return acc;
-  }, [entries, currentMonth, saldosAbertura]);
+  // Saldo real: soma dos saldos iniciais das contas bancárias + todos os
+  // lançamentos vinculados a uma conta, até o fim do mês selecionado (inclusive).
+  // Livro-razão cumulativo — não reinicia na virada do ano.
+  const saldoAteMes = useMemo(() => {
+    const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
+    const [y, m] = currentMonth.split('-').map(Number);
+    const cutoff = `${y}-${String(m).padStart(2, '0')}-31`;
+    return entries
+      .filter(e => e.conta_id && e.data <= cutoff)
+      .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), base);
+  }, [entries, currentMonth, contas]);
+
+  const carryOver = useMemo(() => saldoAteMes - totals.entrada + totals.saida, [saldoAteMes, totals]);
 
   const commitment = useMemo(() => {
     const saldoInicial = carryOver;
@@ -254,6 +237,14 @@ export default function Dashboard({ userId }: { userId: string }) {
       .sort(sortByDataHora);
   }, [monthEntries, filterPayment, filterCategory, filterType, searchQuery]);
 
+  useEffect(() => { setPage(0); }, [filterPayment, filterCategory, filterType, searchQuery, currentMonth]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = useMemo(
+    () => filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
+    [filtered, page]
+  );
+
   const upcomingPayable = useMemo(() => [...payable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [payable]);
   const upcomingReceivable = useMemo(() => [...receivable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [receivable]);
 
@@ -281,87 +272,14 @@ export default function Dashboard({ userId }: { userId: string }) {
     return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B', emoji: catMeta(name)?.emoji || '' })).sort((a, b) => b.value - a.value);
   }, [entries, currentYear]);
 
-  const runAnalysis = async () => {
-    setAnalysisLoading(true);
-    try {
-      const monthIdx = MONTH_NAMES.findIndex((_, i) => currentMonth === `${currentYear}-${String(i + 1).padStart(2, '0')}`);
-      const text = await analyzeFinances(monthEntries, totals, MONTH_NAMES_FULL[monthIdx]);
-      setAnalysisText(text);
-      setShowAnalysis(true);
-    } catch (err: any) {
-      addToast('Erro na análise: ' + err.message, 'error');
-    } finally {
-      setAnalysisLoading(false);
-    }
-  };
-
   const openNewEntry = () => {
     setEditingEntry(null);
-    setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(), hora: nowTime() });
     setShowForm(true);
   };
 
   const openEditEntry = (entry: Lancamento) => {
     setEditingEntry(entry);
-    setForm({
-      desc: entry.descricao,
-      type: entry.tipo,
-      category: entry.categoria,
-      payment: entry.forma_pagamento,
-      amount: String(entry.valor),
-      date: entry.data,
-      hora: entry.hora ? entry.hora.slice(0, 5) : '00:00',
-    });
     setShowForm(true);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.desc || !form.amount) return;
-
-    setSavingForm(true);
-    try {
-      const categoriaId = categoriaByName[form.category]?.id ?? null;
-      if (editingEntry) {
-        const { error } = await supabase.from('lancamentos').update({
-          data: form.date,
-          hora: form.hora,
-          descricao: form.desc,
-          tipo: form.type,
-          categoria: form.category,
-          categoria_id: categoriaId,
-          forma_pagamento: form.payment,
-          valor: parseFloat(form.amount),
-        }).eq('id', editingEntry.id);
-
-        if (error) throw error;
-        addToast('Lançamento atualizado com sucesso!', 'success');
-      } else {
-        const { error } = await supabase.from('lancamentos').insert([{
-          user_id: userId,
-          data: form.date,
-          hora: form.hora,
-          descricao: form.desc,
-          tipo: form.type,
-          categoria: form.category,
-          categoria_id: categoriaId,
-          forma_pagamento: form.payment,
-          valor: parseFloat(form.amount),
-        }]);
-
-        if (error) throw error;
-        addToast('Lançamento salvo com sucesso!', 'success');
-      }
-
-      await loadData();
-      setForm({ desc: '', type: 'saida', category: 'Moradia', payment: 'pix', amount: '', date: todayISO(), hora: nowTime() });
-      setEditingEntry(null);
-      setShowForm(false);
-    } catch (err: any) {
-      addToast('Erro ao salvar: ' + err.message, 'error');
-    } finally {
-      setSavingForm(false);
-    }
   };
 
   const removeEntry = async (id: number) => {
@@ -524,38 +442,8 @@ export default function Dashboard({ userId }: { userId: string }) {
     }
   };
 
-  const saveSaldoAbertura = async () => {
-    const v = parseFloat(saldoAberturaInput);
-    if (isNaN(v)) return;
-
-    setSavingSaldoAbertura(true);
-    try {
-      const existing = await supabase
-        .from('saldos_abertura')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('ano', currentYear)
-        .single();
-
-      if (existing.data) {
-        await supabase.from('saldos_abertura').update({ valor: v }).eq('id', existing.data.id);
-      } else {
-        await supabase.from('saldos_abertura').insert([{ user_id: userId, ano: currentYear, valor: v }]);
-      }
-
-      await loadData();
-      setEditingSaldoAbertura(false);
-      addToast('Saldo de abertura salvo!', 'success');
-    } catch (err: any) {
-      addToast('Erro ao salvar saldo de abertura: ' + err.message, 'error');
-    } finally {
-      setSavingSaldoAbertura(false);
-    }
-  };
-
   const monthIdx = MONTH_NAMES.findIndex((_, i) => currentMonth === `${currentYear}-${String(i + 1).padStart(2, '0')}`);
   const isEmpty = entries.length === 0;
-  const isJaneiro = currentMonth.endsWith('-01');
 
   if (loading) {
     return (
@@ -579,8 +467,8 @@ export default function Dashboard({ userId }: { userId: string }) {
               <button onClick={() => setView('anual')} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === 'anual' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}>Anual</button>
             </div>
             {view === 'mensal' && (
-              <button onClick={openNewEntry} disabled={savingForm} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
-                {savingForm ? <Loader size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={2.5} />} {savingForm ? 'Salvando...' : 'Novo'}
+              <button onClick={openNewEntry} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+                <Plus size={16} strokeWidth={2.5} /> Novo
               </button>
             )}
           </div>
@@ -647,28 +535,6 @@ export default function Dashboard({ userId }: { userId: string }) {
               </div>
             </div>
 
-            {isJaneiro && (
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 block">Saldo de Abertura ({currentYear})</label>
-                    <p className="text-[11px] text-slate-400">Saldo da conta em 01/01/{currentYear} — base para todo o ano</p>
-                  </div>
-                  {!editingSaldoAbertura ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-emerald-600">{currency(saldosAbertura[currentYear] || 0)}</span>
-                      <button onClick={() => { setSaldoAberturaInput(String(saldosAbertura[currentYear] || '')); setEditingSaldoAbertura(true); }} className="text-xs font-semibold text-violet-600 hover:text-violet-700 border border-violet-200 hover:bg-violet-50 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <input type="number" autoFocus value={saldoAberturaInput} onChange={(e) => setSaldoAberturaInput(e.target.value)} className="border border-violet-300 rounded-lg px-2.5 py-1.5 text-sm w-32 focus:outline-none focus:ring-2 focus:ring-violet-400" placeholder="0,00" />
-                      <button onClick={saveSaldoAbertura} disabled={savingSaldoAbertura} className="text-xs font-semibold bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white px-3 py-1.5 rounded-lg">{savingSaldoAbertura ? '...' : '✓'}</button>
-                      <button onClick={() => setEditingSaldoAbertura(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -676,22 +542,6 @@ export default function Dashboard({ userId }: { userId: string }) {
             <SummaryCard label="Saídas (mês)" value={totals.saida} icon={ArrowDownRight} tone="rose" />
             <SummaryCard label="Saldo do mês" value={totals.saldo} icon={Wallet} tone={totals.saldo >= 0 ? 'blue' : 'rose'} />
             <SummaryCard label="Saldo projetado" value={billTotals.saldoProjetado} icon={Calendar} tone={billTotals.saldoProjetado >= 0 ? 'violet' : 'rose'} />
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={runAnalysis}
-              disabled={analysisLoading || monthEntries.length === 0}
-              className="flex-1 bg-purple-500 hover:bg-purple-400 disabled:bg-slate-400 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
-            >
-              {analysisLoading ? (
-                <>
-                  <Loader size={16} className="animate-spin" /> Analisando...
-                </>
-              ) : (
-                <>🤖 Analisar com IA</>
-              )}
-            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -790,7 +640,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                   {filtered.length === 0 && (
                     <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Nenhum lançamento encontrado.</td></tr>
                   )}
-                  {filtered.map((e) => {
+                  {paginated.map((e) => {
                     const meta = catMeta(e.categoria);
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
                     return (
@@ -812,39 +662,35 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </tbody>
               </table>
             </div>
+            {filtered.length > 0 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100">
+                <p className="text-xs text-slate-400">
+                  {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} de {filtered.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft size={14} /></button>
+                  <span className="text-xs text-slate-500">{page + 1} / {totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight size={14} /></button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       ) : (
         <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
       )}
       {showForm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">{editingEntry ? 'Editar lançamento' : 'Novo lançamento'}</h3><button onClick={() => setShowForm(false)} disabled={savingForm}><X size={18} /></button></div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
-              </div>
-              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
-              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingForm} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingForm} /></div>
-                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingForm} /></div>
-              </div>
-              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingForm}>{(form.type === 'entrada' ? categoriasEntrada : categoriasSaida).map(c => <option key={c.id} value={c.nome}>{c.emoji} {c.nome}</option>)}</select></div>
-              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, payment: p.id as any }))} disabled={savingForm} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
-              <div className="flex gap-2">
-                {editingEntry && (
-                  <button type="button" onClick={() => { setShowForm(false); setDeleteConfirm({ type: 'lancamento', id: editingEntry.id }); }} className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors">
-                    <Trash2 size={16} />
-                  </button>
-                )}
-                <button type="submit" disabled={savingForm} className="flex-1 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">{savingForm ? 'Salvando...' : editingEntry ? 'Salvar alterações' : 'Salvar lançamento'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <LancamentoForm
+          userId={userId}
+          categoriasEntrada={categoriasEntrada}
+          categoriasSaida={categoriasSaida}
+          contas={contas}
+          editingEntry={editingEntry}
+          onClose={() => setShowForm(false)}
+          onSaved={() => { setShowForm(false); loadData(); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}
+          onRequestDelete={(id) => { setShowForm(false); setDeleteConfirm({ type: 'lancamento', id }); }}
+          onError={(msg) => addToast(msg, 'error')}
+        />
       )}
 
       {showBillForm && (
@@ -902,23 +748,6 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </div>
               </>
             ) : <p className="text-center text-slate-400 text-sm py-10">Nenhuma compra no cartão neste mês.</p>}
-          </div>
-        </div>
-      )}
-
-      {showAnalysis && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAnalysis(false)}>
-          <div className="bg-white rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800 text-lg">💡 Análise Financeira IA</h3>
-              <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
-            </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-              {analysisText}
-            </div>
-            <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">
-              Fechar
-            </button>
           </div>
         </div>
       )}
