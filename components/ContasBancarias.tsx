@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { ContaBancaria, Lancamento } from '@/lib/supabase';
+import { BANCOS, BANCO_ICONS, bancoMeta } from '@/lib/bancos';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Plus, X, Pencil, Trash2, Landmark } from 'lucide-react';
@@ -20,7 +21,7 @@ export default function ContasBancarias({ userId }: { userId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<ContaBancaria | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nome: '', banco: '', saldo_inicial: '' });
+  const [form, setForm] = useState({ nome: '', banco: BANCOS[0].nome, saldo_inicial: '' });
 
   const [deleteConfirm, setDeleteConfirm] = useState<ContaBancaria | null>(null);
 
@@ -59,13 +60,13 @@ export default function ContasBancarias({ userId }: { userId: string }) {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ nome: '', banco: '', saldo_inicial: '' });
+    setForm({ nome: '', banco: BANCOS[0].nome, saldo_inicial: '' });
     setShowForm(true);
   };
 
   const openEdit = (conta: ContaBancaria) => {
     setEditing(conta);
-    setForm({ nome: conta.nome, banco: conta.banco || '', saldo_inicial: String(conta.saldo_inicial) });
+    setForm({ nome: conta.nome, banco: conta.banco || BANCOS[0].nome, saldo_inicial: String(conta.saldo_inicial) });
     setShowForm(true);
   };
 
@@ -75,9 +76,11 @@ export default function ContasBancarias({ userId }: { userId: string }) {
 
     setSaving(true);
     try {
+      const meta = bancoMeta(form.banco);
       const payload = {
         nome: form.nome,
-        banco: form.banco || null,
+        banco: form.banco,
+        cor: meta.cor,
         saldo_inicial: parseFloat(form.saldo_inicial),
       };
       if (editing) {
@@ -144,24 +147,28 @@ export default function ContasBancarias({ userId }: { userId: string }) {
         ) : contasAtivas.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">Nenhuma conta cadastrada ainda.</div>
         ) : (
-          contasAtivas.map((conta) => (
-            <div key={conta.id} className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: conta.cor + '20', color: conta.cor }}>
-                  <Landmark size={14} />
+          contasAtivas.map((conta) => {
+            const meta = bancoMeta(conta.banco);
+            const Icon = BANCO_ICONS[meta.icone] || Landmark;
+            return (
+              <div key={conta.id} className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: conta.cor + '20', color: conta.cor }}>
+                    <Icon size={14} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">{conta.nome}</p>
+                    {conta.banco && <p className="text-xs text-slate-400">{conta.banco}</p>}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">{conta.nome}</p>
-                  {conta.banco && <p className="text-xs text-slate-400">{conta.banco}</p>}
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-slate-800">{currency(saldoDaConta(conta.id, conta.saldo_inicial))}</span>
+                  <button onClick={() => openEdit(conta)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
+                  <button onClick={() => setDeleteConfirm(conta)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-slate-800">{currency(saldoDaConta(conta.id, conta.saldo_inicial))}</span>
-                <button onClick={() => openEdit(conta)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
-                <button onClick={() => setDeleteConfirm(conta)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -174,19 +181,21 @@ export default function ContasBancarias({ userId }: { userId: string }) {
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Nome</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Nubank, Carteira" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Apelido</label>
+                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Conta principal, Reserva" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Banco (opcional)</label>
-                <input type="text" value={form.banco} onChange={(e) => setForm(f => ({ ...f, banco: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Banco</label>
+                <select value={form.banco} onChange={(e) => setForm(f => ({ ...f, banco: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                  {BANCOS.map(b => <option key={b.nome} value={b.nome}>{b.nome}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">
-                  {editing ? 'Saldo inicial' : 'Saldo inicial (saldo de hoje nessa conta)'}
+                  {editing ? 'Saldo inicial' : 'Saldo desta conta hoje'}
                 </label>
                 <input type="number" step="0.01" value={form.saldo_inicial} onChange={(e) => setForm(f => ({ ...f, saldo_inicial: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
-                <p className="text-xs text-slate-400 mt-1">Lançamentos feitos depois vão somar/subtrair a partir daqui.</p>
+                <p className="text-xs text-slate-400 mt-1">O app passa a contabilizar a partir daqui — lançamentos futuros somam ou subtraem deste valor.</p>
               </div>
               <button type="submit" disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
                 {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar conta'}

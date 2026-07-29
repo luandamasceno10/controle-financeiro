@@ -179,3 +179,48 @@ CREATE INDEX analises_ia_user_id ON analises_ia(user_id);
 ALTER TABLE analises_ia ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can only see their own analises_ia" ON analises_ia
   FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================================
+-- Fase 3: cartões de crédito e faturas
+-- ============================================================
+
+CREATE TABLE cartoes_credito (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  banco TEXT,
+  cor TEXT NOT NULL DEFAULT '#7C3AED',
+  dia_fechamento INTEGER NOT NULL CHECK (dia_fechamento BETWEEN 1 AND 28),
+  dia_vencimento INTEGER NOT NULL CHECK (dia_vencimento BETWEEN 1 AND 28),
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX cartoes_credito_user_id ON cartoes_credito(user_id);
+ALTER TABLE cartoes_credito ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own cartoes_credito" ON cartoes_credito
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Uma fatura por cartão por mês de competência ('YYYY-MM'). valor_total NÃO é
+-- armazenado — é sempre somado ao vivo a partir de lancamentos.fatura_id,
+-- mesmo padrão já usado para "cardTotal" no Dashboard (evita desincronizar).
+CREATE TABLE faturas (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  cartao_id BIGINT NOT NULL REFERENCES cartoes_credito(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  data_vencimento DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'aberta' CHECK (status IN ('aberta', 'paga')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(cartao_id, competencia)
+);
+CREATE INDEX faturas_cartao_id ON faturas(cartao_id);
+ALTER TABLE faturas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own faturas" ON faturas
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Uma compra no cartão referencia cartao_id/fatura_id e NÃO conta_id — não
+-- afeta o saldo bancário até a fatura ser paga (ver fluxo de pagamento no app).
+ALTER TABLE lancamentos ADD COLUMN cartao_id BIGINT REFERENCES cartoes_credito(id) ON DELETE SET NULL;
+ALTER TABLE lancamentos ADD COLUMN fatura_id BIGINT REFERENCES faturas(id) ON DELETE SET NULL;
+CREATE INDEX lancamentos_cartao_id ON lancamentos(cartao_id);
+CREATE INDEX lancamentos_fatura_id ON lancamentos(fatura_id);

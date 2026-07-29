@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { ContaPagar, Lancamento, Categoria, ContaBancaria, AnaliseIA } from '@/lib/supabase';
+import type { ContaPagar, Lancamento, Categoria, ContaBancaria, CartaoCredito, AnaliseIA } from '@/lib/supabase';
 import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X } from 'lucide-react';
+import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -47,6 +47,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   const [nextBill, setNextBill] = useState<ContaPagar | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [contas, setContas] = useState<ContaBancaria[]>([]);
+  const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -60,11 +61,12 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
   const loadData = async () => {
     const hoje = todayISO();
-    const [entriesResult, billsResult, categoriasResult, contasResult, analiseResult] = await Promise.all([
+    const [entriesResult, billsResult, categoriasResult, contasResult, cartoesResult, analiseResult] = await Promise.all([
       supabase.from('lancamentos').select('*').eq('user_id', userId),
       supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente').order('vencimento', { ascending: true }).limit(1),
       supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
+      supabase.from('cartoes_credito').select('*').eq('user_id', userId).eq('ativo', true),
       supabase.from('analises_ia').select('*').eq('user_id', userId).eq('data', hoje).maybeSingle(),
     ]);
 
@@ -72,6 +74,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     if (billsResult.data && billsResult.data.length > 0) setNextBill(billsResult.data[0]);
     if (categoriasResult.data) setCategorias(categoriasResult.data);
     if (contasResult.data) setContas(contasResult.data);
+    if (cartoesResult.data) setCartoes(cartoesResult.data);
     if (analiseResult.data) setAnaliseHoje(analiseResult.data);
     setLoading(false);
   };
@@ -144,12 +147,28 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
         </div>
       </div>
 
-      <button
-        onClick={() => setShowForm(true)}
-        className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-3 rounded-lg transition-colors"
-      >
-        <Plus size={16} strokeWidth={2.5} /> Novo lançamento
-      </button>
+      {!loading && contas.length === 0 ? (
+        <Link
+          href="/contas"
+          className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 hover:bg-emerald-100/60 transition-colors"
+        >
+          <div className="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0">
+            <Landmark size={16} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-emerald-800">Cadastre sua primeira conta bancária</p>
+            <p className="text-xs text-emerald-600">Informe o saldo atual para o app começar a contabilizar seus lançamentos a partir de hoje.</p>
+          </div>
+          <ArrowRight size={16} className="text-emerald-600 shrink-0" />
+        </Link>
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-3 rounded-lg transition-colors"
+        >
+          <Plus size={16} strokeWidth={2.5} /> Novo lançamento
+        </button>
+      )}
 
       <button
         onClick={runAnalysis}
@@ -193,6 +212,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
           categoriasEntrada={categoriasEntrada}
           categoriasSaida={categoriasSaida}
           contas={contas}
+          cartoes={cartoes}
           editingEntry={null}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); loadData(); addToast('Lançamento salvo!', 'success'); }}

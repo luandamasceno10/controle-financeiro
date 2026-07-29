@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito } from '@/lib/supabase';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { PAYMENTS } from '@/lib/payments';
@@ -64,6 +65,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [receivable, setReceivable] = useState<ContaReceber[]>([]);
   const [forecast, setForecast] = useState<Record<string, number>>({});
   const [contas, setContas] = useState<ContaBancaria[]>([]);
+  const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
@@ -106,12 +108,13 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, categoriasResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
+        supabase.from('cartoes_credito').select('*').eq('user_id', userId).eq('ativo', true),
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       ]);
 
@@ -126,6 +129,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         setForecast(f);
       }
       if (contasResult.data) setContas(contasResult.data);
+      if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (categoriasResult.data) setCategorias(categoriasResult.data);
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
@@ -230,6 +234,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const filtered = useMemo(() => {
     return monthEntries
+      .filter(e => !e.cartao_id)
       .filter(e => filterPayment === 'todos' || e.forma_pagamento === filterPayment)
       .filter(e => filterCategory === 'todas' || e.categoria === filterCategory)
       .filter(e => filterType === 'todos' || e.tipo === filterType)
@@ -467,9 +472,15 @@ export default function Dashboard({ userId }: { userId: string }) {
               <button onClick={() => setView('anual')} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === 'anual' ? 'bg-white text-slate-900' : 'text-slate-300 hover:text-white'}`}>Anual</button>
             </div>
             {view === 'mensal' && (
-              <button onClick={openNewEntry} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
-                <Plus size={16} strokeWidth={2.5} /> Novo
-              </button>
+              contas.length === 0 ? (
+                <Link href="/contas" className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+                  <Plus size={16} strokeWidth={2.5} /> Cadastrar conta
+                </Link>
+              ) : (
+                <button onClick={openNewEntry} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+                  <Plus size={16} strokeWidth={2.5} /> Novo
+                </button>
+              )
             )}
           </div>
         </div>
@@ -491,7 +502,15 @@ export default function Dashboard({ userId }: { userId: string }) {
 
       {view === 'mensal' ? (
         <main className="max-w-6xl mx-auto px-5 py-6 space-y-6">
-          {isEmpty && (
+          {contas.length === 0 ? (
+            <Link href="/contas" className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3 hover:bg-emerald-100/60 transition-colors">
+              <Wallet size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-800">Cadastre sua primeira conta bancária</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Informe o saldo atual dela para começar a lançar e acompanhar seu saldo real.</p>
+              </div>
+            </Link>
+          ) : isEmpty && (
             <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 flex items-start gap-3">
               <Inbox size={18} className="text-violet-600 shrink-0 mt-0.5" />
               <div>
@@ -685,6 +704,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           categoriasEntrada={categoriasEntrada}
           categoriasSaida={categoriasSaida}
           contas={contas}
+          cartoes={cartoes}
           editingEntry={editingEntry}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); loadData(); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}

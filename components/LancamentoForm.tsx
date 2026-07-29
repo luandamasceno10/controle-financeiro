@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, Categoria, ContaBancaria } from '@/lib/supabase';
+import type { Lancamento, Categoria, ContaBancaria, CartaoCredito } from '@/lib/supabase';
 import { PAYMENTS } from '@/lib/payments';
+import { competenciaForPurchase, ensureFatura } from '@/lib/faturas';
 import { X, Trash2 } from 'lucide-react';
 
 function todayISO() {
@@ -19,6 +20,7 @@ export default function LancamentoForm({
   categoriasEntrada,
   categoriasSaida,
   contas,
+  cartoes,
   editingEntry,
   onClose,
   onSaved,
@@ -29,6 +31,7 @@ export default function LancamentoForm({
   categoriasEntrada: Categoria[];
   categoriasSaida: Categoria[];
   contas: ContaBancaria[];
+  cartoes: CartaoCredito[];
   editingEntry: Lancamento | null;
   onClose: () => void;
   onSaved: () => void;
@@ -47,12 +50,14 @@ export default function LancamentoForm({
         date: editingEntry.data,
         hora: editingEntry.hora ? editingEntry.hora.slice(0, 5) : '00:00',
         conta_id: editingEntry.conta_id ?? contas[0]?.id ?? null,
+        cartao_id: editingEntry.cartao_id ?? cartoes[0]?.id ?? null,
       };
     }
     return {
       desc: '', type: 'saida' as 'entrada' | 'saida', category: categoriasSaida[0]?.nome || '',
       payment: 'pix' as 'pix' | 'cartao', amount: '', date: todayISO(), hora: nowTime(),
       conta_id: contas[0]?.id ?? null,
+      cartao_id: cartoes[0]?.id ?? null,
     };
   });
 
@@ -69,6 +74,21 @@ export default function LancamentoForm({
     setSaving(true);
     try {
       const categoriaId = categoriaByName[form.category]?.id ?? null;
+      const isCartao = form.payment === 'cartao' && form.type === 'saida';
+      let cartaoId: number | null = null;
+      let faturaId: number | null = null;
+      let contaId: number | null = form.conta_id;
+
+      if (isCartao) {
+        const cartao = cartoes.find(c => c.id === form.cartao_id);
+        if (!cartao) throw new Error('Selecione um cartão de crédito');
+        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento);
+        const fatura = await ensureFatura(cartao, competencia, userId);
+        cartaoId = cartao.id;
+        faturaId = fatura.id;
+        contaId = null;
+      }
+
       const payload = {
         data: form.date,
         hora: form.hora,
@@ -77,7 +97,9 @@ export default function LancamentoForm({
         categoria: form.category,
         categoria_id: categoriaId,
         forma_pagamento: form.payment,
-        conta_id: form.conta_id,
+        conta_id: contaId,
+        cartao_id: cartaoId,
+        fatura_id: faturaId,
         valor: parseFloat(form.amount),
       };
       if (editingEntry) {
@@ -106,7 +128,7 @@ export default function LancamentoForm({
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada[0]?.nome || '', payment: 'pix' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
             <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
           </div>
           <div>
@@ -119,15 +141,29 @@ export default function LancamentoForm({
             <div><label className="text-xs font-medium text-slate-500 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} /></div>
           </div>
           <div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={form.category} onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>{categoriaOptions.map(c => <option key={c.id} value={c.nome}>{c.emoji} {c.nome}</option>)}</select></div>
-          {contas.length > 0 && (
-            <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Conta bancária</label>
-              <select value={form.conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
-                {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
-            </div>
+          {form.type === 'saida' && (
+            <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
           )}
-          <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
+          {form.type === 'saida' && form.payment === 'cartao' ? (
+            cartoes.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Cartão de crédito</label>
+                <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                  {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
+              </div>
+            )
+          ) : (
+            contas.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Conta bancária</label>
+                <select value={form.conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                  {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            )
+          )}
           <div className="flex gap-2">
             {editingEntry && onRequestDelete && (
               <button type="button" onClick={() => onRequestDelete(editingEntry.id)} className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors">

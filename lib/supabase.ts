@@ -17,6 +17,8 @@ export interface Lancamento {
   categoria_id: number | null;
   forma_pagamento: 'pix' | 'cartao';
   conta_id: number | null;
+  cartao_id: number | null;
+  fatura_id: number | null;
   valor: number;
   created_at: string;
 }
@@ -83,5 +85,27 @@ export interface AnaliseIA {
   data: string;
   mes_referencia: string | null;
   texto: string;
+  created_at: string;
+}
+
+export interface CartaoCredito {
+  id: number;
+  user_id: string;
+  nome: string;
+  banco: string | null;
+  cor: string;
+  dia_fechamento: number;
+  dia_vencimento: number;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface Fatura {
+  id: number;
+  user_id: string;
+  cartao_id: number;
+  competencia: string;
+  data_vencimento: string;
+  status: 'aberta' | 'paga';
   created_at: string;
 }
