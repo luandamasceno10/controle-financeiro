@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { ContaBancaria, Lancamento } from '@/lib/supabase';
-import { BANCOS, BANCO_ICONS, bancoMeta } from '@/lib/bancos';
+import { BANCOS, bancoMeta } from '@/lib/bancos';
+import { BancoIcon } from './BancoIcon';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Plus, X, Pencil, Trash2, Landmark } from 'lucide-react';
@@ -148,14 +149,10 @@ export default function ContasBancarias({ userId }: { userId: string }) {
           <div className="p-8 text-center text-sm text-slate-400">Nenhuma conta cadastrada ainda.</div>
         ) : (
           contasAtivas.map((conta) => {
-            const meta = bancoMeta(conta.banco);
-            const Icon = BANCO_ICONS[meta.icone] || Landmark;
             return (
               <div key={conta.id} className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: conta.cor + '20', color: conta.cor }}>
-                    <Icon size={14} />
-                  </div>
+                  <BancoIcon nome={conta.banco || conta.nome} size={32} />
                   <div>
                     <p className="text-sm font-semibold text-slate-700">{conta.nome}</p>
                     {conta.banco && <p className="text-xs text-slate-400">{conta.banco}</p>}
