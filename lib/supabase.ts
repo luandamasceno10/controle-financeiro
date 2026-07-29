@@ -109,3 +109,25 @@ export interface Fatura {
   status: 'aberta' | 'paga';
   created_at: string;
 }
+
+export interface Meta {
+  id: number;
+  user_id: string;
+  nome: string;
+  valor_alvo: number;
+  data_alvo: string | null;
+  cor: string;
+  status: 'ativa' | 'concluida' | 'arquivada';
+  created_at: string;
+}
+
+export interface MetaContribuicao {
+  id: number;
+  meta_id: number;
+  user_id: string;
+  valor: number;
+  data: string;
+  nota: string | null;
+  lancamento_id: number | null;
+  created_at: string;
+}

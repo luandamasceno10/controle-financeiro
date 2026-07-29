@@ -224,3 +224,42 @@ ALTER TABLE lancamentos ADD COLUMN cartao_id BIGINT REFERENCES cartoes_credito(i
 ALTER TABLE lancamentos ADD COLUMN fatura_id BIGINT REFERENCES faturas(id) ON DELETE SET NULL;
 CREATE INDEX lancamentos_cartao_id ON lancamentos(cartao_id);
 CREATE INDEX lancamentos_fatura_id ON lancamentos(fatura_id);
+
+-- ============================================================
+-- Fase 4: metas e objetivos financeiros
+-- ============================================================
+
+CREATE TABLE metas (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  valor_alvo DECIMAL(12, 2) NOT NULL,
+  data_alvo DATE,
+  cor TEXT NOT NULL DEFAULT '#059669',
+  status TEXT NOT NULL DEFAULT 'ativa' CHECK (status IN ('ativa', 'concluida', 'arquivada')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX metas_user_id ON metas(user_id);
+ALTER TABLE metas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own metas" ON metas
+  FOR ALL USING (auth.uid() = user_id);
+
+-- valor_atual NÃO é armazenado — sempre somado ao vivo a partir de
+-- metas_contribuicoes, mesmo padrão usado para faturas e categorias.
+-- lancamento_id é opcional: quando a contribuição também representa uma
+-- movimentação real (dinheiro saindo de uma conta), fica linkado a um
+-- lançamento de verdade; se for só registro de progresso, fica null.
+CREATE TABLE metas_contribuicoes (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  meta_id BIGINT NOT NULL REFERENCES metas(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  valor DECIMAL(12, 2) NOT NULL,
+  data DATE NOT NULL DEFAULT CURRENT_DATE,
+  nota TEXT,
+  lancamento_id BIGINT REFERENCES lancamentos(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX metas_contribuicoes_meta_id ON metas_contribuicoes(meta_id);
+ALTER TABLE metas_contribuicoes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own metas_contribuicoes" ON metas_contribuicoes
+  FOR ALL USING (auth.uid() = user_id);
