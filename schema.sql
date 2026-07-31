@@ -313,3 +313,23 @@ CREATE INDEX orcamentos_categoria_user_id ON orcamentos_categoria(user_id);
 ALTER TABLE orcamentos_categoria ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can only see their own orcamentos_categoria" ON orcamentos_categoria
   FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================================
+-- Fase 6: notificações push no navegador
+-- ============================================================
+
+-- Uma linha por dispositivo/navegador inscrito (endpoint + chaves do Web
+-- Push Protocol). last_notified_date evita reenviar o mesmo alerta todo dia.
+CREATE TABLE push_subscriptions (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  last_notified_date DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX push_subscriptions_user_id ON push_subscriptions(user_id);
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own push_subscriptions" ON push_subscriptions
+  FOR ALL USING (auth.uid() = user_id);

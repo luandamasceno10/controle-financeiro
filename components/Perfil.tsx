@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client';
 import { useToast, ToastContainer } from './Toast';
-import { UserCircle, Lock, Loader } from 'lucide-react';
+import { UserCircle, Lock, Loader, Bell, BellOff } from 'lucide-react';
 
 export default function Perfil({ user }: { user: User }) {
   const { toasts, addToast, removeToast } = useToast();
@@ -15,6 +16,32 @@ export default function Perfil({ user }: { user: User }) {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [savingSenha, setSavingSenha] = useState(false);
+
+  const [pushStatus, setPushStatus] = useState<'subscribed' | 'not-subscribed' | 'unsupported' | 'loading'>('loading');
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    getPushSubscriptionStatus().then(setPushStatus);
+  }, []);
+
+  const handleTogglePush = async () => {
+    setPushBusy(true);
+    try {
+      if (pushStatus === 'subscribed') {
+        await unsubscribeFromPush();
+        setPushStatus('not-subscribed');
+        addToast('Notificações desativadas', 'success');
+      } else {
+        await subscribeToPush(user.id);
+        setPushStatus('subscribed');
+        addToast('Notificações ativadas!', 'success');
+      }
+    } catch (err: any) {
+      addToast(err.message, 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const handleSaveNome = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +129,32 @@ export default function Perfil({ user }: { user: User }) {
           </button>
         </form>
       </div>
+
+      {pushStatus !== 'unsupported' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                {pushStatus === 'subscribed' ? <Bell size={16} /> : <BellOff size={16} />}
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-700">Notificações push</h2>
+                <p className="text-xs text-slate-400">Fatura vencendo, conta atrasada, meta fora do ritmo</p>
+              </div>
+            </div>
+            <button
+              onClick={handleTogglePush}
+              disabled={pushBusy || pushStatus === 'loading'}
+              className={`shrink-0 flex items-center gap-2 font-semibold text-xs px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 ${
+                pushStatus === 'subscribed' ? 'border border-slate-200 text-slate-600 hover:bg-slate-50' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-900'
+              }`}
+            >
+              {pushBusy && <Loader size={13} className="animate-spin" />}
+              {pushStatus === 'subscribed' ? 'Desativar' : 'Ativar'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-center gap-2 mb-4">
