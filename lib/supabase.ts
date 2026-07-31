@@ -19,6 +19,7 @@ export interface Lancamento {
   conta_id: number | null;
   cartao_id: number | null;
   fatura_id: number | null;
+  recorrente_id: number | null;
   valor: number;
   created_at: string;
 }
@@ -129,5 +130,32 @@ export interface MetaContribuicao {
   data: string;
   nota: string | null;
   lancamento_id: number | null;
+  created_at: string;
+}
+
+export interface LancamentoRecorrente {
+  id: number;
+  user_id: string;
+  descricao: string;
+  tipo: 'entrada' | 'saida';
+  categoria: string;
+  categoria_id: number | null;
+  forma_pagamento: 'pix' | 'cartao';
+  conta_id: number | null;
+  cartao_id: number | null;
+  valor: number;
+  dia_mes: number;
+  ativo: boolean;
+  data_inicio: string;
+  data_fim: string | null;
+  ultima_geracao: string | null;
+  created_at: string;
+}
+
+export interface OrcamentoCategoria {
+  id: number;
+  user_id: string;
+  categoria_id: number;
+  valor_limite: number;
   created_at: string;
 }

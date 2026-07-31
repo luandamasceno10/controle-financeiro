@@ -7,6 +7,7 @@ import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBa
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { PAYMENTS } from '@/lib/payments';
+import { ensureRecorrentesGerados } from '@/lib/recorrentes';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import LancamentoForm from './LancamentoForm';
@@ -108,6 +109,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
+      await ensureRecorrentesGerados(userId);
       const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),

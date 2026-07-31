@@ -5,9 +5,10 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { ContaPagar, Lancamento, Categoria, ContaBancaria, CartaoCredito, AnaliseIA } from '@/lib/supabase';
 import { analyzeFinances } from '@/lib/analyzeWithAI';
+import { ensureRecorrentesGerados } from '@/lib/recorrentes';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight } from 'lucide-react';
+import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight, Repeat } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,6 +28,7 @@ const SHORTCUTS = [
   { href: '/dashboard', label: 'Dashboard completo', description: 'Saldo, gráficos e extrato', icon: LayoutDashboard, tone: 'slate' },
   { href: '/contas', label: 'Contas Bancárias', description: 'Cadastre suas contas', icon: Landmark, tone: 'blue' },
   { href: '/cartoes', label: 'Cartões de Crédito', description: 'Fatura e vencimento', icon: CreditCard, tone: 'violet' },
+  { href: '/recorrentes', label: 'Recorrentes', description: 'Salário, aluguel, assinaturas', icon: Repeat, tone: 'cyan' },
   { href: '/metas', label: 'Metas', description: 'Seus objetivos financeiros', icon: Target, tone: 'emerald' },
   { href: '/categorias', label: 'Categorias', description: 'Gerencie suas categorias', icon: Tag, tone: 'amber' },
 ];
@@ -37,6 +39,7 @@ const TONE_CLASSES: Record<string, string> = {
   violet: 'bg-violet-50 text-violet-600',
   emerald: 'bg-emerald-50 text-emerald-600',
   amber: 'bg-amber-50 text-amber-600',
+  cyan: 'bg-cyan-50 text-cyan-600',
 };
 
 export default function Home({ userId, nome }: { userId: string; nome?: string }) {
@@ -60,6 +63,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   }, [userId]);
 
   const loadData = async () => {
+    await ensureRecorrentesGerados(userId);
     const hoje = todayISO();
     const [entriesResult, billsResult, categoriasResult, contasResult, cartoesResult, analiseResult] = await Promise.all([
       supabase.from('lancamentos').select('*').eq('user_id', userId),

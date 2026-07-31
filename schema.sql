@@ -263,3 +263,53 @@ CREATE INDEX metas_contribuicoes_meta_id ON metas_contribuicoes(meta_id);
 ALTER TABLE metas_contribuicoes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can only see their own metas_contribuicoes" ON metas_contribuicoes
   FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================================
+-- Fase 5: lançamentos recorrentes e orçamento por categoria
+-- ============================================================
+
+-- Template de lançamento recorrente (salário, aluguel, assinaturas). Os
+-- lançamentos de verdade são gerados sob demanda (lazy, mesmo padrão de
+-- ensureFatura) toda vez que o app carrega, cobrindo os meses entre
+-- ultima_geracao e o mês atual — não depende de nenhum cron externo.
+CREATE TABLE lancamentos_recorrentes (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  descricao TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'saida')),
+  categoria TEXT NOT NULL,
+  categoria_id BIGINT REFERENCES categorias(id) ON DELETE SET NULL,
+  forma_pagamento TEXT NOT NULL DEFAULT 'pix' CHECK (forma_pagamento IN ('pix', 'cartao')),
+  conta_id BIGINT REFERENCES contas_bancarias(id) ON DELETE SET NULL,
+  cartao_id BIGINT REFERENCES cartoes_credito(id) ON DELETE SET NULL,
+  valor DECIMAL(12, 2) NOT NULL,
+  dia_mes INTEGER NOT NULL CHECK (dia_mes BETWEEN 1 AND 28),
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  data_inicio DATE NOT NULL DEFAULT CURRENT_DATE,
+  data_fim DATE,
+  ultima_geracao TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX lancamentos_recorrentes_user_id ON lancamentos_recorrentes(user_id);
+ALTER TABLE lancamentos_recorrentes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own lancamentos_recorrentes" ON lancamentos_recorrentes
+  FOR ALL USING (auth.uid() = user_id);
+
+ALTER TABLE lancamentos ADD COLUMN recorrente_id BIGINT REFERENCES lancamentos_recorrentes(id) ON DELETE SET NULL;
+CREATE INDEX lancamentos_recorrente_id ON lancamentos(recorrente_id);
+
+-- Orçamento mensal por categoria (recorrente, não por mês específico — vale
+-- todo mês até ser alterado). Comparado ao vivo contra a soma de lancamentos
+-- do mês corrente, mesmo padrão de "nunca armazenar total calculável".
+CREATE TABLE orcamentos_categoria (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  categoria_id BIGINT NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
+  valor_limite DECIMAL(12, 2) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, categoria_id)
+);
+CREATE INDEX orcamentos_categoria_user_id ON orcamentos_categoria(user_id);
+ALTER TABLE orcamentos_categoria ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own orcamentos_categoria" ON orcamentos_categoria
+  FOR ALL USING (auth.uid() = user_id);
