@@ -8,6 +8,7 @@ import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { PAYMENTS } from '@/lib/payments';
 import { ensureRecorrentesGerados } from '@/lib/recorrentes';
+import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import LancamentoForm from './LancamentoForm';
@@ -20,7 +21,7 @@ import {
   ArrowUpRight, ArrowDownRight, CircleEllipsis,
   Calendar, AlertTriangle, CheckCircle2, Clock,
   ArrowDownToLine, ArrowUpFromLine, Repeat, ChevronLeft, ChevronRight,
-  Target, TrendingUp, BarChart3, Inbox, Loader, Search
+  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText
 } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -671,6 +672,14 @@ export default function Dashboard({ userId }: { userId: string }) {
               <FilterSelect value={filterType} onChange={setFilterType} options={[{ v: 'todos', l: 'Todos os tipos' }, { v: 'entrada', l: 'Entradas' }, { v: 'saida', l: 'Saídas' }]} />
               <FilterSelect value={filterPayment} onChange={setFilterPayment} options={[{ v: 'todos', l: 'Todas formas' }, { v: 'pix', l: 'Pix' }, { v: 'cartao', l: 'Cartão' }]} />
               <FilterSelect value={filterCategory} onChange={setFilterCategory} options={[{ v: 'todas', l: 'Todas categorias' }, ...Array.from(new Set(categorias.map(c => c.nome))).map(c => ({ v: c, l: `${catMeta(c)?.emoji || ''} ${c}` }))]} />
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => exportLancamentosCSV(filtered, `extrato-${currentMonth}`)} disabled={filtered.length === 0} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors">
+                  <FileDown size={13} /> CSV
+                </button>
+                <button onClick={() => exportLancamentosPDF(filtered, `Extrato — ${MONTH_NAMES_FULL[monthIdx]} ${currentYear}`)} disabled={filtered.length === 0} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors">
+                  <FileText size={13} /> PDF
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
