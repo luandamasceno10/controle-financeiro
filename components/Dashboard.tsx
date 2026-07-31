@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria } from '@/lib/supabase';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { PAYMENTS } from '@/lib/payments';
@@ -68,6 +68,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [contas, setContas] = useState<ContaBancaria[]>([]);
   const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
 
@@ -110,7 +111,7 @@ export default function Dashboard({ userId }: { userId: string }) {
     try {
       setLoading(true);
       await ensureRecorrentesGerados(userId);
-      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
@@ -118,6 +119,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
         supabase.from('cartoes_credito').select('*').eq('user_id', userId).eq('ativo', true),
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
+        supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
       ]);
 
       if (lancResult.data) setEntries(lancResult.data);
@@ -133,6 +135,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       if (contasResult.data) setContas(contasResult.data);
       if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (categoriasResult.data) setCategorias(categoriasResult.data);
+      if (orcamentosResult.data) setOrcamentos(orcamentosResult.data);
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
     } finally {
@@ -211,6 +214,19 @@ export default function Dashboard({ userId }: { userId: string }) {
       name, value, color: catMeta(name)?.color || '#64748B',
     })).sort((a, b) => b.value - a.value);
   }, [monthEntries]);
+
+  const orcamentoPorCategoriaId = useMemo(() => {
+    const map: Record<number, number> = {};
+    orcamentos.forEach((o) => { map[o.categoria_id] = Number(o.valor_limite); });
+    return map;
+  }, [orcamentos]);
+
+  const limiteExcedido = (categoriaNome: string, valorGasto: number) => {
+    const cat = categoriaByName[categoriaNome];
+    if (!cat) return false;
+    const limite = orcamentoPorCategoriaId[cat.id];
+    return limite !== undefined && valorGasto > limite;
+  };
 
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
@@ -601,7 +617,13 @@ export default function Dashboard({ userId }: { userId: string }) {
                   <div className="space-y-1.5 mt-2 max-h-44 overflow-y-auto pr-1">
                     {categoryData.map((c, i) => (
                       <div key={i} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{catMeta(c.name)?.emoji} {c.name}</span></div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
+                          <span className="text-slate-600">{catMeta(c.name)?.emoji} {c.name}</span>
+                          {limiteExcedido(c.name, c.value) && (
+                            <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Estourou</span>
+                          )}
+                        </div>
                         <span className="font-semibold tabular-nums shrink-0 ml-2">{currency(c.value)}</span>
                       </div>
                     ))}

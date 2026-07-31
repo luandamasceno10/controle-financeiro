@@ -8,7 +8,7 @@ import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { ensureRecorrentesGerados } from '@/lib/recorrentes';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight, Repeat } from 'lucide-react';
+import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight, Repeat, Wallet } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -29,6 +29,7 @@ const SHORTCUTS = [
   { href: '/contas', label: 'Contas Bancárias', description: 'Cadastre suas contas', icon: Landmark, tone: 'blue' },
   { href: '/cartoes', label: 'Cartões de Crédito', description: 'Fatura e vencimento', icon: CreditCard, tone: 'violet' },
   { href: '/recorrentes', label: 'Recorrentes', description: 'Salário, aluguel, assinaturas', icon: Repeat, tone: 'cyan' },
+  { href: '/orcamentos', label: 'Orçamentos', description: 'Limite de gastos por categoria', icon: Wallet, tone: 'blue' },
   { href: '/metas', label: 'Metas', description: 'Seus objetivos financeiros', icon: Target, tone: 'emerald' },
   { href: '/categorias', label: 'Categorias', description: 'Gerencie suas categorias', icon: Tag, tone: 'amber' },
 ];
