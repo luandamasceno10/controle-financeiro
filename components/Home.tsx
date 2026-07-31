@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { ContaPagar, Lancamento, Categoria, ContaBancaria, CartaoCredito, AnaliseIA } from '@/lib/supabase';
+import type { ContaPagar, Lancamento, Categoria, ContaBancaria, CartaoCredito, Fatura, Meta, MetaContribuicao, OrcamentoCategoria, AnaliseIA } from '@/lib/supabase';
 import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { ensureRecorrentesGerados } from '@/lib/recorrentes';
+import { computeProgresso } from '@/lib/metas';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight, Repeat, Wallet } from 'lucide-react';
+import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight, Repeat, Wallet, AlertTriangle, Clock } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -52,6 +53,11 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [contas, setContas] = useState<ContaBancaria[]>([]);
   const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
+  const [faturas, setFaturas] = useState<Fatura[]>([]);
+  const [contasPagar, setContasPagar] = useState<ContaPagar[]>([]);
+  const [metas, setMetas] = useState<Meta[]>([]);
+  const [metasContribuicoes, setMetasContribuicoes] = useState<MetaContribuicao[]>([]);
+  const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -66,20 +72,30 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   const loadData = async () => {
     await ensureRecorrentesGerados(userId);
     const hoje = todayISO();
-    const [entriesResult, billsResult, categoriasResult, contasResult, cartoesResult, analiseResult] = await Promise.all([
+    const [entriesResult, billsResult, allBillsResult, categoriasResult, contasResult, cartoesResult, faturasResult, metasResult, contribsResult, orcamentosResult, analiseResult] = await Promise.all([
       supabase.from('lancamentos').select('*').eq('user_id', userId),
       supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente').order('vencimento', { ascending: true }).limit(1),
+      supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente'),
       supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
       supabase.from('cartoes_credito').select('*').eq('user_id', userId).eq('ativo', true),
+      supabase.from('faturas').select('*').eq('user_id', userId).eq('status', 'aberta'),
+      supabase.from('metas').select('*').eq('user_id', userId).eq('status', 'ativa'),
+      supabase.from('metas_contribuicoes').select('*').eq('user_id', userId),
+      supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
       supabase.from('analises_ia').select('*').eq('user_id', userId).eq('data', hoje).maybeSingle(),
     ]);
 
     if (entriesResult.data) setEntries(entriesResult.data);
     if (billsResult.data && billsResult.data.length > 0) setNextBill(billsResult.data[0]);
+    if (allBillsResult.data) setContasPagar(allBillsResult.data);
     if (categoriasResult.data) setCategorias(categoriasResult.data);
     if (contasResult.data) setContas(contasResult.data);
     if (cartoesResult.data) setCartoes(cartoesResult.data);
+    if (faturasResult.data) setFaturas(faturasResult.data);
+    if (metasResult.data) setMetas(metasResult.data);
+    if (contribsResult.data) setMetasContribuicoes(contribsResult.data);
+    if (orcamentosResult.data) setOrcamentos(orcamentosResult.data);
     if (analiseResult.data) setAnaliseHoje(analiseResult.data);
     setLoading(false);
   };
@@ -89,6 +105,59 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
   const currentMonth = todayISO().slice(0, 7);
   const monthEntries = useMemo(() => entries.filter(e => e.data.startsWith(currentMonth)), [entries, currentMonth]);
+
+  interface Alerta { id: string; tone: 'rose' | 'amber'; icon: typeof AlertTriangle; message: string; href: string; }
+
+  const alertas = useMemo(() => {
+    const hojeISO = todayISO();
+    const lista: Alerta[] = [];
+
+    contasPagar.forEach((cp) => {
+      if (cp.vencimento < hojeISO) {
+        lista.push({ id: `pagar-${cp.id}`, tone: 'rose', icon: AlertTriangle, message: `"${cp.descricao}" está atrasada (venceu ${fmtDate(cp.vencimento)})`, href: '/dashboard' });
+      } else {
+        const dias = Math.round((new Date(cp.vencimento + 'T00:00:00').getTime() - new Date(hojeISO + 'T00:00:00').getTime()) / 86400000);
+        if (dias <= 3) {
+          lista.push({ id: `pagar-${cp.id}`, tone: 'amber', icon: Clock, message: `"${cp.descricao}" vence em ${dias === 0 ? 'hoje' : `${dias}d`}`, href: '/dashboard' });
+        }
+      }
+    });
+
+    faturas.forEach((f) => {
+      const cartao = cartoes.find((c) => c.id === f.cartao_id);
+      if (!cartao) return;
+      const total = entries.filter((e) => e.fatura_id === f.id).reduce((s, e) => s + Number(e.valor), 0);
+      if (total <= 0) return;
+      const dias = Math.round((new Date(f.data_vencimento + 'T00:00:00').getTime() - new Date(hojeISO + 'T00:00:00').getTime()) / 86400000);
+      if (dias < 0) {
+        lista.push({ id: `fatura-${f.id}`, tone: 'rose', icon: AlertTriangle, message: `Fatura do ${cartao.nome} venceu ${fmtDate(f.data_vencimento)} — ${currency(total)}`, href: '/cartoes' });
+      } else if (dias <= 5) {
+        lista.push({ id: `fatura-${f.id}`, tone: 'amber', icon: Clock, message: `Fatura do ${cartao.nome} vence em ${dias === 0 ? 'hoje' : `${dias}d`} — ${currency(total)}`, href: '/cartoes' });
+      }
+    });
+
+    metas.forEach((m) => {
+      const contribs = metasContribuicoes.filter((c) => c.meta_id === m.id);
+      const p = computeProgresso(Number(m.valor_alvo), m.data_alvo, m.created_at, contribs);
+      if (p.noPrazo === false) {
+        lista.push({ id: `meta-${m.id}`, tone: 'amber', icon: Target, message: `Meta "${m.nome}" está abaixo do ritmo necessário`, href: '/metas' });
+      }
+    });
+
+    const gastoPorCategoriaId: Record<number, number> = {};
+    monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id).forEach((e) => {
+      gastoPorCategoriaId[e.categoria_id as number] = (gastoPorCategoriaId[e.categoria_id as number] || 0) + Number(e.valor);
+    });
+    orcamentos.forEach((o) => {
+      const gasto = gastoPorCategoriaId[o.categoria_id] || 0;
+      if (gasto > Number(o.valor_limite)) {
+        const cat = categorias.find((c) => c.id === o.categoria_id);
+        lista.push({ id: `orc-${o.id}`, tone: 'rose', icon: Wallet, message: `Orçamento de "${cat?.nome || 'categoria'}" estourou (${currency(gasto)} de ${currency(Number(o.valor_limite))})`, href: '/orcamentos' });
+      }
+    });
+
+    return lista;
+  }, [contasPagar, faturas, cartoes, entries, metas, metasContribuicoes, orcamentos, categorias, monthEntries]);
 
   const runAnalysis = async () => {
     if (analiseHoje) {
@@ -128,6 +197,25 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
         <p className="text-xs text-slate-400 capitalize">{hoje}</p>
         <h1 className="text-xl font-semibold text-slate-800">Olá{nome ? `, ${nome}` : ''}! 👋</h1>
       </div>
+
+      {alertas.length > 0 && (
+        <div className="space-y-2">
+          {alertas.map((a) => {
+            const Icon = a.icon;
+            const tones = a.tone === 'rose'
+              ? 'bg-rose-50 border-rose-200 text-rose-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800';
+            const iconTone = a.tone === 'rose' ? 'text-rose-600' : 'text-amber-600';
+            return (
+              <Link key={a.id} href={a.href} className={`flex items-center gap-3 border rounded-xl p-3.5 hover:opacity-90 transition-opacity ${tones}`}>
+                <Icon size={16} className={`shrink-0 ${iconTone}`} />
+                <p className="text-sm font-medium flex-1 min-w-0">{a.message}</p>
+                <ArrowRight size={14} className={`shrink-0 ${iconTone}`} />
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
