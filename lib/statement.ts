@@ -1,5 +1,6 @@
 export interface StatementLine {
   data: string;
+  hora: string | null;
   descricao: string;
   valor: number;
 }
@@ -61,8 +62,66 @@ function parseDate(raw: string): string | null {
   return null;
 }
 
+function extractTime(raw: string): string | null {
+  const s = raw.trim().replace(/^"|"$/g, '');
+  const match = s.match(/([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?/);
+  if (!match) return null;
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
+// Descrições de extrato bancário costumam vir com jargão do banco (tipo de
+// operação, CPF/CNPJ, códigos de autenticação) — aqui reduzimos isso ao nome
+// do destinatário/remetente, que é o que importa para reconhecer o lançamento.
+const DESCRICAO_PREFIXOS = [
+  'pix enviado para', 'pix recebido de', 'pix enviado', 'pix recebido', 'pix qr code', 'pix transferencia', 'pix transferência', 'pix',
+  'transferencia enviada para', 'transferencia recebida de', 'transferência enviada para', 'transferência recebida de',
+  'transferencia enviada', 'transferencia recebida', 'transferência enviada', 'transferência recebida', 'transferencia pix', 'transferência pix',
+  'ted recebida de', 'ted enviada para', 'ted recebida', 'ted enviada', 'doc recebido de', 'doc enviado para', 'doc recebido', 'doc enviado',
+  'compra cartao de debito', 'compra cartao de credito', 'compra no cartao de debito', 'compra no cartao de credito',
+  'compra cartão de débito', 'compra cartão de crédito', 'compra cartao debito', 'compra cartao credito',
+  'compra no debito', 'compra no débito', 'compra a debito', 'compra a débito', 'compra cartao', 'compra cartão', 'compra',
+  'pagamento de boleto', 'pagamento boleto efetuado', 'pagamento efetuado', 'pagamento de conta', 'pagamento',
+  'debito automatico', 'débito automático', 'saque', 'deposito', 'depósito', 'estorno de', 'estorno',
+];
+
+function normalizeDescricao(raw: string): string {
+  let s = raw.trim().replace(/^"|"$/g, '');
+  if (!s) return 'Lançamento importado';
+
+  const lower = s.toLowerCase();
+  for (const prefixo of DESCRICAO_PREFIXOS) {
+    if (lower.startsWith(prefixo)) {
+      s = s.slice(prefixo.length);
+      break;
+    }
+  }
+
+  s = s
+    .replace(/\d{3}\.\d{3}\.\d{3}-\d{2}/g, '') // CPF
+    .replace(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g, '') // CNPJ
+    .replace(/\b(cpf|cnpj)\b\.?:?/gi, '') // rótulos que sobram após remover o número
+    .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, '') // datas soltas
+    .replace(/\b([01]?\d|2[0-3]):([0-5]\d)(:[0-5]\d)?\b/g, '') // horários soltos
+    .replace(/\b\d{6,}\b/g, '') // códigos de autenticação/documento longos
+    .replace(/^[\s\-–:.,]+|[\s\-–:.,]+$/g, '') // separadores nas pontas
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (!s) return raw.trim().replace(/^"|"$/g, '') || 'Lançamento importado';
+
+  return s
+    .split(' ')
+    .map((word) => {
+      const lowerWord = word.toLowerCase();
+      if (['de', 'da', 'do', 'das', 'dos', 'e'].includes(lowerWord) && word !== word.toUpperCase()) return lowerWord;
+      return lowerWord.charAt(0).toUpperCase() + lowerWord.slice(1);
+    })
+    .join(' ');
+}
+
 const HEADER_HINTS = {
   data: ['data', 'date', 'dt'],
+  hora: ['hora', 'horario', 'horário', 'time'],
   descricao: ['descricao', 'descrição', 'historico', 'histórico', 'description', 'lançamento', 'lancamento', 'memo'],
   valor: ['valor', 'value', 'amount', 'montante'],
 };
@@ -86,6 +145,7 @@ export function parseStatementCSV(text: string): StatementLine[] {
 
   const headerRow = rows[0];
   let dataIdx = findColumn(headerRow, HEADER_HINTS.data);
+  let horaIdx = findColumn(headerRow, HEADER_HINTS.hora);
   let descIdx = findColumn(headerRow, HEADER_HINTS.descricao);
   let valorIdx = findColumn(headerRow, HEADER_HINTS.valor);
 
@@ -109,7 +169,10 @@ export function parseStatementCSV(text: string): StatementLine[] {
     const valor = parseBRNumber(valorRaw);
     if (!data || valor === null || valor === 0) continue;
 
-    result.push({ data, descricao: descRaw.replace(/^"|"$/g, '') || 'Lançamento importado', valor });
+    // Hora pode vir em coluna própria, ou embutida junto da data/descrição (ex: "29/07/2026 14:32")
+    const hora = horaIdx !== -1 ? extractTime(row[horaIdx] ?? '') : (extractTime(dataRaw) || extractTime(descRaw));
+
+    result.push({ data, hora, descricao: normalizeDescricao(descRaw), valor });
   }
 
   return result;

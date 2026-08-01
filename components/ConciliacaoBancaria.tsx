@@ -81,6 +81,7 @@ export default function ConciliacaoBancaria({
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
+        hora: line.hora,
         descricao: line.descricao,
         tipo,
         categoria: categoriaPadrao(tipo),
@@ -158,7 +159,7 @@ export default function ConciliacaoBancaria({
                 <div key={idx} className="flex items-center gap-3 px-4 py-2.5">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-slate-700 truncate">{line.descricao}</p>
-                    <p className="text-xs text-slate-400">{fmtDate(line.data)}</p>
+                    <p className="text-xs text-slate-400">{fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}</p>
                   </div>
                   <span className={`text-sm font-semibold tabular-nums shrink-0 ${line.valor >= 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
                     {line.valor >= 0 ? '+' : '-'}{currency(Math.abs(line.valor))}
