@@ -5,7 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client';
 import { useToast, ToastContainer } from './Toast';
-import { UserCircle, Lock, Loader, Bell, BellOff } from 'lucide-react';
+import { UserCircle, Lock, Loader, Bell, BellOff, Mail } from 'lucide-react';
 
 export default function Perfil({ user }: { user: User }) {
   const { toasts, addToast, removeToast } = useToast();
@@ -16,6 +16,9 @@ export default function Perfil({ user }: { user: User }) {
   const [novaSenha, setNovaSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [savingSenha, setSavingSenha] = useState(false);
+
+  const [novoEmail, setNovoEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
 
   const [pushStatus, setPushStatus] = useState<'subscribed' | 'not-subscribed' | 'unsupported' | 'loading'>('loading');
   const [pushBusy, setPushBusy] = useState(false);
@@ -54,6 +57,26 @@ export default function Perfil({ user }: { user: User }) {
       addToast('Erro ao salvar: ' + err.message, 'error');
     } finally {
       setSavingNome(false);
+    }
+  };
+
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoEmail || novoEmail === user.email) return;
+
+    setSavingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser(
+        { email: novoEmail },
+        { emailRedirectTo: window.location.origin }
+      );
+      if (error) throw error;
+      addToast('Enviamos um e-mail de confirmação para o novo endereço — clique no link para concluir a troca.', 'success');
+      setNovoEmail('');
+    } catch (err: any) {
+      addToast('Erro ao alterar e-mail: ' + err.message, 'error');
+    } finally {
+      setSavingEmail(false);
     }
   };
 
@@ -126,6 +149,35 @@ export default function Perfil({ user }: { user: User }) {
           >
             {savingNome && <Loader size={15} className="animate-spin" />}
             {savingNome ? 'Salvando...' : 'Salvar'}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Mail size={15} className="text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-700">Alterar e-mail</h2>
+        </div>
+        <form onSubmit={handleChangeEmail} className="space-y-4">
+          <div>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Novo e-mail</label>
+            <input
+              type="email"
+              value={novoEmail}
+              onChange={(e) => setNovoEmail(e.target.value)}
+              placeholder={user.email || 'novo@email.com'}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
+              disabled={savingEmail}
+            />
+            <p className="text-xs text-slate-400 mt-1">Enviaremos um link de confirmação para o novo endereço — a troca só vale depois de clicar nele.</p>
+          </div>
+          <button
+            type="submit"
+            disabled={savingEmail || !novoEmail || novoEmail === user.email}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-400 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors"
+          >
+            {savingEmail && <Loader size={15} className="animate-spin" />}
+            {savingEmail ? 'Enviando...' : 'Alterar e-mail'}
           </button>
         </form>
       </div>

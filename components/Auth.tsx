@@ -18,7 +18,7 @@ export default function Auth() {
 
     try {
       const { error: authError } = isSignUp
-        ? await supabase.auth.signUp({ email, password })
+        ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
         : await supabase.auth.signInWithPassword({ email, password });
 
       if (authError) throw authError;
@@ -26,7 +26,7 @@ export default function Auth() {
       if (isSignUp) {
         setEmail('');
         setPassword('');
-        setError('Cadastro realizado! Faça login com suas credenciais.');
+        setError(`Cadastro criado! Enviamos um e-mail de confirmação — clique no link para ativar sua conta antes de entrar.`);
         setIsSignUp(false);
       }
     } catch (err: any) {
