@@ -7,9 +7,10 @@ import { addByPeriodo, PERIODO_LABEL } from '@/lib/periodo';
 import { PAYMENTS } from '@/lib/payments';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   Plus, X, Trash2, Wallet, ArrowUpFromLine, ArrowDownToLine,
-  AlertTriangle, CheckCircle2, Clock, Calendar, Repeat, Layers,
+  AlertTriangle, CheckCircle2, Clock, Calendar, Repeat, Layers, TrendingUp,
 } from 'lucide-react';
 
 function currency(v: number) {
@@ -96,6 +97,33 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 
   const upcomingPayable = useMemo(() => [...payable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [payable]);
   const upcomingReceivable = useMemo(() => [...receivable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [receivable]);
+
+  const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const chartData = useMemo(() => {
+    const hoje = new Date();
+    const mesAtualKey = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+    const buckets: { key: string; label: string; aPagar: number; aReceber: number }[] = [
+      { key: 'atrasado', label: 'Atrasado', aPagar: 0, aReceber: 0 },
+    ];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      buckets.push({ key, label: `${MONTH_NAMES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`, aPagar: 0, aReceber: 0 });
+    }
+
+    const place = (vencimento: string, valor: number, field: 'aPagar' | 'aReceber') => {
+      const mesKey = vencimento.slice(0, 7);
+      const bucket = mesKey < mesAtualKey ? buckets[0] : buckets.find((b) => b.key === mesKey);
+      if (bucket) bucket[field] += valor;
+    };
+
+    payable.filter((p) => p.status === 'pendente').forEach((p) => place(p.vencimento, Number(p.valor), 'aPagar'));
+    receivable.filter((r) => r.status === 'pendente').forEach((r) => place(r.vencimento, Number(r.valor), 'aReceber'));
+
+    return buckets.filter((b) => b.key === 'atrasado' ? (b.aPagar > 0 || b.aReceber > 0) : true);
+  }, [payable, receivable]);
 
   const openBillForm = (kind: 'pagar' | 'receber') => {
     setBillForm({ desc: '', category: categoriasSaida[0]?.nome || '', amount: '', due: todayISO(), tipoRepeticao: 'nenhuma', periodo: 'mensal', parcelas: '2' });
@@ -240,6 +268,29 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
       {loading ? (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">Carregando...</div>
       ) : (
+        <>
+        {(totals.aPagar > 0 || totals.aReceber > 0) && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center"><TrendingUp size={16} /></div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700">A pagar x a receber ao longo do tempo</h2>
+                <p className="text-xs text-slate-400">Pendências por mês de vencimento</p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="label" fontSize={11} stroke="#94A3B8" />
+                <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="#94A3B8" />
+                <Tooltip formatter={(v: any) => currency(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="aPagar" name="A pagar" fill="#F43F5E" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="aReceber" name="A receber" fill="#10B981" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <BillsPanel
             title="Contas a pagar" icon={ArrowUpFromLine} tone="rose" total={totals.aPagar} totalLabel="Em aberto" items={upcomingPayable}
@@ -253,6 +304,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
             onRemove={(id: number) => setDeleteConfirm({ kind: 'receber', id })} doneLabel="recebido"
           />
         </div>
+        </>
       )}
 
       {showBillForm && (
