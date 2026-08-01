@@ -8,7 +8,7 @@ import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
   Plus, X, Pencil, Trash2, Target, TrendingUp, Calendar, CheckCircle2,
-  AlertTriangle, PlusCircle, Trophy, Archive,
+  AlertTriangle, PlusCircle, Trophy, Archive, MoreVertical,
 } from 'lucide-react';
 
 function currency(v: number) {
@@ -41,10 +41,12 @@ export default function Metas({ userId }: { userId: string }) {
   const [editing, setEditing] = useState<Meta | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nome: '', valor_alvo: '', data_alvo: '', cor: CORES[0] });
+  const [archiveConfirm, setArchiveConfirm] = useState<Meta | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Meta | null>(null);
+  const [menuOpenFor, setMenuOpenFor] = useState<number | null>(null);
 
   const [contributingTo, setContributingTo] = useState<Meta | null>(null);
-  const [contribForm, setContribForm] = useState({ valor: '', nota: '', debitar: false, conta_id: null as number | null });
+  const [contribForm, setContribForm] = useState({ valor: '', nota: '', conta_id: null as number | null });
   const [contributing, setContributing] = useState(false);
 
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -116,14 +118,27 @@ export default function Metas({ userId }: { userId: string }) {
     }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteConfirm) return;
+  const confirmArchive = async () => {
+    if (!archiveConfirm) return;
     try {
-      await supabase.from('metas').update({ status: 'arquivada' }).eq('id', deleteConfirm.id);
+      await supabase.from('metas').update({ status: 'arquivada' }).eq('id', archiveConfirm.id);
       await loadData();
       addToast('Meta arquivada', 'success');
     } catch (err: any) {
       addToast('Erro ao arquivar: ' + err.message, 'error');
+    } finally {
+      setArchiveConfirm(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      await supabase.from('metas').delete().eq('id', deleteConfirm.id);
+      await loadData();
+      addToast('Meta apagada', 'success');
+    } catch (err: any) {
+      addToast('Erro ao apagar: ' + err.message, 'error');
     } finally {
       setDeleteConfirm(null);
     }
@@ -131,32 +146,28 @@ export default function Metas({ userId }: { userId: string }) {
 
   const openContribute = (meta: Meta) => {
     setContributingTo(meta);
-    setContribForm({ valor: '', nota: '', debitar: false, conta_id: contas[0]?.id ?? null });
+    setContribForm({ valor: '', nota: '', conta_id: contas[0]?.id ?? null });
   };
 
   const handleContribute = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contributingTo || !contribForm.valor) return;
+    if (!contributingTo || !contribForm.valor || !contribForm.conta_id) return;
 
     setContributing(true);
     try {
-      let lancamentoId: number | null = null;
-
-      if (contribForm.debitar && contribForm.conta_id) {
-        const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
-          user_id: userId,
-          conta_id: contribForm.conta_id,
-          data: todayISO(),
-          hora: nowTime(),
-          descricao: `Meta: ${contributingTo.nome}`,
-          tipo: 'saida',
-          categoria: 'Investimentos & Futuro',
-          forma_pagamento: 'pix',
-          valor: parseFloat(contribForm.valor),
-        }]).select().single();
-        if (lancError) throw lancError;
-        lancamentoId = lanc.id;
-      }
+      const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
+        user_id: userId,
+        conta_id: contribForm.conta_id,
+        data: todayISO(),
+        hora: nowTime(),
+        descricao: `Meta: ${contributingTo.nome}`,
+        tipo: 'saida',
+        categoria: 'Investimentos & Futuro',
+        forma_pagamento: 'pix',
+        valor: parseFloat(contribForm.valor),
+      }]).select().single();
+      if (lancError) throw lancError;
+      const lancamentoId = lanc.id;
 
       const { error } = await supabase.from('metas_contribuicoes').insert([{
         meta_id: contributingTo.id,
@@ -241,9 +252,15 @@ export default function Metas({ userId }: { userId: string }) {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 relative">
                       <button onClick={() => openEdit(meta)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
-                      <button onClick={() => setDeleteConfirm(meta)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Archive size={15} /></button>
+                      <button onClick={() => setMenuOpenFor(menuOpenFor === meta.id ? null : meta.id)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><MoreVertical size={15} /></button>
+                      {menuOpenFor === meta.id && (
+                        <div className="absolute right-0 top-10 z-10 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-40">
+                          <button onClick={() => { setArchiveConfirm(meta); setMenuOpenFor(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"><Archive size={13} /> Arquivar</button>
+                          <button onClick={() => { setDeleteConfirm(meta); setMenuOpenFor(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50"><Trash2 size={13} /> Apagar</button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -316,7 +333,7 @@ export default function Metas({ userId }: { userId: string }) {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowForm(false)}>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-semibold text-slate-800">{editing ? 'Editar meta' : 'Nova meta'}</h3>
@@ -353,7 +370,7 @@ export default function Metas({ userId }: { userId: string }) {
       )}
 
       {contributingTo && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setContributingTo(null)}>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-semibold text-slate-800">Contribuir com "{contributingTo.nome}"</h3>
@@ -368,21 +385,18 @@ export default function Metas({ userId }: { userId: string }) {
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Nota (opcional)</label>
                 <input type="text" value={contribForm.nota} onChange={(e) => setContribForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ex: 13º salário" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={contributing} />
               </div>
-              {contas.length > 0 && (
-                <label className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50">
-                  <input type="checkbox" checked={contribForm.debitar} onChange={(e) => setContribForm(f => ({ ...f, debitar: e.target.checked }))} className="w-4 h-4 accent-slate-800 mt-0.5" disabled={contributing} />
-                  <span className="text-xs text-slate-600">Também registrar como saída de uma conta (transferi esse valor de verdade agora)</span>
-                </label>
-              )}
-              {contribForm.debitar && (
+              {contas.length > 0 ? (
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Debitar da conta</label>
-                  <select value={contribForm.conta_id ?? ''} onChange={(e) => setContribForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={contributing}>
+                  <select value={contribForm.conta_id ?? ''} onChange={(e) => setContribForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={contributing} required>
                     {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
+                  <p className="text-xs text-slate-400 mt-1">O valor sai da conta agora e soma no progresso da meta.</p>
                 </div>
+              ) : (
+                <p className="text-xs text-rose-500">Cadastre uma conta bancária antes de contribuir.</p>
               )}
-              <button type="submit" disabled={contributing} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
+              <button type="submit" disabled={contributing || !contribForm.conta_id} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
                 {contributing ? 'Salvando...' : 'Confirmar contribuição'}
               </button>
             </form>
@@ -391,12 +405,22 @@ export default function Metas({ userId }: { userId: string }) {
       )}
 
       <ConfirmDialog
-        open={!!deleteConfirm}
+        open={!!archiveConfirm}
         title="Arquivar meta"
-        message={`Tem certeza que deseja arquivar "${deleteConfirm?.nome}"? O histórico de contribuições é mantido, mas ela sai da lista principal.`}
+        message={`Tem certeza que deseja arquivar "${archiveConfirm?.nome}"? O histórico de contribuições é mantido, mas ela sai da lista principal.`}
+        onConfirm={confirmArchive}
+        onCancel={() => setArchiveConfirm(null)}
+        confirmText="Arquivar"
+        danger
+      />
+
+      <ConfirmDialog
+        open={!!deleteConfirm}
+        title="Apagar meta"
+        message={`Tem certeza que deseja apagar "${deleteConfirm?.nome}" definitivamente? As contribuições registradas serão removidas (os lançamentos já feitos nas contas continuam no histórico).`}
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirm(null)}
-        confirmText="Arquivar"
+        confirmText="Apagar"
         danger
       />
     </main>

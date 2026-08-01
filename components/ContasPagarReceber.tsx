@@ -9,7 +9,7 @@ import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
-  Plus, X, Trash2, Wallet, ArrowUpFromLine, ArrowDownToLine,
+  Plus, X, Pencil, Trash2, Wallet, ArrowUpFromLine, ArrowDownToLine,
   AlertTriangle, CheckCircle2, Clock, Calendar, Repeat, Layers, TrendingUp,
 } from 'lucide-react';
 
@@ -45,6 +45,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
 
   const [showBillForm, setShowBillForm] = useState<'pagar' | 'receber' | null>(null);
+  const [editingBill, setEditingBill] = useState<{ kind: 'pagar' | 'receber'; id: number } | null>(null);
   const [savingBill, setSavingBill] = useState(false);
   const [billForm, setBillForm] = useState({
     desc: '', category: '', amount: '', due: todayISO(),
@@ -126,7 +127,22 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
   }, [payable, receivable]);
 
   const openBillForm = (kind: 'pagar' | 'receber') => {
+    setEditingBill(null);
     setBillForm({ desc: '', category: categoriasSaida[0]?.nome || '', amount: '', due: todayISO(), tipoRepeticao: 'nenhuma', periodo: 'mensal', parcelas: '2' });
+    setShowBillForm(kind);
+  };
+
+  const openEditBill = (kind: 'pagar' | 'receber', item: ContaPagar | ContaReceber) => {
+    setEditingBill({ kind, id: item.id });
+    setBillForm({
+      desc: item.descricao,
+      category: kind === 'pagar' ? (item as ContaPagar).categoria : '',
+      amount: String(item.valor),
+      due: item.vencimento,
+      tipoRepeticao: item.tipo_repeticao,
+      periodo: item.periodo,
+      parcelas: '2',
+    });
     setShowBillForm(kind);
   };
 
@@ -138,36 +154,55 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
     try {
       const table = showBillForm === 'pagar' ? 'contas_pagar' : 'contas_receber';
       const valor = parseFloat(billForm.amount);
-      const basePayload: any = {
-        user_id: userId,
-        descricao: billForm.desc,
-        valor,
-        status: 'pendente',
-        tipo_repeticao: billForm.tipoRepeticao,
-        periodo: billForm.periodo,
-      };
-      if (showBillForm === 'pagar') {
-        basePayload.categoria = billForm.category;
-        basePayload.categoria_id = categoriaByName[billForm.category]?.id ?? null;
-      }
 
-      if (billForm.tipoRepeticao === 'parcelado') {
-        const totalParcelas = Math.max(2, parseInt(billForm.parcelas, 10) || 2);
-        const rows = [];
-        let vencimento = billForm.due;
-        for (let i = 1; i <= totalParcelas; i++) {
-          rows.push({ ...basePayload, vencimento, parcela_atual: i, parcela_total: totalParcelas });
-          vencimento = addByPeriodo(vencimento, billForm.periodo);
+      if (editingBill) {
+        const updatePayload: any = {
+          descricao: billForm.desc,
+          valor,
+          vencimento: billForm.due,
+        };
+        if (showBillForm === 'pagar') {
+          updatePayload.categoria = billForm.category;
+          updatePayload.categoria_id = categoriaByName[billForm.category]?.id ?? null;
         }
-        const { error } = await supabase.from(table).insert(rows);
+        const { error } = await supabase.from(table).update(updatePayload).eq('id', editingBill.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from(table).insert([{ ...basePayload, vencimento: billForm.due, parcela_atual: null, parcela_total: null }]);
-        if (error) throw error;
+        const basePayload: any = {
+          user_id: userId,
+          descricao: billForm.desc,
+          status: 'pendente',
+          tipo_repeticao: billForm.tipoRepeticao,
+          periodo: billForm.periodo,
+        };
+        if (showBillForm === 'pagar') {
+          basePayload.categoria = billForm.category;
+          basePayload.categoria_id = categoriaByName[billForm.category]?.id ?? null;
+        }
+
+        if (billForm.tipoRepeticao === 'parcelado') {
+          const totalParcelas = Math.max(2, parseInt(billForm.parcelas, 10) || 2);
+          const valorParcela = Math.round((valor / totalParcelas) * 100) / 100;
+          const rows = [];
+          let vencimento = billForm.due;
+          let acumulado = 0;
+          for (let i = 1; i <= totalParcelas; i++) {
+            const valorDaVez = i === totalParcelas ? Math.round((valor - acumulado) * 100) / 100 : valorParcela;
+            acumulado += valorDaVez;
+            rows.push({ ...basePayload, valor: valorDaVez, vencimento, parcela_atual: i, parcela_total: totalParcelas });
+            vencimento = addByPeriodo(vencimento, billForm.periodo);
+          }
+          const { error } = await supabase.from(table).insert(rows);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from(table).insert([{ ...basePayload, valor, vencimento: billForm.due, parcela_atual: null, parcela_total: null }]);
+          if (error) throw error;
+        }
       }
 
       await loadData();
       setShowBillForm(null);
+      setEditingBill(null);
       addToast('Conta salva com sucesso!', 'success');
     } catch (err: any) {
       addToast('Erro ao salvar conta: ' + err.message, 'error');
@@ -182,6 +217,27 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
     setSettleTarget({ kind, id });
   };
 
+  const handleToggle = async (kind: 'pagar' | 'receber', id: number) => {
+    const target = kind === 'pagar' ? payable.find(p => p.id === id) : receivable.find(r => r.id === id);
+    if (!target) return;
+    const isDone = kind === 'pagar' ? target.status === 'pago' : target.status === 'recebido';
+    if (!isDone) {
+      requestSettle(kind, id);
+      return;
+    }
+    try {
+      const table = kind === 'pagar' ? 'contas_pagar' : 'contas_receber';
+      if (target.lancamento_id) {
+        await supabase.from('lancamentos').delete().eq('id', target.lancamento_id);
+      }
+      await supabase.from(table).update({ status: 'pendente', lancamento_id: null }).eq('id', id);
+      await loadData();
+      addToast('Conta voltou para pendente', 'success');
+    } catch (err: any) {
+      addToast('Erro ao desfazer: ' + err.message, 'error');
+    }
+  };
+
   const confirmSettle = async () => {
     if (!settleTarget || !settleContaId) return;
     const { kind, id } = settleTarget;
@@ -191,14 +247,14 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         const target = payable.find(p => p.id === id);
         if (!target) return;
 
-        const { error: lancError } = await supabase.from('lancamentos').insert([{
+        const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
           user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
           tipo: 'saida', categoria: target.categoria, categoria_id: target.categoria_id,
           forma_pagamento: settlePayment, conta_id: settleContaId, valor: target.valor,
-        }]);
+        }]).select().single();
         if (lancError) throw lancError;
 
-        await supabase.from('contas_pagar').update({ status: 'pago' }).eq('id', id);
+        await supabase.from('contas_pagar').update({ status: 'pago', lancamento_id: lanc.id }).eq('id', id);
 
         if (target.tipo_repeticao === 'recorrente') {
           await supabase.from('contas_pagar').insert([{
@@ -211,14 +267,14 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         const target = receivable.find(r => r.id === id);
         if (!target) return;
 
-        const { error: lancError } = await supabase.from('lancamentos').insert([{
+        const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
           user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
           tipo: 'entrada', categoria: 'Diversos', categoria_id: categoriaByName['Diversos']?.id ?? null,
           forma_pagamento: settlePayment, conta_id: settleContaId, valor: target.valor,
-        }]);
+        }]).select().single();
         if (lancError) throw lancError;
 
-        await supabase.from('contas_receber').update({ status: 'recebido' }).eq('id', id);
+        await supabase.from('contas_receber').update({ status: 'recebido', lancamento_id: lanc.id }).eq('id', id);
 
         if (target.tipo_repeticao === 'recorrente') {
           await supabase.from('contas_receber').insert([{
@@ -294,13 +350,15 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <BillsPanel
             title="Contas a pagar" icon={ArrowUpFromLine} tone="rose" total={totals.aPagar} totalLabel="Em aberto" items={upcomingPayable}
-            onAdd={() => openBillForm('pagar')} onToggle={(id: number) => requestSettle('pagar', id)}
+            onAdd={() => openBillForm('pagar')} onToggle={(id: number) => handleToggle('pagar', id)}
+            onEdit={(item: ContaPagar) => openEditBill('pagar', item)}
             onRemove={(id: number) => setDeleteConfirm({ kind: 'pagar', id })} doneLabel="pago"
             renderMeta={(item: ContaPagar) => <span className="text-[11px] text-slate-400">{catMeta(item.categoria)?.emoji} {item.categoria}</span>}
           />
           <BillsPanel
             title="Contas a receber" icon={ArrowDownToLine} tone="emerald" total={totals.aReceber} totalLabel="Em aberto" items={upcomingReceivable}
-            onAdd={() => openBillForm('receber')} onToggle={(id: number) => requestSettle('receber', id)}
+            onAdd={() => openBillForm('receber')} onToggle={(id: number) => handleToggle('receber', id)}
+            onEdit={(item: ContaReceber) => openEditBill('receber', item)}
             onRemove={(id: number) => setDeleteConfirm({ kind: 'receber', id })} doneLabel="recebido"
           />
         </div>
@@ -308,11 +366,11 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
       )}
 
       {showBillForm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowBillForm(null)}>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">Nova conta a {showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3>
-              <button onClick={() => setShowBillForm(null)} disabled={savingBill}><X size={18} /></button>
+              <h3 className="font-semibold text-slate-800">{editingBill ? 'Editar conta a ' : 'Nova conta a '}{showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3>
+              <button onClick={() => { setShowBillForm(null); setEditingBill(null); }} disabled={savingBill}><X size={18} /></button>
             </div>
             <form onSubmit={handleBillSubmit} className="space-y-4">
               <div>
@@ -337,37 +395,44 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
                   </select>
                 </div>
               )}
-              <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Repetição</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'nenhuma' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${billForm.tipoRepeticao === 'nenhuma' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}>Única</button>
-                  <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'recorrente' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'recorrente' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Repeat size={12} /> Recorrente</button>
-                  <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'parcelado' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'parcelado' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Layers size={12} /> Parcelado</button>
-                </div>
-              </div>
-              {billForm.tipoRepeticao !== 'nenhuma' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Periodicidade</label>
-                    <select value={billForm.periodo} onChange={(e) => setBillForm(f => ({ ...f, periodo: e.target.value as PeriodoRepeticao }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>
-                      {(['semanal', 'quinzenal', 'mensal'] as PeriodoRepeticao[]).map(p => <option key={p} value={p}>{PERIODO_LABEL[p]}</option>)}
-                    </select>
+              {!editingBill && (
+                <>
+                <div>
+                  <label className="text-xs font-medium text-slate-500 mb-1 block">Repetição</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'nenhuma' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${billForm.tipoRepeticao === 'nenhuma' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}>Única</button>
+                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'recorrente' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'recorrente' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Repeat size={12} /> Recorrente</button>
+                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'parcelado' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'parcelado' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Layers size={12} /> Parcelado</button>
                   </div>
-                  {billForm.tipoRepeticao === 'parcelado' && (
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 mb-1 block">Nº de parcelas</label>
-                      <input type="number" min={2} max={60} value={billForm.parcelas} onChange={(e) => setBillForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingBill} />
-                    </div>
-                  )}
                 </div>
+                {billForm.tipoRepeticao !== 'nenhuma' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 mb-1 block">Periodicidade</label>
+                      <select value={billForm.periodo} onChange={(e) => setBillForm(f => ({ ...f, periodo: e.target.value as PeriodoRepeticao }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>
+                        {(['semanal', 'quinzenal', 'mensal'] as PeriodoRepeticao[]).map(p => <option key={p} value={p}>{PERIODO_LABEL[p]}</option>)}
+                      </select>
+                    </div>
+                    {billForm.tipoRepeticao === 'parcelado' && (
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 mb-1 block">Nº de parcelas</label>
+                        <input type="number" min={2} max={60} value={billForm.parcelas} onChange={(e) => setBillForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingBill} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="text-xs text-slate-400">
+                  {billForm.tipoRepeticao === 'parcelado'
+                    ? 'O valor total informado é dividido igualmente entre as parcelas, cada uma com seu vencimento.'
+                    : billForm.tipoRepeticao === 'recorrente'
+                    ? 'A próxima ocorrência só é criada depois que esta for marcada como paga/recebida.'
+                    : 'Lançamento único, sem repetição.'}
+                </p>
+                </>
               )}
-              <p className="text-xs text-slate-400">
-                {billForm.tipoRepeticao === 'parcelado'
-                  ? 'Todas as parcelas são criadas de uma vez, cada uma com seu vencimento.'
-                  : billForm.tipoRepeticao === 'recorrente'
-                  ? 'A próxima ocorrência só é criada depois que esta for marcada como paga/recebida.'
-                  : 'Lançamento único, sem repetição.'}
-              </p>
+              {editingBill && (
+                <p className="text-xs text-slate-400">Edição afeta apenas esta conta — parcelas ou recorrências já criadas não mudam.</p>
+              )}
               <button type="submit" disabled={savingBill} className={`w-full font-semibold py-2.5 rounded-lg text-sm transition-colors ${showBillForm === 'pagar' ? 'bg-rose-500 hover:bg-rose-400 disabled:bg-slate-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900'}`}>{savingBill ? 'Salvando...' : 'Salvar conta'}</button>
             </form>
           </div>
@@ -375,7 +440,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
       )}
 
       {settleTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setSettleTarget(null)}>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-semibold text-slate-800 mb-1">Como foi {settleTarget.kind === 'pagar' ? 'pago' : 'recebido'}?</h3>
             <p className="text-xs text-slate-400 mb-4">Isso será usado para categorizar corretamente.</p>
@@ -421,7 +486,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
   );
 }
 
-function BillsPanel({ title, icon: Icon, tone, total, totalLabel, items, onAdd, onToggle, onRemove, doneLabel, renderMeta }: any) {
+function BillsPanel({ title, icon: Icon, tone, total, totalLabel, items, onAdd, onToggle, onEdit, onRemove, doneLabel, renderMeta }: any) {
   const tones: any = { rose: { bg: 'bg-rose-50', text: 'text-rose-600', btn: 'bg-rose-500 hover:bg-rose-400' }, emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', btn: 'bg-emerald-500 hover:bg-emerald-400' } };
   const t = tones[tone];
   return (
@@ -452,6 +517,7 @@ function BillsPanel({ title, icon: Icon, tone, total, totalLabel, items, onAdd, 
                 <div className="flex items-center gap-2 mt-0.5">{badge}{renderMeta && renderMeta(item)}</div>
               </div>
               <span className="text-sm font-bold tabular-nums text-slate-700 shrink-0">{currency(Number(item.valor))}</span>
+              <button onClick={() => onEdit(item)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-slate-600 transition-all shrink-0"><Pencil size={14} /></button>
               <button onClick={() => onRemove(item.id)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition-all shrink-0"><Trash2 size={14} /></button>
             </div>
           );

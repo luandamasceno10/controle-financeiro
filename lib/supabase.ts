@@ -40,6 +40,7 @@ export interface ContaPagar {
   periodo: PeriodoRepeticao;
   parcela_atual: number | null;
   parcela_total: number | null;
+  lancamento_id: number | null;
   created_at: string;
 }
 
@@ -54,6 +55,7 @@ export interface ContaReceber {
   periodo: PeriodoRepeticao;
   parcela_atual: number | null;
   parcela_total: number | null;
+  lancamento_id: number | null;
   created_at: string;
 }
 

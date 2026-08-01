@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Categoria, OrcamentoCategoria, Lancamento } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
-import { Wallet, Check, X, AlertTriangle } from 'lucide-react';
+import { Wallet, Check, X, AlertTriangle, ChevronLeft, ChevronRight, PieChart } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -12,6 +12,19 @@ function currency(v: number) {
 
 function currentMonth() {
   return new Date().toISOString().slice(0, 7);
+}
+
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+function monthLabel(mes: string) {
+  const [y, m] = mes.split('-').map(Number);
+  return `${MONTH_NAMES[m - 1]} de ${y}`;
+}
+
+function shiftMonth(mes: string, delta: number) {
+  const [y, m] = mes.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export default function Orcamentos({ userId }: { userId: string }) {
@@ -25,6 +38,7 @@ export default function Orcamentos({ userId }: { userId: string }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [saving, setSaving] = useState(false);
+  const [mes, setMes] = useState(currentMonth());
 
   useEffect(() => {
     loadData();
@@ -48,7 +62,6 @@ export default function Orcamentos({ userId }: { userId: string }) {
     }
   };
 
-  const mes = currentMonth();
   const gastoPorCategoria = useMemo(() => {
     const map: Record<number, number> = {};
     entries.filter((e) => e.data.startsWith(mes) && e.categoria_id).forEach((e) => {
@@ -62,6 +75,13 @@ export default function Orcamentos({ userId }: { userId: string }) {
     orcamentos.forEach((o) => { map[o.categoria_id] = o; });
     return map;
   }, [orcamentos]);
+
+  const totalLimite = useMemo(() => orcamentos.reduce((s, o) => s + Number(o.valor_limite), 0), [orcamentos]);
+  const totalGasto = useMemo(
+    () => orcamentos.reduce((s, o) => s + (gastoPorCategoria[o.categoria_id] || 0), 0),
+    [orcamentos, gastoPorCategoria]
+  );
+  const totalPct = totalLimite > 0 ? Math.round((totalGasto / totalLimite) * 100) : 0;
 
   const openEdit = (categoriaId: number) => {
     setEditingId(categoriaId);
@@ -106,6 +126,34 @@ export default function Orcamentos({ userId }: { userId: string }) {
           <p className="text-xs text-slate-400">Defina um limite mensal e acompanhe o quanto já gastou</p>
         </div>
       </div>
+
+      <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-4 py-3">
+        <button onClick={() => setMes((m) => shiftMonth(m, -1))} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><ChevronLeft size={16} /></button>
+        <span className="text-sm font-semibold text-slate-700 capitalize">{monthLabel(mes)}</span>
+        <button onClick={() => setMes((m) => shiftMonth(m, 1))} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><ChevronRight size={16} /></button>
+      </div>
+
+      {!loading && totalLimite > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center"><PieChart size={16} /></div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700">Total orçado no mês</h2>
+              <p className="text-xs text-slate-400">Soma de todos os limites definidos</p>
+            </div>
+          </div>
+          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mb-2">
+            <div
+              className={`h-full rounded-full transition-all ${totalGasto > totalLimite ? 'bg-rose-500' : (totalPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500')}`}
+              style={{ width: `${Math.min(100, totalPct)}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500">{currency(totalGasto)} de {currency(totalLimite)}</span>
+            <span className={`font-semibold ${totalGasto > totalLimite ? 'text-rose-600' : 'text-slate-600'}`}>{totalPct}%</span>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
         {loading ? (

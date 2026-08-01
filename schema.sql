@@ -361,3 +361,7 @@ ALTER TABLE contas_receber DROP COLUMN recorrente;
 -- (sem uso) para não quebrar a FK lancamentos.recorrente_id.
 DELETE FROM lancamentos WHERE recorrente_id IS NOT NULL;
 DELETE FROM lancamentos_recorrentes;
+
+-- Permite reverter uma conta paga/recebida (desfazer) apagando o lançamento vinculado
+ALTER TABLE contas_pagar ADD COLUMN lancamento_id BIGINT REFERENCES lancamentos(id) ON DELETE SET NULL;
+ALTER TABLE contas_receber ADD COLUMN lancamento_id BIGINT REFERENCES lancamentos(id) ON DELETE SET NULL;

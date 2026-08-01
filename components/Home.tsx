@@ -337,7 +337,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
       )}
 
       {showAnalysis && analiseHoje && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowAnalysis(false)}>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-slate-800 text-lg">💡 Análise Financeira IA</h3>

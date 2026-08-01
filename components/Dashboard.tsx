@@ -618,7 +618,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
 
       {showCardDetail && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowCardDetail(false)}>
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl w-full max-w-2xl p-6 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1"><h3 className="font-semibold text-slate-800 flex items-center gap-2"><CreditCard size={18} className="text-amber-600" /> Fatura do cartão</h3><button onClick={() => setShowCardDetail(false)}><X size={18} /></button></div>
             <p className="text-xs text-slate-400 mb-5">Total no cartão em {monthIdx >= 0 ? MONTH_NAMES_FULL[monthIdx] : 'mês'}: <span className="font-semibold text-slate-600">{currency(cardTotal)}</span></p>
