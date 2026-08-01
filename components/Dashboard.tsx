@@ -74,6 +74,9 @@ export default function Dashboard({ userId }: { userId: string }) {
   const PAGE_SIZE = 15;
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento'; id: number } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const [savingForecast, setSavingForecast] = useState(false);
 
@@ -235,7 +238,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       .sort(sortByDataHora);
   }, [monthEntries, filterPayment, filterCategory, filterType, searchQuery]);
 
-  useEffect(() => { setPage(0); }, [filterPayment, filterCategory, filterType, searchQuery, currentMonth]);
+  useEffect(() => { setPage(0); setSelectedIds(new Set()); }, [filterPayment, filterCategory, filterType, searchQuery, currentMonth]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = useMemo(
@@ -284,6 +287,32 @@ export default function Dashboard({ userId }: { userId: string }) {
       addToast('Lançamento deletado', 'success');
     } catch (err: any) {
       addToast('Erro ao deletar: ' + err.message, 'error');
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const removeSelected = async () => {
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase.from('lancamentos').delete().in('id', ids);
+      if (error) throw error;
+      await loadData();
+      setSelectedIds(new Set());
+      addToast(`${ids.length} lançamento${ids.length > 1 ? 's' : ''} deletado${ids.length > 1 ? 's' : ''}`, 'success');
+    } catch (err: any) {
+      addToast('Erro ao deletar: ' + err.message, 'error');
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteConfirm(false);
     }
   };
 
@@ -547,22 +576,50 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </button>
               </div>
             </div>
+            {selectedIds.size > 0 && (
+              <div className="px-5 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center gap-3">
+                <p className="text-xs font-semibold text-rose-700">{selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}</p>
+                <button onClick={() => setBulkDeleteConfirm(true)} className="flex items-center gap-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 px-3 py-1.5 rounded-lg transition-colors">
+                  <Trash2 size={13} /> Excluir selecionados
+                </button>
+                <button onClick={() => setSelectedIds(new Set())} className="text-xs text-slate-500 hover:text-slate-700 ml-auto">Cancelar seleção</button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                    <th className="px-5 py-3 font-medium w-8">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 accent-rose-600"
+                        checked={paginated.length > 0 && paginated.every(e => selectedIds.has(e.id))}
+                        onChange={(ev) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (ev.target.checked) paginated.forEach(e => next.add(e.id));
+                            else paginated.forEach(e => next.delete(e.id));
+                            return next;
+                          });
+                        }}
+                      />
+                    </th>
                     <th className="px-5 py-3 font-medium">Data</th><th className="px-5 py-3 font-medium">Descrição</th><th className="px-5 py-3 font-medium">Categoria</th><th className="px-5 py-3 font-medium">Pagamento</th><th className="px-5 py-3 font-medium text-right">Valor</th><th className="px-5 py-3 font-medium w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Nenhum lançamento encontrado.</td></tr>
+                    <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400 text-sm">Nenhum lançamento encontrado.</td></tr>
                   )}
                   {paginated.map((e) => {
                     const meta = catMeta(e.categoria, e.tipo);
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
+                    const selected = selectedIds.has(e.id);
                     return (
-                      <tr key={e.id} onClick={() => openEditEntry(e)} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer">
+                      <tr key={e.id} onClick={() => openEditEntry(e)} className={`border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60' : ''}`}>
+                        <td className="px-5 py-3" onClick={(ev) => ev.stopPropagation()}>
+                          <input type="checkbox" className="w-4 h-4 accent-rose-600" checked={selected} onChange={() => toggleSelect(e.id)} />
+                        </td>
                         <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{fmtDate(e.data)}</td>
                         <td className="px-5 py-3 font-medium text-slate-700">{e.descricao}</td>
                         <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td>
@@ -656,6 +713,17 @@ export default function Dashboard({ userId }: { userId: string }) {
           setDeleteConfirm(null);
         }}
         onCancel={() => setDeleteConfirm(null)}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        title="Confirmar exclusão"
+        message={`Tem certeza que quer deletar ${selectedIds.size} lançamento${selectedIds.size > 1 ? 's' : ''}? Essa ação não pode ser desfeita.`}
+        confirmText={bulkDeleting ? 'Deletando...' : 'Deletar'}
+        cancelText="Cancelar"
+        danger
+        onConfirm={removeSelected}
+        onCancel={() => setBulkDeleteConfirm(false)}
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
