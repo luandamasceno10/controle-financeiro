@@ -89,16 +89,30 @@ function normalizeDescricao(raw: string): string {
   if (!s) return 'Lançamento importado';
 
   const lower = s.toLowerCase();
-  for (const prefixo of DESCRICAO_PREFIXOS) {
+  const prefixosPorTamanho = [...DESCRICAO_PREFIXOS].sort((a, b) => b.length - a.length);
+  for (const prefixo of prefixosPorTamanho) {
     if (lower.startsWith(prefixo)) {
       s = s.slice(prefixo.length);
       break;
     }
   }
 
+  // Conectores que sobram depois do tipo de operação: "pelo Pix", "efetuado", etc.
   s = s
+    .replace(/^\s*(pelo|pela|via|através de|atraves de)\s+pix\b/i, '')
+    .replace(/^\s*(efetuado|efetuada|realizado|realizada|concluido|concluído|concluida|concluída)\b/i, '')
+    .replace(/^[\s\-–:.,]+/, '');
+
+  // Extratos costumam vir "NOME - CPF/CNPJ - BANCO (código) Agência: X Conta: Y" —
+  // depois de remover o tipo de operação, o que interessa é sempre o primeiro pedaço.
+  const partes = s.split(' - ').map((p) => p.trim()).filter(Boolean);
+  if (partes.length > 1) s = partes[0];
+
+  s = s
+    .replace(/\s*\((?:transfer[eê]ncia|pix)[^)]*\)\s*$/i, '') // "(Transferência enviada)" repetido no fim
     .replace(/\d{3}\.\d{3}\.\d{3}-\d{2}/g, '') // CPF
     .replace(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g, '') // CNPJ
+    .replace(/[•*]{2,}[\d.\-•*]*/g, '') // CPF/CNPJ mascarado (•••.777.377-••)
     .replace(/\b(cpf|cnpj)\b\.?:?/gi, '') // rótulos que sobram após remover o número
     .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, '') // datas soltas
     .replace(/\b([01]?\d|2[0-3]):([0-5]\d)(:[0-5]\d)?\b/g, '') // horários soltos
