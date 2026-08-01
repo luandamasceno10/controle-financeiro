@@ -84,7 +84,7 @@ const DESCRICAO_PREFIXOS = [
   'debito automatico', 'débito automático', 'saque', 'deposito', 'depósito', 'estorno de', 'estorno',
 ];
 
-function normalizeDescricao(raw: string): string {
+export function normalizeDescricao(raw: string): string {
   let s = raw.trim().replace(/^"|"$/g, '');
   if (!s) return 'Lançamento importado';
 

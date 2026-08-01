@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { ContaBancaria, Lancamento, Categoria } from '@/lib/supabase';
 import { parseStatementCSV, type StatementLine } from '@/lib/statement';
+import { parseOFX } from '@/lib/ofx';
 import { X, Upload, CheckCircle2, PlusCircle, FileUp } from 'lucide-react';
 
 function currency(v: number) {
@@ -55,9 +56,12 @@ export default function ConciliacaoBancaria({
     setFileName(file.name);
     try {
       const text = await file.text();
-      const parsed = parseStatementCSV(text);
+      const isOfx = /\.ofx$/i.test(file.name) || /<OFX>/i.test(text);
+      const parsed = isOfx ? parseOFX(text) : parseStatementCSV(text);
       if (parsed.length === 0) {
-        setError('Não consegui reconhecer nenhuma linha no arquivo. Confira se é um CSV com colunas de data, descrição e valor.');
+        setError(isOfx
+          ? 'Não consegui reconhecer nenhuma transação no arquivo OFX.'
+          : 'Não consegui reconhecer nenhuma linha no arquivo. Confira se é um CSV com colunas de data, descrição e valor.');
         setLines(null);
         return;
       }
@@ -128,7 +132,7 @@ export default function ConciliacaoBancaria({
           <h3 className="font-semibold text-slate-800">Conciliar extrato — {conta.nome}</h3>
           <button onClick={onClose}><X size={18} /></button>
         </div>
-        <p className="text-xs text-slate-400 mb-5">Envie o extrato em CSV do banco. Comparamos com o que já está lançado e você cria o que faltar em um clique.</p>
+        <p className="text-xs text-slate-400 mb-5">Envie o extrato em OFX ou CSV do banco. Comparamos com o que já está lançado e você cria o que faltar em um clique.</p>
 
         {!lines && (
           <div
@@ -136,9 +140,9 @@ export default function ConciliacaoBancaria({
             className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors"
           >
             <FileUp size={28} className="mx-auto text-slate-400 mb-3" />
-            <p className="text-sm font-medium text-slate-600">Clique para escolher o arquivo CSV</p>
-            <p className="text-xs text-slate-400 mt-1">Colunas de data, descrição e valor — a maioria dos extratos exportados pelo banco já vem assim.</p>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            <p className="text-sm font-medium text-slate-600">Clique para escolher o arquivo OFX ou CSV</p>
+            <p className="text-xs text-slate-400 mt-1">OFX é o formato recomendado — já vem estruturado, com data, hora e valor certos. CSV também funciona.</p>
+            <input ref={fileInputRef} type="file" accept=".ofx,.csv,text/csv,application/x-ofx" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
           </div>
         )}
 
