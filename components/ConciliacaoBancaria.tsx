@@ -18,6 +18,7 @@ interface MatchedLine extends StatementLine {
   matched: boolean;
   creating: boolean;
   created: boolean;
+  failed?: string | null;
 }
 
 export default function ConciliacaoBancaria({
@@ -66,14 +67,12 @@ export default function ConciliacaoBancaria({
     }
   };
 
-  const categoriaPadrao = (tipo: 'entrada' | 'saida') => categorias.find((c) => c.tipo === tipo)?.nome || 'Diversos';
-  const categoriaIdPadrao = (tipo: 'entrada' | 'saida') => categorias.find((c) => c.tipo === tipo)?.id ?? null;
+  const categoriaPadrao = (tipo: 'entrada' | 'saida') => categorias.find((c) => c.tipo === tipo && !c.parent_id)?.nome || 'Diversos';
+  const categoriaIdPadrao = (tipo: 'entrada' | 'saida') => categorias.find((c) => c.tipo === tipo && !c.parent_id)?.id ?? null;
 
-  const criarLancamento = async (line: MatchedLine, idx: number) => {
-    if (!lines) return;
-    const novasLinhas = [...lines];
-    novasLinhas[idx] = { ...novasLinhas[idx], creating: true };
-    setLines(novasLinhas);
+  const criarLancamento = async (line: MatchedLine, idx: number): Promise<boolean> => {
+    if (!lines) return false;
+    setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: true, failed: null } : l)));
 
     try {
       const tipo = line.valor >= 0 ? 'entrada' : 'saida';
@@ -91,15 +90,12 @@ export default function ConciliacaoBancaria({
       }]);
       if (insertError) throw insertError;
 
-      const atualizadas = [...lines];
-      atualizadas[idx] = { ...atualizadas[idx], creating: false, created: true, matched: true };
-      setLines(atualizadas);
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, created: true, matched: true, failed: null } : l)));
       onCreated();
+      return true;
     } catch (err: any) {
-      setError('Erro ao criar lançamento: ' + err.message);
-      const revertidas = [...lines];
-      revertidas[idx] = { ...revertidas[idx], creating: false };
-      setLines(revertidas);
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, failed: err.message } : l)));
+      return false;
     }
   };
 
@@ -108,11 +104,17 @@ export default function ConciliacaoBancaria({
   const criarTodosPendentes = async () => {
     if (!lines) return;
     setBulkCreating(true);
+    setError('');
+    let falhas = 0;
     try {
       for (let i = 0; i < lines.length; i++) {
         if (!lines[i].matched && !lines[i].created) {
-          await criarLancamento(lines[i], i);
+          const ok = await criarLancamento(lines[i], i);
+          if (!ok) falhas++;
         }
+      }
+      if (falhas > 0) {
+        setError(`${falhas} linha${falhas > 1 ? 's' : ''} não pôde${falhas > 1 ? 'ram' : ''} ser criada${falhas > 1 ? 's' : ''} — veja o motivo ao lado de cada uma abaixo e tente de novo.`);
       }
     } finally {
       setBulkCreating(false);
@@ -156,22 +158,27 @@ export default function ConciliacaoBancaria({
             </div>
             <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-96 overflow-y-auto">
               {lines.map((line, idx) => (
-                <div key={idx} className="flex items-center gap-3 px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-700 truncate">{line.descricao}</p>
-                    <p className="text-xs text-slate-400">{fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}</p>
-                  </div>
-                  <span className={`text-sm font-semibold tabular-nums shrink-0 ${line.valor >= 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                    {line.valor >= 0 ? '+' : '-'}{currency(Math.abs(line.valor))}
-                  </span>
-                  {line.matched || line.created ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md shrink-0">
-                      <CheckCircle2 size={12} /> {line.created ? 'Criado' : 'Já lançado'}
+                <div key={idx} className="px-4 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-slate-700 truncate">{line.descricao}</p>
+                      <p className="text-xs text-slate-400">{fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}</p>
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums shrink-0 ${line.valor >= 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                      {line.valor >= 0 ? '+' : '-'}{currency(Math.abs(line.valor))}
                     </span>
-                  ) : (
-                    <button onClick={() => criarLancamento(line, idx)} disabled={line.creating} className="inline-flex items-center gap-1 text-xs font-medium text-white bg-slate-800 hover:bg-slate-700 disabled:opacity-50 px-2.5 py-1.5 rounded-md shrink-0">
-                      <PlusCircle size={12} /> {line.creating ? '...' : 'Criar'}
-                    </button>
+                    {line.matched || line.created ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md shrink-0">
+                        <CheckCircle2 size={12} /> {line.created ? 'Criado' : 'Já lançado'}
+                      </span>
+                    ) : (
+                      <button onClick={() => criarLancamento(line, idx)} disabled={line.creating} className={`inline-flex items-center gap-1 text-xs font-medium text-white disabled:opacity-50 px-2.5 py-1.5 rounded-md shrink-0 ${line.failed ? 'bg-rose-600 hover:bg-rose-500' : 'bg-slate-800 hover:bg-slate-700'}`}>
+                        <PlusCircle size={12} /> {line.creating ? '...' : line.failed ? 'Tentar de novo' : 'Criar'}
+                      </button>
+                    )}
+                  </div>
+                  {line.failed && (
+                    <p className="text-xs text-rose-600 mt-1">{line.failed}</p>
                   )}
                 </div>
               ))}

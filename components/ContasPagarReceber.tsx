@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { ContaPagar, ContaReceber, Categoria, ContaBancaria, TipoRepeticao, PeriodoRepeticao } from '@/lib/supabase';
 import { addByPeriodo, PERIODO_LABEL } from '@/lib/periodo';
-import { sortCategoriasNatural } from '@/lib/categorias';
+import { sortCategoriasForSelect, categoriaSelectLabel } from '@/lib/categorias';
 import { PAYMENTS } from '@/lib/payments';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -83,10 +83,10 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
     }
   };
 
-  const categoriasSaida = useMemo(() => sortCategoriasNatural(categorias.filter(c => c.tipo === 'saida')), [categorias]);
+  const categoriasSaida = useMemo(() => sortCategoriasForSelect(categorias.filter(c => c.tipo === 'saida')), [categorias]);
   const categoriaByName = useMemo(() => {
     const map: Record<string, Categoria> = {};
-    categorias.forEach(c => { if (!map[c.nome]) map[c.nome] = c; });
+    categorias.forEach(c => { map[`${c.tipo}|${c.nome}`] = c; });
     return map;
   }, [categorias]);
 
@@ -163,7 +163,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         };
         if (showBillForm === 'pagar') {
           updatePayload.categoria = billForm.category;
-          updatePayload.categoria_id = categoriaByName[billForm.category]?.id ?? null;
+          updatePayload.categoria_id = categoriaByName[`saida|${billForm.category}`]?.id ?? null;
         }
         const { error } = await supabase.from(table).update(updatePayload).eq('id', editingBill.id);
         if (error) throw error;
@@ -177,7 +177,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         };
         if (showBillForm === 'pagar') {
           basePayload.categoria = billForm.category;
-          basePayload.categoria_id = categoriaByName[billForm.category]?.id ?? null;
+          basePayload.categoria_id = categoriaByName[`saida|${billForm.category}`]?.id ?? null;
         }
 
         if (billForm.tipoRepeticao === 'parcelado') {
@@ -269,7 +269,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 
         const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
           user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
-          tipo: 'entrada', categoria: 'Diversos', categoria_id: categoriaByName['Diversos']?.id ?? null,
+          tipo: 'entrada', categoria: 'Diversos', categoria_id: categoriaByName['entrada|Diversos']?.id ?? null,
           forma_pagamento: settlePayment, conta_id: settleContaId, valor: target.valor,
         }]).select().single();
         if (lancError) throw lancError;
@@ -391,7 +391,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label>
                   <select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>
-                    {categoriasSaida.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+                    {categoriasSaida.map(c => <option key={c.id} value={c.nome}>{categoriaSelectLabel(c, categoriasSaida)}</option>)}
                   </select>
                 </div>
               )}

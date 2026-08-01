@@ -37,6 +37,19 @@ export async function ensureFatura(cartao: CartaoCredito, competencia: string, u
     .insert([{ user_id: userId, cartao_id: cartao.id, competencia, data_vencimento: dataVencimento, status: 'aberta' }])
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    // Corrida: outra chamada criou a mesma fatura (cartao_id, competencia) entre o
+    // select e o insert — reaproveita a que já existe em vez de propagar o erro.
+    if (error.code === '23505') {
+      const { data: retry } = await supabase
+        .from('faturas')
+        .select('*')
+        .eq('cartao_id', cartao.id)
+        .eq('competencia', competencia)
+        .single();
+      if (retry) return retry;
+    }
+    throw error;
+  }
   return data;
 }

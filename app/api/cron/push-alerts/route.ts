@@ -60,11 +60,13 @@ function computeAlertMessages(data: {
 
   const mesAtual = hojeISO.slice(0, 7);
   const gastoPorCategoriaId: Record<number, number> = {};
-  data.lancamentos.filter((l) => l.tipo === 'saida' && l.categoria_id && l.data.startsWith(mesAtual)).forEach((l) => {
+  data.lancamentos.filter((l) => l.tipo === 'saida' && l.categoria_id && !l.cartao_id && l.data.startsWith(mesAtual)).forEach((l) => {
     gastoPorCategoriaId[l.categoria_id] = (gastoPorCategoriaId[l.categoria_id] || 0) + Number(l.valor);
   });
   data.orcamentos.forEach((o) => {
-    const gasto = gastoPorCategoriaId[o.categoria_id] || 0;
+    // Um orçamento numa categoria "pai" também soma o gasto das suas subcategorias
+    const filhas = data.categorias.filter((c) => c.parent_id === o.categoria_id).map((c) => c.id);
+    const gasto = [o.categoria_id, ...filhas].reduce((s, id) => s + (gastoPorCategoriaId[id] || 0), 0);
     if (gasto > Number(o.valor_limite)) {
       const cat = data.categorias.find((c) => c.id === o.categoria_id);
       mensagens.push(`Orçamento de "${cat?.nome || 'categoria'}" estourou (${currency(gasto)} de ${currency(Number(o.valor_limite))})`);

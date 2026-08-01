@@ -145,25 +145,6 @@ export interface MetaContribuicao {
   created_at: string;
 }
 
-export interface LancamentoRecorrente {
-  id: number;
-  user_id: string;
-  descricao: string;
-  tipo: 'entrada' | 'saida';
-  categoria: string;
-  categoria_id: number | null;
-  forma_pagamento: 'pix' | 'cartao';
-  conta_id: number | null;
-  cartao_id: number | null;
-  valor: number;
-  dia_mes: number;
-  ativo: boolean;
-  data_inicio: string;
-  data_fim: string | null;
-  ultima_geracao: string | null;
-  created_at: string;
-}
-
 export interface OrcamentoCategoria {
   id: number;
   user_id: string;

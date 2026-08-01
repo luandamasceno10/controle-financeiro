@@ -70,9 +70,10 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
         if (error) throw error;
         addToast('Categoria atualizada!', 'success');
       } else {
+        const maxOrdem = Math.max(0, ...categorias.filter(c => c.tipo === form.tipo).map(c => c.ordem));
         const { error } = await supabase.from('categorias').insert([{
           user_id: userId, nome: form.nome, tipo: form.tipo, cor: form.cor,
-          icone: form.icone, parent_id: form.parent_id, ordem: 0,
+          icone: form.icone, parent_id: form.parent_id, ordem: maxOrdem + 1,
         }]);
         if (error) throw error;
         addToast('Categoria criada!', 'success');

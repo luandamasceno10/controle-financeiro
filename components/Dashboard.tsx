@@ -120,12 +120,12 @@ export default function Dashboard({ userId }: { userId: string }) {
   const categoriasEntrada = useMemo(() => categorias.filter(c => c.tipo === 'entrada'), [categorias]);
   const categoriaByName = useMemo(() => {
     const map: Record<string, Categoria> = {};
-    categorias.forEach(c => { if (!map[c.nome]) map[c.nome] = c; });
+    categorias.forEach(c => { map[`${c.tipo}|${c.nome}`] = c; });
     return map;
   }, [categorias]);
 
-  const catMeta = (nome: string): { color: string } | undefined => {
-    const c = categoriaByName[nome];
+  const catMeta = (nome: string, tipo: 'entrada' | 'saida' = 'saida'): { color: string } | undefined => {
+    const c = categoriaByName[`${tipo}|${nome}`];
     return c ? { color: c.cor } : undefined;
   };
 
@@ -135,9 +135,11 @@ export default function Dashboard({ userId }: { userId: string }) {
   );
 
   const totals = useMemo(() => {
+    // Compras no cartão só entram como saída de verdade quando a fatura é paga
+    // (vira um lançamento sem cartao_id) — contá-las aqui de novo duplicaria o gasto.
     const entrada = monthEntries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-    const saida = monthEntries.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
-    const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    const saida = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
+    const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
     const cartao = monthEntries.filter(e => !!e.cartao_id && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
@@ -180,7 +182,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {};
-    monthEntries.filter(e => e.tipo === 'saida').forEach(e => {
+    monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).forEach(e => {
       map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor);
     });
     return Object.entries(map).map(([name, value]) => ({
@@ -203,7 +205,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
-    monthEntries.filter(e => e.tipo === 'saida').forEach(e => {
+    monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).forEach(e => {
       if (!grouped[e.categoria]) grouped[e.categoria] = { category: e.categoria, pix: 0, cartao: 0 };
       grouped[e.categoria][e.forma_pagamento] += Number(e.valor);
     });
@@ -247,7 +249,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       const key = `${currentYear}-${String(m).padStart(2, '0')}`;
       const me = entries.filter(e => monthKey(e.data) === key);
       const entrada = me.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-      const saida = me.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+      const saida = me.filter(e => e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
       months.push({ key, label: MONTH_NAMES[m - 1], entrada, saida, saldo: entrada - saida });
     }
     return months;
@@ -261,7 +263,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const yearCategoryData = useMemo(() => {
     const map: Record<string, number> = {};
-    entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida').forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
+    entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida' && !e.cartao_id).forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
     return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B' })).sort((a, b) => b.value - a.value);
   }, [entries, currentYear]);
 
@@ -306,18 +308,12 @@ export default function Dashboard({ userId }: { userId: string }) {
     if (!isNaN(v)) {
       setSavingForecast(true);
       try {
-        const existing = await supabase
+        // upsert evita corrida: dois salvamentos quase simultâneos não podem mais
+        // ambos "não encontrar" a previsão e tentar inserir duplicado.
+        const { error } = await supabase
           .from('previsoes')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('mes', currentMonth)
-          .single();
-
-        if (existing.data) {
-          await supabase.from('previsoes').update({ valor_previsto: v }).eq('id', existing.data.id);
-        } else {
-          await supabase.from('previsoes').insert([{ user_id: userId, mes: currentMonth, valor_previsto: v }]);
-        }
+          .upsert({ user_id: userId, mes: currentMonth, valor_previsto: v }, { onConflict: 'user_id,mes' });
+        if (error) throw error;
 
         await loadData();
         setEditingForecast(false);
@@ -563,7 +559,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                     <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400 text-sm">Nenhum lançamento encontrado.</td></tr>
                   )}
                   {paginated.map((e) => {
-                    const meta = catMeta(e.categoria);
+                    const meta = catMeta(e.categoria, e.tipo);
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
                     return (
                       <tr key={e.id} onClick={() => openEditEntry(e)} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer">
@@ -638,7 +634,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 rounded-lg overflow-hidden">
                   <table className="w-full text-sm"><tbody>
-                    {cardEntries.map((e) => { const meta = catMeta(e.categoria); return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
+                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
                   </tbody></table>
                 </div>
               </>

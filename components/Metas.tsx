@@ -90,7 +90,7 @@ export default function Metas({ userId }: { userId: string }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.nome || !form.valor_alvo) return;
+    if (!form.nome || !form.valor_alvo || parseFloat(form.valor_alvo) <= 0) return;
 
     setSaving(true);
     try {
@@ -151,7 +151,7 @@ export default function Metas({ userId }: { userId: string }) {
 
   const handleContribute = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contributingTo || !contribForm.valor || !contribForm.conta_id) return;
+    if (!contributingTo || !contribForm.valor || !contribForm.conta_id || parseFloat(contribForm.valor) <= 0) return;
 
     setContributing(true);
     try {
@@ -346,7 +346,7 @@ export default function Metas({ userId }: { userId: string }) {
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Valor alvo (R$)</label>
-                <input type="number" step="0.01" value={form.valor_alvo} onChange={(e) => setForm(f => ({ ...f, valor_alvo: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <input type="number" step="0.01" min="0.01" value={form.valor_alvo} onChange={(e) => setForm(f => ({ ...f, valor_alvo: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Prazo (opcional)</label>
@@ -379,7 +379,7 @@ export default function Metas({ userId }: { userId: string }) {
             <form onSubmit={handleContribute} className="space-y-4">
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label>
-                <input type="number" step="0.01" autoFocus value={contribForm.valor} onChange={(e) => setContribForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={contributing} />
+                <input type="number" step="0.01" min="0.01" autoFocus value={contribForm.valor} onChange={(e) => setContribForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={contributing} />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 mb-1 block">Nota (opcional)</label>

@@ -1,9 +1,15 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { getAuthedUserId } from "@/lib/serverAuth";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: Request) {
+  const userId = await getAuthedUserId(request);
+  if (!userId) {
+    return NextResponse.json({ categoria: null }, { status: 401 });
+  }
+
   try {
     const { descricao, categorias } = await request.json();
 

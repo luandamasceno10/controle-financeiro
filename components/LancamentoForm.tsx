@@ -6,7 +6,7 @@ import type { Lancamento, Categoria, ContaBancaria, CartaoCredito } from '@/lib/
 import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
-import { sortCategoriasNatural } from '@/lib/categorias';
+import { sortCategoriasForSelect, categoriaSelectLabel } from '@/lib/categorias';
 import { X, Trash2, Sparkles } from 'lucide-react';
 
 function todayISO() {
@@ -67,7 +67,7 @@ export default function LancamentoForm({
 
   const categoriaByName = useMemo(() => {
     const map: Record<string, Categoria> = {};
-    [...categoriasEntrada, ...categoriasSaida].forEach((c) => { map[c.nome] = c; });
+    [...categoriasEntrada, ...categoriasSaida].forEach((c) => { map[`${c.tipo}|${c.nome}`] = c; });
     return map;
   }, [categoriasEntrada, categoriasSaida]);
 
@@ -77,7 +77,7 @@ export default function LancamentoForm({
 
     setSaving(true);
     try {
-      const categoriaId = categoriaByName[form.category]?.id ?? null;
+      const categoriaId = categoriaByName[`${form.type}|${form.category}`]?.id ?? null;
       const isCartao = form.payment === 'cartao' && form.type === 'saida';
       let cartaoId: number | null = null;
       let faturaId: number | null = null;
@@ -163,7 +163,7 @@ export default function LancamentoForm({
           </div>
           <div>
             <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label>
-            <select value={form.category} onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>{sortCategoriasNatural(categoriaOptions).map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select>
+            <select value={form.category} onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>{sortCategoriasForSelect(categoriaOptions).map(c => <option key={c.id} value={c.nome}>{categoriaSelectLabel(c, categoriaOptions)}</option>)}</select>
             {categoriaSugerida && (
               <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
                 <Sparkles size={12} /> Sugestão: {categoriaSugerida}

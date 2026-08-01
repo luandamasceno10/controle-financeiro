@@ -65,11 +65,23 @@ export default function Orcamentos({ userId }: { userId: string }) {
 
   const gastoPorCategoria = useMemo(() => {
     const map: Record<number, number> = {};
-    entries.filter((e) => e.data.startsWith(mes) && e.categoria_id).forEach((e) => {
+    entries.filter((e) => e.data.startsWith(mes) && e.categoria_id && !e.cartao_id).forEach((e) => {
       map[e.categoria_id as number] = (map[e.categoria_id as number] || 0) + Number(e.valor);
     });
     return map;
   }, [entries, mes]);
+
+  const filhosPorCategoria = useMemo(() => {
+    const map: Record<number, number[]> = {};
+    categorias.forEach((c) => {
+      if (c.parent_id) (map[c.parent_id] ||= []).push(c.id);
+    });
+    return map;
+  }, [categorias]);
+
+  // Orçamento numa categoria "pai" também soma o gasto lançado nas subcategorias dela
+  const gastoComFilhos = (categoriaId: number) =>
+    (gastoPorCategoria[categoriaId] || 0) + (filhosPorCategoria[categoriaId] || []).reduce((s, id) => s + (gastoPorCategoria[id] || 0), 0);
 
   const orcamentoPorCategoria = useMemo(() => {
     const map: Record<number, OrcamentoCategoria> = {};
@@ -79,8 +91,8 @@ export default function Orcamentos({ userId }: { userId: string }) {
 
   const totalLimite = useMemo(() => orcamentos.reduce((s, o) => s + Number(o.valor_limite), 0), [orcamentos]);
   const totalGasto = useMemo(
-    () => orcamentos.reduce((s, o) => s + (gastoPorCategoria[o.categoria_id] || 0), 0),
-    [orcamentos, gastoPorCategoria]
+    () => orcamentos.reduce((s, o) => s + gastoComFilhos(o.categoria_id), 0),
+    [orcamentos, gastoPorCategoria, filhosPorCategoria]
   );
   const totalPct = totalLimite > 0 ? Math.round((totalGasto / totalLimite) * 100) : 0;
 
@@ -163,7 +175,7 @@ export default function Orcamentos({ userId }: { userId: string }) {
           <div className="p-8 text-center text-sm text-slate-400">Nenhuma categoria de saída cadastrada ainda.</div>
         ) : (
           sortCategoriasNatural(categorias).map((cat) => {
-            const gasto = gastoPorCategoria[cat.id] || 0;
+            const gasto = gastoComFilhos(cat.id);
             const orc = orcamentoPorCategoria[cat.id];
             const limite = orc ? Number(orc.valor_limite) : null;
             const pct = limite ? Math.min(100, Math.round((gasto / limite) * 100)) : null;
@@ -174,6 +186,9 @@ export default function Orcamentos({ userId }: { userId: string }) {
               <div key={cat.id} className="px-4 py-3.5">
                 <div className="flex items-center justify-between gap-3 mb-1.5">
                   <div className="flex items-center gap-2 min-w-0">
+                    {cat.parent_id && (
+                      <span className="text-xs text-slate-400 shrink-0">{categorias.find((c) => c.id === cat.parent_id)?.nome} ›</span>
+                    )}
                     <span className="text-sm font-semibold text-slate-700 truncate">{cat.nome}</span>
                   </div>
                   {isEditing ? (
