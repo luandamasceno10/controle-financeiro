@@ -271,11 +271,11 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Dia de fechamento</label>
-                  <input type="number" min={1} max={28} value={form.dia_fechamento} onChange={(e) => setForm(f => ({ ...f, dia_fechamento: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                  <input type="number" min={1} max={31} value={form.dia_fechamento} onChange={(e) => setForm(f => ({ ...f, dia_fechamento: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Dia de vencimento</label>
-                  <input type="number" min={1} max={28} value={form.dia_vencimento} onChange={(e) => setForm(f => ({ ...f, dia_vencimento: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                  <input type="number" min={1} max={31} value={form.dia_vencimento} onChange={(e) => setForm(f => ({ ...f, dia_vencimento: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
                 </div>
               </div>
               <button type="submit" disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">

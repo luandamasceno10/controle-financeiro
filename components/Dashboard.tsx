@@ -138,7 +138,7 @@ export default function Dashboard({ userId }: { userId: string }) {
     const entrada = monthEntries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const saida = monthEntries.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
-    const cartao = monthEntries.filter(e => e.forma_pagamento === 'cartao' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    const cartao = monthEntries.filter(e => !!e.cartao_id && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
 
@@ -211,7 +211,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   }, [monthEntries]);
 
   const cardEntries = useMemo(
-    () => monthEntries.filter(e => e.tipo === 'saida' && e.forma_pagamento === 'cartao').sort(sortByDataHora),
+    () => monthEntries.filter(e => e.tipo === 'saida' && !!e.cartao_id).sort(sortByDataHora),
     [monthEntries]
   );
 
