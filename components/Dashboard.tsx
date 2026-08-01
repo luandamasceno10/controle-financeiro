@@ -84,9 +84,9 @@ export default function Dashboard({ userId }: { userId: string }) {
     loadData();
   }, [userId]);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
@@ -283,7 +283,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const removeEntry = async (id: number) => {
     try {
       await supabase.from('lancamentos').delete().eq('id', id);
-      await loadData();
+      await loadData(true);
       addToast('Lançamento deletado', 'success');
     } catch (err: any) {
       addToast('Erro ao deletar: ' + err.message, 'error');
@@ -305,7 +305,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       const ids = Array.from(selectedIds);
       const { error } = await supabase.from('lancamentos').delete().in('id', ids);
       if (error) throw error;
-      await loadData();
+      await loadData(true);
       setSelectedIds(new Set());
       addToast(`${ids.length} lançamento${ids.length > 1 ? 's' : ''} deletado${ids.length > 1 ? 's' : ''}`, 'success');
     } catch (err: any) {
@@ -344,7 +344,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           .upsert({ user_id: userId, mes: currentMonth, valor_previsto: v }, { onConflict: 'user_id,mes' });
         if (error) throw error;
 
-        await loadData();
+        await loadData(true);
         setEditingForecast(false);
         addToast('Previsão salva!', 'success');
       } catch (err: any) {
@@ -663,7 +663,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           cartoes={cartoes}
           editingEntry={editingEntry}
           onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); loadData(); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}
+          onSaved={() => { setShowForm(false); loadData(true); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}
           onRequestDelete={(id) => { setShowForm(false); setDeleteConfirm({ type: 'lancamento', id }); }}
           onError={(msg) => addToast(msg, 'error')}
         />
