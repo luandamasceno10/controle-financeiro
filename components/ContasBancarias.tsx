@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { ContaBancaria, Lancamento } from '@/lib/supabase';
+import type { ContaBancaria, Lancamento, Categoria } from '@/lib/supabase';
 import { BANCOS, bancoMeta } from '@/lib/bancos';
 import { BancoIcon } from './BancoIcon';
+import ConciliacaoBancaria from './ConciliacaoBancaria';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Plus, X, Pencil, Trash2, Landmark } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Landmark, FileUp } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -25,6 +26,8 @@ export default function ContasBancarias({ userId }: { userId: string }) {
   const [form, setForm] = useState({ nome: '', banco: BANCOS[0].nome, saldo_inicial: '' });
 
   const [deleteConfirm, setDeleteConfirm] = useState<ContaBancaria | null>(null);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [conciliando, setConciliando] = useState<ContaBancaria | null>(null);
 
   useEffect(() => {
     loadData();
@@ -33,12 +36,14 @@ export default function ContasBancarias({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [contasResult, entriesResult] = await Promise.all([
+      const [contasResult, entriesResult, categoriasResult] = await Promise.all([
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).order('id'),
-        supabase.from('lancamentos').select('id, tipo, valor, conta_id').eq('user_id', userId),
+        supabase.from('lancamentos').select('*').eq('user_id', userId),
+        supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       ]);
       if (contasResult.data) setContas(contasResult.data);
       if (entriesResult.data) setEntries(entriesResult.data as Lancamento[]);
+      if (categoriasResult.data) setCategorias(categoriasResult.data);
     } catch (err: any) {
       addToast('Erro ao carregar contas: ' + err.message, 'error');
     } finally {
@@ -160,6 +165,7 @@ export default function ContasBancarias({ userId }: { userId: string }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold text-slate-800">{currency(saldoDaConta(conta.id, conta.saldo_inicial))}</span>
+                  <button onClick={() => setConciliando(conta)} title="Conciliar extrato" className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"><FileUp size={15} /></button>
                   <button onClick={() => openEdit(conta)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
                   <button onClick={() => setDeleteConfirm(conta)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                 </div>
@@ -200,6 +206,17 @@ export default function ContasBancarias({ userId }: { userId: string }) {
             </form>
           </div>
         </div>
+      )}
+
+      {conciliando && (
+        <ConciliacaoBancaria
+          userId={userId}
+          conta={conciliando}
+          entries={entries}
+          categorias={categorias}
+          onClose={() => setConciliando(null)}
+          onCreated={loadData}
+        />
       )}
 
       <ConfirmDialog
