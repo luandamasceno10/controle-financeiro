@@ -6,8 +6,6 @@ import { supabase } from '@/lib/supabase';
 import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria } from '@/lib/supabase';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
-import { PAYMENTS } from '@/lib/payments';
-import { ensureRecorrentesGerados } from '@/lib/recorrentes';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -19,8 +17,7 @@ import {
 import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
   ArrowUpRight, ArrowDownRight, CircleEllipsis,
-  Calendar, AlertTriangle, CheckCircle2, Clock,
-  ArrowDownToLine, ArrowUpFromLine, Repeat, ChevronLeft, ChevronRight,
+  Calendar, ChevronLeft, ChevronRight,
   Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText
 } from 'lucide-react';
 
@@ -35,24 +32,8 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function nowTime() {
-  return new Date().toTimeString().slice(0, 5);
-}
-
 function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-}
-
-function daysUntil(iso: string) {
-  const d1 = new Date(todayISO() + 'T00:00:00');
-  const d2 = new Date(iso + 'T00:00:00');
-  return Math.round((d2.getTime() - d1.getTime()) / 86400000);
-}
-
-function addMonths(iso: string, n: number) {
-  const d = new Date(iso + 'T00:00:00');
-  d.setMonth(d.getMonth() + n);
-  return d.toISOString().slice(0, 10);
 }
 
 function monthKey(iso: string) {
@@ -81,10 +62,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<Lancamento | null>(null);
-  const [showBillForm, setShowBillForm] = useState<'pagar' | 'receber' | null>(null);
   const [showCardDetail, setShowCardDetail] = useState(false);
-  const [settleTarget, setSettleTarget] = useState<{ kind: 'pagar' | 'receber'; id: number } | null>(null);
-  const [settlePayment, setSettlePayment] = useState<'pix' | 'cartao'>('pix');
   const [editingForecast, setEditingForecast] = useState(false);
   const [forecastInput, setForecastInput] = useState('');
 
@@ -95,14 +73,9 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 15;
 
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento' | 'payable' | 'receivable'; id: number } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento'; id: number } | null>(null);
 
   const [savingForecast, setSavingForecast] = useState(false);
-  const [savingBill, setSavingBill] = useState(false);
-
-  const [billForm, setBillForm] = useState({
-    desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false,
-  });
 
   useEffect(() => {
     loadData();
@@ -111,7 +84,6 @@ export default function Dashboard({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      await ensureRecorrentesGerados(userId);
       const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
@@ -269,9 +241,6 @@ export default function Dashboard({ userId }: { userId: string }) {
     [filtered, page]
   );
 
-  const upcomingPayable = useMemo(() => [...payable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [payable]);
-  const upcomingReceivable = useMemo(() => [...receivable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [receivable]);
-
   const yearData = useMemo(() => {
     const months = [];
     for (let m = 1; m <= 12; m++) {
@@ -311,111 +280,6 @@ export default function Dashboard({ userId }: { userId: string }) {
       await supabase.from('lancamentos').delete().eq('id', id);
       await loadData();
       addToast('Lançamento deletado', 'success');
-    } catch (err: any) {
-      addToast('Erro ao deletar: ' + err.message, 'error');
-    }
-  };
-
-  const handleBillSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!billForm.desc || !billForm.amount) return;
-
-    setSavingBill(true);
-    try {
-      if (showBillForm === 'pagar') {
-        await supabase.from('contas_pagar').insert([{
-          user_id: userId, descricao: billForm.desc, categoria: billForm.category,
-          categoria_id: categoriaByName[billForm.category]?.id ?? null,
-          valor: parseFloat(billForm.amount), vencimento: billForm.due, status: 'pendente', recorrente: billForm.recurring,
-        }]);
-      } else {
-        await supabase.from('contas_receber').insert([{
-          user_id: userId, descricao: billForm.desc, valor: parseFloat(billForm.amount),
-          vencimento: billForm.due, status: 'pendente', recorrente: billForm.recurring,
-        }]);
-      }
-      await loadData();
-      setBillForm({ desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false });
-      setShowBillForm(null);
-      addToast('Conta salva com sucesso!', 'success');
-    } catch (err: any) {
-      addToast('Erro ao salvar conta: ' + err.message, 'error');
-    } finally {
-      setSavingBill(false);
-    }
-  };
-
-  const requestSettle = (kind: 'pagar' | 'receber', id: number) => {
-    setSettlePayment('pix');
-    setSettleTarget({ kind, id });
-  };
-
-  const confirmSettle = async () => {
-    if (!settleTarget) return;
-    const { kind, id } = settleTarget;
-
-    try {
-      if (kind === 'pagar') {
-        const target = payable.find(p => p.id === id);
-        if (!target) return;
-
-        await supabase.from('lancamentos').insert([{
-          user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
-          tipo: 'saida', categoria: target.categoria, categoria_id: categoriaByName[target.categoria]?.id ?? null,
-          forma_pagamento: settlePayment, valor: target.valor,
-        }]);
-
-        await supabase.from('contas_pagar').update({ status: 'pago' }).eq('id', id);
-
-        if (target.recorrente) {
-          await supabase.from('contas_pagar').insert([{
-            user_id: userId, descricao: target.descricao, categoria: target.categoria, categoria_id: target.categoria_id,
-            valor: target.valor, vencimento: addMonths(target.vencimento, 1), status: 'pendente', recorrente: true,
-          }]);
-        }
-      } else {
-        const target = receivable.find(r => r.id === id);
-        if (!target) return;
-
-        await supabase.from('lancamentos').insert([{
-          user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
-          tipo: 'entrada', categoria: 'Diversos', categoria_id: categoriaByName['Diversos']?.id ?? null,
-          forma_pagamento: settlePayment, valor: target.valor,
-        }]);
-
-        await supabase.from('contas_receber').update({ status: 'recebido' }).eq('id', id);
-
-        if (target.recorrente) {
-          await supabase.from('contas_receber').insert([{
-            user_id: userId, descricao: target.descricao, valor: target.valor,
-            vencimento: addMonths(target.vencimento, 1), status: 'pendente', recorrente: true,
-          }]);
-        }
-      }
-
-      await loadData();
-      setSettleTarget(null);
-      addToast('Conta quitada com sucesso!', 'success');
-    } catch (err: any) {
-      addToast('Erro ao quitar: ' + err.message, 'error');
-    }
-  };
-
-  const removePayable = async (id: number) => {
-    try {
-      await supabase.from('contas_pagar').delete().eq('id', id);
-      await loadData();
-      addToast('Conta deletada', 'success');
-    } catch (err: any) {
-      addToast('Erro ao deletar: ' + err.message, 'error');
-    }
-  };
-
-  const removeReceivable = async (id: number) => {
-    try {
-      await supabase.from('contas_receber').delete().eq('id', id);
-      await loadData();
-      addToast('Conta deletada', 'success');
     } catch (err: any) {
       addToast('Erro ao deletar: ' + err.message, 'error');
     }
@@ -582,6 +446,22 @@ export default function Dashboard({ userId }: { userId: string }) {
             <SummaryCard label="Saldo projetado" value={billTotals.saldoProjetado} icon={Calendar} tone={billTotals.saldoProjetado >= 0 ? 'violet' : 'rose'} />
           </div>
 
+          {(billTotals.aPagar > 0 || billTotals.aReceber > 0) && (
+            <Link href="/pagar-receber" className="flex items-center justify-between bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors">
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-slate-400">A pagar</p>
+                  <p className="text-sm font-bold text-rose-600 tabular-nums">{currency(billTotals.aPagar)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">A receber</p>
+                  <p className="text-sm font-bold text-emerald-600 tabular-nums">{currency(billTotals.aReceber)}</p>
+                </div>
+              </div>
+              <span className="text-xs font-medium text-slate-500">Contas a Pagar/Receber →</span>
+            </Link>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
               <div className="w-11 h-11 rounded-lg bg-cyan-50 flex items-center justify-center shrink-0"><QrCode size={20} className="text-cyan-600" /></div>
@@ -650,16 +530,6 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </ResponsiveContainer>
               ) : <p className="text-center text-slate-400 text-sm py-10">Sem despesas neste mês ainda.</p>}
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <BillsPanel title="Contas a pagar" icon={ArrowUpFromLine} tone="rose" total={billTotals.aPagar} totalLabel="Em aberto" items={upcomingPayable}
-              onAdd={() => { setBillForm({ desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false }); setShowBillForm('pagar'); }}
-              onToggle={(id) => requestSettle('pagar', id)} onRemove={(id) => { setDeleteConfirm({ type: 'payable', id }); }} doneLabel="pago"
-              renderMeta={(item) => <span className="text-[11px] text-slate-400">{catMeta(item.categoria)?.emoji} {item.categoria}</span>} />
-            <BillsPanel title="Contas a receber" icon={ArrowDownToLine} tone="emerald" total={billTotals.aReceber} totalLabel="Em aberto" items={upcomingReceivable}
-              onAdd={() => { setBillForm({ desc: '', category: 'Moradia', amount: '', due: todayISO(), recurring: false }); setShowBillForm('receber'); }}
-              onToggle={(id) => requestSettle('receber', id)} onRemove={(id) => { setDeleteConfirm({ type: 'receivable', id }); }} doneLabel="recebido" />
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -746,34 +616,6 @@ export default function Dashboard({ userId }: { userId: string }) {
         />
       )}
 
-      {showBillForm && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowBillForm(null)}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5"><h3 className="font-semibold text-slate-800">Nova conta a {showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3><button onClick={() => setShowBillForm(null)} disabled={savingBill}><X size={18} /></button></div>
-            <form onSubmit={handleBillSubmit} className="space-y-4">
-              <div><label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label><input type="text" value={billForm.desc} onChange={(e) => setBillForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
-                <div><label className="text-xs font-medium text-slate-500 mb-1 block">Vencimento</label><input type="date" value={billForm.due} onChange={(e) => setBillForm(f => ({ ...f, due: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} /></div>
-              </div>
-              {showBillForm === 'pagar' && (<div><label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label><select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>{categoriasSaida.map(c => <option key={c.id} value={c.nome}>{c.emoji} {c.nome}</option>)}</select></div>)}
-              <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50"><input type="checkbox" checked={billForm.recurring} onChange={(e) => setBillForm(f => ({ ...f, recurring: e.target.checked }))} className="w-4 h-4 accent-slate-800" disabled={savingBill} /><Repeat size={15} className="text-slate-500" /><span className="text-sm text-slate-600">Repetir todo mês</span></label>
-              <button type="submit" disabled={savingBill} className={`w-full font-semibold py-2.5 rounded-lg text-sm transition-colors ${showBillForm === 'pagar' ? 'bg-rose-500 hover:bg-rose-400 disabled:bg-slate-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900'}`}>{savingBill ? 'Salvando...' : 'Salvar conta'}</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {settleTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setSettleTarget(null)}>
-          <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 mb-1">Como foi {settleTarget.kind === 'pagar' ? 'pago' : 'recebido'}?</h3>
-            <p className="text-xs text-slate-400 mb-4">Isso será usado para categorizar corretamente.</p>
-            <div className="grid grid-cols-2 gap-2 mb-5">{PAYMENTS.map(p => { const Icon = p.icon; return (<button key={p.id} type="button" onClick={() => setSettlePayment(p.id as any)} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${settlePayment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div>
-            <div className="flex gap-2"><button onClick={() => setSettleTarget(null)} className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600">Cancelar</button><button onClick={confirmSettle} className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 text-slate-900">Confirmar</button></div>
-          </div>
-        </div>
-      )}
 
       {showCardDetail && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50" onClick={() => setShowCardDetail(false)}>
@@ -808,15 +650,13 @@ export default function Dashboard({ userId }: { userId: string }) {
       <ConfirmDialog
         open={deleteConfirm !== null}
         title="Confirmar exclusão"
-        message={deleteConfirm?.type === 'lancamento' ? 'Tem certeza que quer deletar este lançamento?' : 'Tem certeza que quer deletar esta conta?'}
+        message="Tem certeza que quer deletar este lançamento?"
         confirmText="Deletar"
         cancelText="Cancelar"
         danger
         onConfirm={() => {
           if (!deleteConfirm) return;
-          if (deleteConfirm.type === 'lancamento') removeEntry(deleteConfirm.id);
-          else if (deleteConfirm.type === 'payable') removePayable(deleteConfirm.id);
-          else removeReceivable(deleteConfirm.id);
+          removeEntry(deleteConfirm.id);
           setDeleteConfirm(null);
         }}
         onCancel={() => setDeleteConfirm(null)}
@@ -925,35 +765,3 @@ function FilterSelect({ value, onChange, options }: any) {
   return (<div className="relative"><select value={value} onChange={(e) => onChange(e.target.value)} className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-xs font-medium text-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-800 cursor-pointer max-w-[160px]">{options.map((o: any) => <option key={o.v} value={o.v}>{o.l}</option>)}</select><ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" /></div>);
 }
 
-function BillsPanel({ title, icon: Icon, tone, total, totalLabel, items, onAdd, onToggle, onRemove, doneLabel, renderMeta }: any) {
-  const tones: any = { rose: { bg: 'bg-rose-50', text: 'text-rose-600', btn: 'bg-rose-500 hover:bg-rose-400' }, emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', btn: 'bg-emerald-500 hover:bg-emerald-400' } };
-  const t = tones[tone];
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3"><div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.bg} ${t.text}`}><Icon size={16} /></div><div><h3 className="text-sm font-semibold text-slate-700">{title}</h3><p className="text-xs text-slate-400">{totalLabel}: <span className="font-semibold text-slate-600">{currency(total)}</span></p></div></div>
-        <button onClick={onAdd} className={`flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${t.btn}`}><Plus size={14} /> Adicionar</button>
-      </div>
-      <div className="divide-y divide-slate-50 max-h-80 overflow-y-auto">
-        {items.length === 0 && <p className="px-5 py-8 text-center text-slate-400 text-sm">Nenhuma conta cadastrada.</p>}
-        {items.map((item: any) => {
-          const isDone = item.status === doneLabel;
-          const dleft = daysUntil(item.vencimento);
-          let badge;
-          if (isDone) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md"><CheckCircle2 size={11} /> {doneLabel === 'pago' ? 'Pago' : 'Recebido'}</span>;
-          else if (dleft < 0) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md"><AlertTriangle size={11} /> Atrasado</span>;
-          else if (dleft <= 3) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><Clock size={11} /> Vence em {dleft}d</span>;
-          else badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md"><Calendar size={11} /> {fmtDate(item.vencimento)}</span>;
-          return (
-            <div key={item.id} className={`px-5 py-3 flex items-center gap-3 group ${isDone ? 'opacity-60' : ''}`}>
-              <button onClick={() => onToggle(item.id)} className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${isDone ? `${t.text} border-current` : 'border-slate-300'}`}>{isDone && <CheckCircle2 size={14} style={{ color: tone === 'rose' ? '#F43F5E' : '#10B981' }} />}</button>
-              <div className="min-w-0 flex-1"><p className={`text-sm font-medium text-slate-700 truncate flex items-center gap-1.5 ${isDone ? 'line-through' : ''}`}>{item.descricao}{item.recorrente && <Repeat size={11} className="text-slate-400 shrink-0" />}</p><div className="flex items-center gap-2 mt-0.5">{badge}{renderMeta && renderMeta(item)}</div></div>
-              <span className="text-sm font-bold tabular-nums text-slate-700 shrink-0">{currency(Number(item.valor))}</span>
-              <button onClick={() => onRemove(item.id)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition-all shrink-0"><Trash2 size={14} /></button>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}

@@ -24,6 +24,9 @@ export interface Lancamento {
   created_at: string;
 }
 
+export type TipoRepeticao = 'nenhuma' | 'recorrente' | 'parcelado';
+export type PeriodoRepeticao = 'semanal' | 'quinzenal' | 'mensal';
+
 export interface ContaPagar {
   id: number;
   user_id: string;
@@ -33,7 +36,10 @@ export interface ContaPagar {
   valor: number;
   vencimento: string;
   status: 'pendente' | 'pago';
-  recorrente: boolean;
+  tipo_repeticao: TipoRepeticao;
+  periodo: PeriodoRepeticao;
+  parcela_atual: number | null;
+  parcela_total: number | null;
   created_at: string;
 }
 
@@ -44,7 +50,10 @@ export interface ContaReceber {
   valor: number;
   vencimento: string;
   status: 'pendente' | 'recebido';
-  recorrente: boolean;
+  tipo_repeticao: TipoRepeticao;
+  periodo: PeriodoRepeticao;
+  parcela_atual: number | null;
+  parcela_total: number | null;
   created_at: string;
 }
 

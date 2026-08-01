@@ -333,3 +333,31 @@ CREATE INDEX push_subscriptions_user_id ON push_subscriptions(user_id);
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can only see their own push_subscriptions" ON push_subscriptions
   FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================================
+-- Fase 7: recorrência/parcelamento em contas a pagar/receber
+-- (substitui lancamentos_recorrentes — aquele modelo criava lançamentos
+-- reais e mexia no saldo antes do pagamento acontecer de verdade; agora
+-- tudo passa por contas_pagar/contas_receber, que só vira lançamento
+-- quando o usuário marca como pago/recebido)
+-- ============================================================
+
+ALTER TABLE contas_pagar ADD COLUMN tipo_repeticao TEXT NOT NULL DEFAULT 'nenhuma' CHECK (tipo_repeticao IN ('nenhuma', 'recorrente', 'parcelado'));
+ALTER TABLE contas_pagar ADD COLUMN periodo TEXT NOT NULL DEFAULT 'mensal' CHECK (periodo IN ('semanal', 'quinzenal', 'mensal'));
+ALTER TABLE contas_pagar ADD COLUMN parcela_atual INTEGER;
+ALTER TABLE contas_pagar ADD COLUMN parcela_total INTEGER;
+UPDATE contas_pagar SET tipo_repeticao = 'recorrente' WHERE recorrente = true;
+ALTER TABLE contas_pagar DROP COLUMN recorrente;
+
+ALTER TABLE contas_receber ADD COLUMN tipo_repeticao TEXT NOT NULL DEFAULT 'nenhuma' CHECK (tipo_repeticao IN ('nenhuma', 'recorrente', 'parcelado'));
+ALTER TABLE contas_receber ADD COLUMN periodo TEXT NOT NULL DEFAULT 'mensal' CHECK (periodo IN ('semanal', 'quinzenal', 'mensal'));
+ALTER TABLE contas_receber ADD COLUMN parcela_atual INTEGER;
+ALTER TABLE contas_receber ADD COLUMN parcela_total INTEGER;
+UPDATE contas_receber SET tipo_repeticao = 'recorrente' WHERE recorrente = true;
+ALTER TABLE contas_receber DROP COLUMN recorrente;
+
+-- lancamentos_recorrentes descontinuado: apagamos os lançamentos que ele
+-- já tinha gerado (restaura o saldo) e os templates, mas mantemos a tabela
+-- (sem uso) para não quebrar a FK lancamentos.recorrente_id.
+DELETE FROM lancamentos WHERE recorrente_id IS NOT NULL;
+DELETE FROM lancamentos_recorrentes;
