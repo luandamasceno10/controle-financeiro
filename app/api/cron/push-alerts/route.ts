@@ -122,7 +122,9 @@ export async function GET(request: Request) {
 
     if (mensagens.length === 0) continue;
 
-    const title = mensagens.length === 1 ? 'Controle Financeiro' : `Controle Financeiro — ${mensagens.length} alertas`;
+    // O SO já identifica o app remetente na notificação — o título aqui não deve
+    // repetir "Controle Financeiro", e sim resumir o que de fato aconteceu.
+    const title = mensagens.length === 1 ? '🔔 Alerta financeiro' : `🔔 ${mensagens.length} alertas financeiros`;
     const body = mensagens.slice(0, 3).join(' · ');
 
     const userSubs = subs.filter((s) => s.user_id === userId && s.last_notified_date !== hojeISO);
