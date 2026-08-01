@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { ContaPagar, ContaReceber, Categoria, ContaBancaria, TipoRepeticao, PeriodoRepeticao } from '@/lib/supabase';
 import { addByPeriodo, PERIODO_LABEL } from '@/lib/periodo';
+import { sortCategoriasNatural } from '@/lib/categorias';
 import { PAYMENTS } from '@/lib/payments';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -82,13 +83,12 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
     }
   };
 
-  const categoriasSaida = useMemo(() => categorias.filter(c => c.tipo === 'saida'), [categorias]);
+  const categoriasSaida = useMemo(() => sortCategoriasNatural(categorias.filter(c => c.tipo === 'saida')), [categorias]);
   const categoriaByName = useMemo(() => {
     const map: Record<string, Categoria> = {};
     categorias.forEach(c => { if (!map[c.nome]) map[c.nome] = c; });
     return map;
   }, [categorias]);
-  const catMeta = (nome: string) => categoriaByName[nome];
 
   const totals = useMemo(() => {
     const aPagar = payable.filter(p => p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0);
@@ -353,7 +353,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
             onAdd={() => openBillForm('pagar')} onToggle={(id: number) => handleToggle('pagar', id)}
             onEdit={(item: ContaPagar) => openEditBill('pagar', item)}
             onRemove={(id: number) => setDeleteConfirm({ kind: 'pagar', id })} doneLabel="pago"
-            renderMeta={(item: ContaPagar) => <span className="text-[11px] text-slate-400">{catMeta(item.categoria)?.emoji} {item.categoria}</span>}
+            renderMeta={(item: ContaPagar) => <span className="text-[11px] text-slate-400">{item.categoria}</span>}
           />
           <BillsPanel
             title="Contas a receber" icon={ArrowDownToLine} tone="emerald" total={totals.aReceber} totalLabel="Em aberto" items={upcomingReceivable}
@@ -391,7 +391,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
                 <div>
                   <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label>
                   <select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>
-                    {categoriasSaida.map(c => <option key={c.id} value={c.nome}>{c.emoji} {c.nome}</option>)}
+                    {categoriasSaida.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
                   </select>
                 </div>
               )}

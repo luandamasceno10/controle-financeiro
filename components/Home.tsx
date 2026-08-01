@@ -145,9 +145,8 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     });
     const top = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0];
     if (!top) return null;
-    const cat = categorias.find((c) => c.nome === top[0]);
-    return { nome: top[0], emoji: cat?.emoji || '', qtd: top[1] };
-  }, [monthEntries, categorias]);
+    return { nome: top[0], qtd: top[1] };
+  }, [monthEntries]);
 
   const streakDias = useMemo(() => {
     const dias = new Set(entries.map((e) => e.data));
@@ -264,7 +263,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
           {loading ? (
             <p className="text-lg font-semibold text-slate-800">—</p>
           ) : categoriaDestaque ? (
-            <p className="text-sm font-semibold text-slate-800 truncate">{categoriaDestaque.emoji} {categoriaDestaque.nome}</p>
+            <p className="text-sm font-semibold text-slate-800 truncate">{categoriaDestaque.nome}</p>
           ) : (
             <p className="text-sm text-slate-400">Sem gastos ainda</p>
           )}

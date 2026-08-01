@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Categoria, OrcamentoCategoria, Lancamento } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
+import { sortCategoriasNatural } from '@/lib/categorias';
 import { Wallet, Check, X, AlertTriangle, ChevronLeft, ChevronRight, PieChart } from 'lucide-react';
 
 function currency(v: number) {
@@ -161,7 +162,7 @@ export default function Orcamentos({ userId }: { userId: string }) {
         ) : categorias.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">Nenhuma categoria de saída cadastrada ainda.</div>
         ) : (
-          categorias.map((cat) => {
+          sortCategoriasNatural(categorias).map((cat) => {
             const gasto = gastoPorCategoria[cat.id] || 0;
             const orc = orcamentoPorCategoria[cat.id];
             const limite = orc ? Number(orc.valor_limite) : null;
@@ -173,7 +174,6 @@ export default function Orcamentos({ userId }: { userId: string }) {
               <div key={cat.id} className="px-4 py-3.5">
                 <div className="flex items-center justify-between gap-3 mb-1.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span>{cat.emoji}</span>
                     <span className="text-sm font-semibold text-slate-700 truncate">{cat.nome}</span>
                   </div>
                   {isEditing ? (

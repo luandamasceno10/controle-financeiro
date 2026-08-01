@@ -5,6 +5,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { supabase } from './supabase';
+import type { Categoria } from './supabase';
+
+export function sortCategoriasNatural<T extends { nome: string }>(cats: T[]): T[] {
+  return [...cats].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+}
 
 export const ICONS: Record<string, LucideIcon> = {
   Home, Apple, Car, HeartPulse, GraduationCap, Clapperboard, Gift, Users,

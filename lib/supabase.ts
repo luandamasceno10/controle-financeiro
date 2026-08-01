@@ -77,6 +77,7 @@ export interface Categoria {
   emoji: string | null;
   ativa: boolean;
   ordem: number;
+  parent_id: number | null;
   created_at: string;
 }
 

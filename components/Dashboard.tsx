@@ -124,9 +124,9 @@ export default function Dashboard({ userId }: { userId: string }) {
     return map;
   }, [categorias]);
 
-  const catMeta = (nome: string): { color: string; emoji: string } | undefined => {
+  const catMeta = (nome: string): { color: string } | undefined => {
     const c = categoriaByName[nome];
-    return c ? { color: c.cor, emoji: c.emoji || '' } : undefined;
+    return c ? { color: c.cor } : undefined;
   };
 
   const monthEntries = useMemo(
@@ -262,7 +262,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const yearCategoryData = useMemo(() => {
     const map: Record<string, number> = {};
     entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida').forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
-    return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B', emoji: catMeta(name)?.emoji || '' })).sort((a, b) => b.value - a.value);
+    return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B' })).sort((a, b) => b.value - a.value);
   }, [entries, currentYear]);
 
   const openNewEntry = () => {
@@ -500,7 +500,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                       <div key={i} className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
-                          <span className="text-slate-600">{catMeta(c.name)?.emoji} {c.name}</span>
+                          <span className="text-slate-600">{c.name}</span>
                           {limiteExcedido(c.name, c.value) && (
                             <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">Estourou</span>
                           )}
@@ -541,7 +541,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               </div>
               <FilterSelect value={filterType} onChange={setFilterType} options={[{ v: 'todos', l: 'Todos os tipos' }, { v: 'entrada', l: 'Entradas' }, { v: 'saida', l: 'Saídas' }]} />
               <FilterSelect value={filterPayment} onChange={setFilterPayment} options={[{ v: 'todos', l: 'Todas formas' }, { v: 'pix', l: 'Pix' }, { v: 'cartao', l: 'Cartão' }]} />
-              <FilterSelect value={filterCategory} onChange={setFilterCategory} options={[{ v: 'todas', l: 'Todas categorias' }, ...Array.from(new Set(categorias.map(c => c.nome))).map(c => ({ v: c, l: `${catMeta(c)?.emoji || ''} ${c}` }))]} />
+              <FilterSelect value={filterCategory} onChange={setFilterCategory} options={[{ v: 'todas', l: 'Todas categorias' }, ...Array.from(new Set(categorias.map(c => c.nome))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' })).map(c => ({ v: c, l: c }))]} />
               <div className="flex items-center gap-1.5">
                 <button onClick={() => exportLancamentosCSV(filtered, `extrato-${currentMonth}`)} disabled={filtered.length === 0} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors">
                   <FileDown size={13} /> CSV
@@ -569,7 +569,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                       <tr key={e.id} onClick={() => openEditEntry(e)} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer">
                         <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{fmtDate(e.data)}</td>
                         <td className="px-5 py-3 font-medium text-slate-700">{e.descricao}</td>
-                        <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td>
+                        <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td>
                         <td className="px-5 py-3 text-slate-500"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
                         <td className={`px-5 py-3 text-right font-semibold tabular-nums ${e.tipo === 'entrada' ? 'text-emerald-600' : 'text-slate-700'}`}>{e.tipo === 'entrada' ? '+' : '-'}{currency(Number(e.valor))}</td>
                         <td className="px-5 py-3 text-right">
@@ -631,14 +631,14 @@ export default function Dashboard({ userId }: { userId: string }) {
                   <div className="space-y-2">
                     {cardByCategory.map((c, i) => {
                       const pct = cardTotal > 0 ? Math.round((c.value / cardTotal) * 100) : 0;
-                      return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 font-medium">{catMeta(c.name)?.emoji} {c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
+                      return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 font-medium">{c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
                     })}
                   </div>
                 </div>
                 <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 rounded-lg overflow-hidden">
                   <table className="w-full text-sm"><tbody>
-                    {cardEntries.map((e) => { const meta = catMeta(e.categoria); return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{meta?.emoji} {e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
+                    {cardEntries.map((e) => { const meta = catMeta(e.categoria); return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700">{currency(Number(e.valor))}</td></tr>); })}
                   </tbody></table>
                 </div>
               </>
@@ -723,7 +723,7 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentY
             </ResponsiveContainer>
             <div className="space-y-2 self-center">
               {yearCategoryData.map((c: any, i: number) => {
-                return (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{c.emoji} {c.name}</span></div><span className="font-semibold tabular-nums">{currency(c.value)}</span></div>);
+                return (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600">{c.name}</span></div><span className="font-semibold tabular-nums">{currency(c.value)}</span></div>);
               })}
             </div>
           </div>
