@@ -8,7 +8,7 @@ import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { computeProgresso } from '@/lib/metas';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, LayoutDashboard, Landmark, CreditCard, Target, Tag, CalendarClock, Receipt, Loader, X, ArrowRight, Wallet, WalletCards, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, Landmark, Target, CalendarClock, Receipt, Loader, X, ArrowRight, Wallet, AlertTriangle, Clock, Flame, Tag } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -23,25 +23,6 @@ function todayISO() {
 }
 
 const MONTH_NAMES_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-const SHORTCUTS = [
-  { href: '/dashboard', label: 'Dashboard completo', description: 'Saldo, gráficos e extrato', icon: LayoutDashboard, tone: 'slate' },
-  { href: '/contas', label: 'Contas Bancárias', description: 'Cadastre suas contas', icon: Landmark, tone: 'blue' },
-  { href: '/cartoes', label: 'Cartões de Crédito', description: 'Fatura e vencimento', icon: CreditCard, tone: 'violet' },
-  { href: '/pagar-receber', label: 'Contas a Pagar/Receber', description: 'Fixas, recorrentes ou parceladas', icon: WalletCards, tone: 'cyan' },
-  { href: '/orcamentos', label: 'Orçamentos', description: 'Limite de gastos por categoria', icon: Wallet, tone: 'blue' },
-  { href: '/metas', label: 'Metas', description: 'Seus objetivos financeiros', icon: Target, tone: 'emerald' },
-  { href: '/categorias', label: 'Categorias', description: 'Gerencie suas categorias', icon: Tag, tone: 'amber' },
-];
-
-const TONE_CLASSES: Record<string, string> = {
-  slate: 'bg-slate-50 text-slate-600',
-  blue: 'bg-blue-50 text-blue-600',
-  violet: 'bg-violet-50 text-violet-600',
-  emerald: 'bg-emerald-50 text-emerald-600',
-  amber: 'bg-amber-50 text-amber-600',
-  cyan: 'bg-cyan-50 text-cyan-600',
-};
 
 export default function Home({ userId, nome }: { userId: string; nome?: string }) {
   const { toasts, addToast, removeToast } = useToast();
@@ -157,6 +138,38 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     return lista;
   }, [contasPagar, faturas, cartoes, entries, metas, metasContribuicoes, orcamentos, categorias, monthEntries]);
 
+  const categoriaDestaque = useMemo(() => {
+    const contagem: Record<string, number> = {};
+    monthEntries.filter((e) => e.tipo === 'saida').forEach((e) => {
+      contagem[e.categoria] = (contagem[e.categoria] || 0) + 1;
+    });
+    const top = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0];
+    if (!top) return null;
+    const cat = categorias.find((c) => c.nome === top[0]);
+    return { nome: top[0], emoji: cat?.emoji || '', qtd: top[1] };
+  }, [monthEntries, categorias]);
+
+  const streakDias = useMemo(() => {
+    const dias = new Set(entries.map((e) => e.data));
+    const hojeISO = todayISO();
+    const cursor = new Date(hojeISO + 'T00:00:00');
+    if (!dias.has(hojeISO)) cursor.setDate(cursor.getDate() - 1);
+    let streak = 0;
+    while (dias.has(cursor.toISOString().slice(0, 10))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }, [entries]);
+
+  const metasInfo = useMemo(() => {
+    const noRitmo = metas.filter((m) => {
+      const contribs = metasContribuicoes.filter((c) => c.meta_id === m.id);
+      return computeProgresso(Number(m.valor_alvo), m.data_alvo, m.created_at, contribs).noPrazo !== false;
+    }).length;
+    return { total: metas.length, noRitmo };
+  }, [metas, metasContribuicoes]);
+
   const runAnalysis = async () => {
     if (analiseHoje) {
       setShowAnalysis(true);
@@ -236,7 +249,40 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
             <p className="text-sm text-slate-400">Nenhuma pendente</p>
           )}
         </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center mb-2">
+            <Flame size={15} />
+          </div>
+          <p className="text-xs text-slate-400">Sequência ativa</p>
+          <p className="text-lg font-semibold text-slate-800">{loading ? '—' : streakDias > 0 ? `${streakDias} dia${streakDias > 1 ? 's' : ''}` : '—'}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center mb-2">
+            <Tag size={15} />
+          </div>
+          <p className="text-xs text-slate-400">Categoria em destaque</p>
+          {loading ? (
+            <p className="text-lg font-semibold text-slate-800">—</p>
+          ) : categoriaDestaque ? (
+            <p className="text-sm font-semibold text-slate-800 truncate">{categoriaDestaque.emoji} {categoriaDestaque.nome}</p>
+          ) : (
+            <p className="text-sm text-slate-400">Sem gastos ainda</p>
+          )}
+        </div>
       </div>
+
+      {!loading && metasInfo.total > 0 && (
+        <Link href="/metas" className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <Target size={16} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-700">{metasInfo.total} meta{metasInfo.total > 1 ? 's' : ''} em andamento</p>
+            <p className="text-xs text-slate-400">{metasInfo.noRitmo} de {metasInfo.total} no ritmo certo</p>
+          </div>
+          <ArrowRight size={16} className="text-slate-400 shrink-0" />
+        </Link>
+      )}
 
       {!loading && contas.length === 0 ? (
         <Link
@@ -275,27 +321,6 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
         )}
       </button>
       {analiseHoje && <p className="text-xs text-slate-400 text-center -mt-3">Você já usou sua análise de hoje. Uma nova fica disponível amanhã.</p>}
-
-      <div className="space-y-2">
-        {SHORTCUTS.map((s) => {
-          const Icon = s.icon;
-          return (
-            <Link
-              key={s.href}
-              href={s.href}
-              className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors"
-            >
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${TONE_CLASSES[s.tone]}`}>
-                <Icon size={16} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-700">{s.label}</p>
-                <p className="text-xs text-slate-400">{s.description}</p>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
 
       {showForm && (
         <LancamentoForm
