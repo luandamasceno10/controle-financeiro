@@ -369,3 +369,27 @@ ALTER TABLE contas_receber ADD COLUMN lancamento_id BIGINT REFERENCES lancamento
 -- Subcategorias: uma categoria pode opcionalmente pertencer a outra (1 nível)
 ALTER TABLE categorias ADD COLUMN parent_id BIGINT REFERENCES categorias(id) ON DELETE SET NULL;
 CREATE INDEX categorias_parent_id ON categorias(parent_id);
+
+-- ============================================================
+-- Correção: data_vencimento de faturas estava sempre calculada no mesmo
+-- mês da competência (mês de fechamento). Isso está errado quando o dia
+-- de vencimento é anterior ao dia de fechamento (o caso comum, ex: fecha
+-- dia 30, vence dia 06) — nesse caso o vencimento tem que cair no mês
+-- seguinte ao fechamento, senão a fatura venceria antes mesmo de fechar.
+-- Recalcula as faturas já gravadas com a data errada.
+-- ============================================================
+UPDATE faturas f
+SET data_vencimento = (
+  (date_trunc('month', to_date(f.competencia || '-01', 'YYYY-MM-DD'))
+    + CASE WHEN c.dia_vencimento < c.dia_fechamento THEN interval '1 month' ELSE interval '0 month' END
+  ) + (LEAST(
+        c.dia_vencimento,
+        extract(day from (
+          date_trunc('month', to_date(f.competencia || '-01', 'YYYY-MM-DD'))
+          + CASE WHEN c.dia_vencimento < c.dia_fechamento THEN interval '1 month' ELSE interval '0 month' END
+          + interval '1 month - 1 day'
+        ))::int
+      ) - 1) * interval '1 day'
+)::date
+FROM cartoes_credito c
+WHERE f.cartao_id = c.id;

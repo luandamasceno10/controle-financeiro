@@ -275,7 +275,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-xs text-slate-400">Fatura atual</p>
+                      <p className="text-xs text-slate-400">Fatura atual{faturaAtual ? ` · vence ${fmtDate(faturaAtual.data_vencimento)}` : ''}</p>
                       <p className="text-sm font-semibold text-slate-800">{currency(totalAtual)}</p>
                       {totalFuturo > 0 && (
                         <p className="text-[11px] text-indigo-600 flex items-center gap-1 justify-end mt-0.5">
@@ -303,7 +303,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                             disabled={contas.length === 0}
                             className="flex-1 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors"
                           >
-                            <Check size={14} /> Pagar fatura de {f.competencia} — {currency(totalPendente)}
+                            <Check size={14} /> Pagar fatura de {fmtCompetencia(f.competencia)} (vence {fmtDate(f.data_vencimento)}) — {currency(totalPendente)}
                           </button>
                         </div>
                       );
@@ -329,13 +329,16 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                           <div key={f.id} className="px-4 py-2.5">
                             <div className="flex items-center justify-between mb-1.5">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-slate-600">{fmtCompetencia(f.competencia)}</span>
+                                <span className="text-xs font-semibold text-slate-600">Fecha {fmtCompetencia(f.competencia).toLowerCase()} · vence {fmtDate(f.data_vencimento)}</span>
                                 <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${badge.className}`}>{badge.label}</span>
                               </div>
                               <span className="text-xs font-semibold text-slate-700">{currency(total)}</span>
                             </div>
                             {status === 'futura' && (
-                              <p className="text-[11px] text-indigo-500 mb-1.5">Compras que ainda vão entrar nesta fatura — cartão ainda não fechou para {fmtCompetencia(f.competencia).toLowerCase()}.</p>
+                              <p className="text-[11px] text-indigo-500 mb-1.5">Cartão ainda não fechou para este ciclo — essas compras vão para a fatura que vence em {fmtDate(f.data_vencimento)}.</p>
+                            )}
+                            {status === 'atual' && (
+                              <p className="text-[11px] text-slate-400 mb-1.5">Ciclo em aberto — vai fechar e virar fatura com vencimento em {fmtDate(f.data_vencimento)}.</p>
                             )}
                             <div className="space-y-1.5">
                               {faturaEntries.map((e) => (
