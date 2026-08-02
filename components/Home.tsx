@@ -92,14 +92,11 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     const hojeISO = todayISO();
     const lista: Alerta[] = [];
 
+    // Contas a pagar que ainda vão vencer já aparecem no card "Próxima conta" —
+    // só entram aqui como alerta quando já estão atrasadas, pra não duplicar a informação.
     contasPagar.forEach((cp) => {
       if (cp.vencimento < hojeISO) {
         lista.push({ id: `pagar-${cp.id}`, tone: 'rose', icon: AlertTriangle, message: `"${cp.descricao}" está atrasada (venceu ${fmtDate(cp.vencimento)})`, href: '/dashboard' });
-      } else {
-        const dias = Math.round((new Date(cp.vencimento + 'T00:00:00').getTime() - new Date(hojeISO + 'T00:00:00').getTime()) / 86400000);
-        if (dias <= 3) {
-          lista.push({ id: `pagar-${cp.id}`, tone: 'amber', icon: Clock, message: `"${cp.descricao}" vence em ${dias === 0 ? 'hoje' : `${dias}d`}`, href: '/dashboard' });
-        }
       }
     });
 
