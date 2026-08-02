@@ -20,6 +20,18 @@ export function competenciaForPurchase(dataCompraISO: string, diaFechamento: num
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export function shiftCompetencia(competencia: string, delta: number): string {
+  const [y, m] = competencia.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export function estimatedVencimento(cartao: CartaoCredito, competencia: string): string {
+  const [y, m] = competencia.split('-').map(Number);
+  const dia = clampDayToMonth(y, m - 1, cartao.dia_vencimento);
+  return `${y}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
 export async function ensureFatura(cartao: CartaoCredito, competencia: string, userId: string): Promise<Fatura> {
   const { data: existing } = await supabase
     .from('faturas')

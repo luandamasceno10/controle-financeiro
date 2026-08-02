@@ -5,8 +5,16 @@ import { supabase } from '@/lib/supabase';
 import type { CartaoCredito, Fatura, Lancamento, ContaBancaria } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
-import { competenciaForPurchase } from '@/lib/faturas';
-import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock } from 'lucide-react';
+import { competenciaForPurchase, shiftCompetencia, estimatedVencimento } from '@/lib/faturas';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
+
+const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function competenciaLabel(competencia: string): string {
+  const [y, m] = competencia.split('-').map(Number);
+  return `${MONTH_NAMES[m - 1]} de ${y}`;
+}
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -42,6 +50,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [payFatura, setPayFatura] = useState<Fatura | null>(null);
   const [payContaId, setPayContaId] = useState<number | null>(null);
   const [paying, setPaying] = useState(false);
+
+  const [detailCartao, setDetailCartao] = useState<CartaoCredito | null>(null);
+  const [detailCompetencia, setDetailCompetencia] = useState('');
 
   useEffect(() => {
     loadData();
@@ -89,6 +100,36 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
   const totalDaFatura = (faturaId: number) =>
     entries.filter((e) => e.fatura_id === faturaId).reduce((s, e) => s + Number(e.valor), 0);
+
+  const openDetail = (cartao: CartaoCredito) => {
+    setDetailCartao(cartao);
+    setDetailCompetencia(competenciaAtualDoCartao(cartao));
+  };
+
+  const detailFatura = useMemo(
+    () => (detailCartao ? faturas.find((f) => f.cartao_id === detailCartao.id && f.competencia === detailCompetencia) || null : null),
+    [detailCartao, detailCompetencia, faturas]
+  );
+  const detailTotal = detailFatura ? totalDaFatura(detailFatura.id) : 0;
+  const detailEntries = useMemo(
+    () => (detailFatura ? entries.filter((e) => e.fatura_id === detailFatura.id).sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || ''))) : []),
+    [detailFatura, entries]
+  );
+  const detailCompetenciaAtual = detailCartao ? competenciaAtualDoCartao(detailCartao) : '';
+  const detailEhAtual = detailCompetencia === detailCompetenciaAtual;
+  const detailVencimento = detailFatura?.data_vencimento || (detailCartao ? estimatedVencimento(detailCartao, detailCompetencia) : '');
+
+  const detailChartData = useMemo(() => {
+    if (!detailCartao) return [];
+    const atual = competenciaAtualDoCartao(detailCartao);
+    const meses: { competencia: string; label: string; valor: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const comp = shiftCompetencia(atual, -i);
+      const f = faturas.find((x) => x.cartao_id === detailCartao.id && x.competencia === comp);
+      meses.push({ competencia: comp, label: competenciaLabel(comp).replace(' de 20', '/'), valor: f ? totalDaFatura(f.id) : 0 });
+    }
+    return meses;
+  }, [detailCartao, faturas, entries]);
 
   const openNew = () => {
     setEditing(null);
@@ -180,9 +221,6 @@ export default function CartoesCredito({ userId }: { userId: string }) {
     }
   };
 
-  const cartaoEntries = (cartaoId: number) =>
-    entries.filter((e) => e.cartao_id === cartaoId).sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || '')));
-
   return (
     <main className="max-w-2xl mx-auto px-5 py-8 space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -215,11 +253,10 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             const faturaAtual = faturaAtualDoCartao(cartao);
             const totalAtual = faturaAtual ? totalDaFatura(faturaAtual.id) : 0;
             const pendentes = faturasFechadasPendentes(cartao);
-            const isSelected = selectedCartao?.id === cartao.id;
             return (
               <div key={cartao.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3.5">
-                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => setSelectedCartao(isSelected ? null : cartao)}>
+                  <div className="flex items-center gap-3 cursor-pointer" onClick={() => openDetail(cartao)}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: cartao.cor + '20', color: cartao.cor }}>
                       <CreditCard size={14} />
                     </div>
@@ -261,23 +298,6 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </div>
                 )}
 
-                {isSelected && (
-                  <div className="border-t border-slate-100 divide-y divide-slate-100">
-                    {cartaoEntries(cartao.id).length === 0 ? (
-                      <div className="p-4 text-center text-xs text-slate-400">Nenhuma compra lançada neste cartão ainda.</div>
-                    ) : (
-                      cartaoEntries(cartao.id).map((e) => (
-                        <div key={e.id} className="flex items-center justify-between px-4 py-2.5">
-                          <div className="min-w-0">
-                            <p className="text-sm text-slate-700 truncate">{e.descricao}</p>
-                            <p className="text-xs text-slate-400">{fmtDate(e.data)} · {e.categoria}</p>
-                          </div>
-                          <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -310,6 +330,92 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                 {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar cartão'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {detailCartao && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <CreditCard size={16} style={{ color: detailCartao.cor }} /> {detailCartao.nome}
+              </h3>
+              <button onClick={() => setDetailCartao(null)}><X size={18} /></button>
+            </div>
+
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, -1))} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <ChevronLeft size={18} />
+              </button>
+              <p className="text-sm font-semibold text-slate-700 capitalize">{competenciaLabel(detailCompetencia)}</p>
+              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, 1))} disabled={detailEhAtual} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 mb-5">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs text-slate-400">
+                  {detailEhAtual ? 'Em aberto — ainda acumulando' : !detailFatura ? 'Sem compras nesse mês' : detailFatura.status === 'paga' ? 'Paga' : 'Fechada — aguardando pagamento'}
+                </p>
+                {!detailEhAtual && detailFatura && (
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${detailFatura.status === 'paga' ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'}`}>
+                    {detailFatura.status === 'paga' ? <Check size={10} /> : <Clock size={10} />}
+                    {detailFatura.status === 'paga' ? 'Paga' : 'Pendente'}
+                  </span>
+                )}
+              </div>
+              <p className="text-2xl font-bold text-slate-800">{currency(detailTotal)}</p>
+              <p className="text-xs text-slate-400 mt-1">Vencimento {fmtDate(detailVencimento)}</p>
+
+              {!detailEhAtual && detailFatura?.status === 'aberta' && detailTotal > 0 && (
+                <button
+                  onClick={() => { setSelectedCartao(detailCartao); openPayFatura(detailFatura); }}
+                  disabled={contas.length === 0}
+                  className="w-full mt-3 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors"
+                >
+                  <Check size={14} /> Pagar esta fatura
+                </button>
+              )}
+            </div>
+
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <BarChart3 size={14} className="text-slate-400" />
+                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Valor por mês</h4>
+              </div>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={detailChartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="label" fontSize={10.5} stroke="#94A3B8" />
+                  <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={10.5} stroke="#94A3B8" width={45} />
+                  <Tooltip formatter={(v: any) => currency(v)} />
+                  <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
+                    {detailChartData.map((d, i) => (
+                      <Cell key={i} fill={d.competencia === detailCompetencia ? detailCartao.cor : '#CBD5E1'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras dessa fatura</h4>
+            <div className="border border-slate-100 rounded-lg overflow-hidden">
+              {detailEntries.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-400">Nenhuma compra nessa fatura.</div>
+              ) : (
+                detailEntries.map((e) => (
+                  <div key={e.id} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-700 truncate">{e.descricao}</p>
+                      <p className="text-xs text-slate-400">{fmtDate(e.data)} · {e.categoria}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
