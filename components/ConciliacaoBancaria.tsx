@@ -142,7 +142,9 @@ export default function ConciliacaoBancaria({
             <FileUp size={28} className="mx-auto text-slate-400 mb-3" />
             <p className="text-sm font-medium text-slate-600">Clique para escolher o arquivo OFX ou CSV</p>
             <p className="text-xs text-slate-400 mt-1">OFX é o formato recomendado — já vem estruturado, com data, hora e valor certos. CSV também funciona.</p>
-            <input ref={fileInputRef} type="file" accept=".ofx,.csv,text/csv,application/x-ofx" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            {/* accept amplo de propósito: pickers de arquivo no Android/iOS costumam esconder
+               .ofx como "incompatível" quando só reconhecem os tipos MIME exatos */}
+            <input ref={fileInputRef} type="file" accept=".ofx,.csv,text/csv,text/plain,application/x-ofx,application/vnd.intu.qbo,application/octet-stream" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
           </div>
         )}
 

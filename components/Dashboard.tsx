@@ -230,7 +230,6 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const filtered = useMemo(() => {
     return monthEntries
-      .filter(e => !e.cartao_id)
       .filter(e => filterPayment === 'todos' || e.forma_pagamento === filterPayment)
       .filter(e => filterCategory === 'todas' || e.categoria === filterCategory)
       .filter(e => filterType === 'todos' || e.tipo === filterType)

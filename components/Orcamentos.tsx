@@ -90,9 +90,12 @@ export default function Orcamentos({ userId }: { userId: string }) {
   }, [orcamentos]);
 
   const totalLimite = useMemo(() => orcamentos.reduce((s, o) => s + Number(o.valor_limite), 0), [orcamentos]);
+  // Soma bruta por categoria orçada (sem rollup de filhos): se pai e subcategoria
+  // têm orçamento cada um, gastoComFilhos contaria o gasto da subcategoria duas
+  // vezes no total geral. gastoComFilhos fica só para a barra de progresso de cada linha.
   const totalGasto = useMemo(
-    () => orcamentos.reduce((s, o) => s + gastoComFilhos(o.categoria_id), 0),
-    [orcamentos, gastoPorCategoria, filhosPorCategoria]
+    () => orcamentos.reduce((s, o) => s + (gastoPorCategoria[o.categoria_id] || 0), 0),
+    [orcamentos, gastoPorCategoria]
   );
   const totalPct = totalLimite > 0 ? Math.round((totalGasto / totalLimite) * 100) : 0;
 

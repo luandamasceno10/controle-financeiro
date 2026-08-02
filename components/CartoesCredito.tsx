@@ -5,7 +5,8 @@ import { supabase } from '@/lib/supabase';
 import type { CartaoCredito, Fatura, Lancamento, ContaBancaria } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Plus, X, Pencil, Trash2, CreditCard, Check } from 'lucide-react';
+import { competenciaForPurchase } from '@/lib/faturas';
+import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -68,8 +69,23 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
   const cartoesAtivos = useMemo(() => cartoes.filter((c) => c.ativo), [cartoes]);
 
-  const faturaAbertaDoCartao = (cartaoId: number) =>
-    faturas.filter((f) => f.cartao_id === cartaoId && f.status === 'aberta').sort((a, b) => b.competencia.localeCompare(a.competencia))[0] || null;
+  // A fatura "atual" é a competência que ainda está acumulando compras (não fechou
+  // ainda). Qualquer outra fatura com status 'aberta' já passou do dia de
+  // fechamento e está, de fato, aguardando pagamento — por isso são tratadas
+  // separadamente, em vez de a mais recente esconder a mais antiga pendente.
+  const competenciaAtualDoCartao = (cartao: CartaoCredito) => competenciaForPurchase(todayISO(), cartao.dia_fechamento);
+
+  const faturaAtualDoCartao = (cartao: CartaoCredito): Fatura | null => {
+    const competenciaAtual = competenciaAtualDoCartao(cartao);
+    return faturas.find((f) => f.cartao_id === cartao.id && f.competencia === competenciaAtual) || null;
+  };
+
+  const faturasFechadasPendentes = (cartao: CartaoCredito): Fatura[] => {
+    const competenciaAtual = competenciaAtualDoCartao(cartao);
+    return faturas
+      .filter((f) => f.cartao_id === cartao.id && f.status === 'aberta' && f.competencia !== competenciaAtual)
+      .sort((a, b) => a.competencia.localeCompare(b.competencia));
+  };
 
   const totalDaFatura = (faturaId: number) =>
     entries.filter((e) => e.fatura_id === faturaId).reduce((s, e) => s + Number(e.valor), 0);
@@ -196,8 +212,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-3">
           {cartoesAtivos.map((cartao) => {
-            const fatura = faturaAbertaDoCartao(cartao.id);
-            const total = fatura ? totalDaFatura(fatura.id) : 0;
+            const faturaAtual = faturaAtualDoCartao(cartao);
+            const totalAtual = faturaAtual ? totalDaFatura(faturaAtual.id) : 0;
+            const pendentes = faturasFechadasPendentes(cartao);
             const isSelected = selectedCartao?.id === cartao.id;
             return (
               <div key={cartao.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -213,23 +230,34 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-xs text-slate-400">Fatura aberta</p>
-                      <p className="text-sm font-semibold text-slate-800">{currency(total)}</p>
+                      <p className="text-xs text-slate-400">Fatura atual</p>
+                      <p className="text-sm font-semibold text-slate-800">{currency(totalAtual)}</p>
                     </div>
                     <button onClick={() => openEdit(cartao)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
                     <button onClick={() => setDeleteConfirm(cartao)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                   </div>
                 </div>
 
-                {fatura && total > 0 && (
-                  <div className="px-4 pb-3">
-                    <button
-                      onClick={() => { setSelectedCartao(cartao); openPayFatura(fatura); }}
-                      disabled={contas.length === 0}
-                      className="w-full flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors"
-                    >
-                      <Check size={14} /> Pagar fatura de {fatura.competencia}
-                    </button>
+                {pendentes.length > 0 && (
+                  <div className="px-4 pb-3 space-y-2">
+                    {pendentes.map((f) => {
+                      const totalPendente = totalDaFatura(f.id);
+                      if (totalPendente <= 0) return null;
+                      return (
+                        <div key={f.id} className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-md shrink-0">
+                            <Clock size={11} /> Fechada
+                          </span>
+                          <button
+                            onClick={() => { setSelectedCartao(cartao); openPayFatura(f); }}
+                            disabled={contas.length === 0}
+                            className="flex-1 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors"
+                          >
+                            <Check size={14} /> Pagar fatura de {f.competencia} — {currency(totalPendente)}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
