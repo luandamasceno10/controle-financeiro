@@ -16,7 +16,11 @@ function parseOfxDate(raw: string): { data: string; hora: string | null } | null
   if (!match) return null;
   const [, y, m, d, hh, mm, ss] = match;
   const data = `${y}-${m}-${d}`;
-  const hora = hh && mm ? `${hh}:${mm}` : null;
+  // Alguns bancos (ex: Nubank) mandam sempre 000000 como hora — não é um
+  // horário real da transação, então tratamos como "sem horário" em vez de
+  // salvar meia-noite como se fosse exata.
+  const horaZerada = hh === '00' && mm === '00' && (ss === undefined || ss === '00');
+  const hora = hh && mm && !horaZerada ? `${hh}:${mm}` : null;
   return { data, hora };
 }
 
