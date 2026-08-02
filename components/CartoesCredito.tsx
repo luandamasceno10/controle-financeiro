@@ -259,7 +259,6 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             const faturaAtual = faturaAtualDoCartao(cartao);
             const totalAtual = faturaAtual ? totalDaFatura(faturaAtual.id) : 0;
             const pendentes = faturasFechadasPendentes(cartao);
-            const futuras = faturasFuturasDoCartao(cartao);
             const totalFuturo = totalFaturasFuturas(cartao);
             const isSelected = selectedCartao?.id === cartao.id;
             return (
