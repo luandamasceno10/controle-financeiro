@@ -8,7 +8,7 @@ import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { computeProgresso } from '@/lib/metas';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, Landmark, Target, CalendarClock, Receipt, Loader, X, ArrowRight, Wallet, AlertTriangle, Clock, Flame, Tag } from 'lucide-react';
+import { Plus, Landmark, Target, CalendarClock, Receipt, Loader, X, ArrowRight, Wallet, AlertTriangle, Clock, Flame, Tag, ChevronDown } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -44,6 +44,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   const [analiseHoje, setAnaliseHoje] = useState<AnaliseIA | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [alertasExpandido, setAlertasExpandido] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -208,24 +209,60 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
         <h1 className="text-xl font-semibold text-slate-800">Olá{nome ? `, ${nome}` : ''}! 👋</h1>
       </div>
 
-      {alertas.length > 0 && (
-        <div className="space-y-2">
-          {alertas.map((a) => {
-            const Icon = a.icon;
-            const tones = a.tone === 'rose'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-amber-50 border-amber-200 text-amber-800';
-            const iconTone = a.tone === 'rose' ? 'text-rose-600' : 'text-amber-600';
-            return (
-              <Link key={a.id} href={a.href} className={`flex items-center gap-3 border rounded-xl p-3.5 hover:opacity-90 transition-opacity ${tones}`}>
-                <Icon size={16} className={`shrink-0 ${iconTone}`} />
-                <p className="text-sm font-medium flex-1 min-w-0">{a.message}</p>
-                <ArrowRight size={14} className={`shrink-0 ${iconTone}`} />
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      {alertas.length > 0 && (() => {
+        const ordenados = [...alertas].sort((a, b) => (a.tone === 'rose' ? 0 : 1) - (b.tone === 'rose' ? 0 : 1));
+        const urgentes = ordenados.filter((a) => a.tone === 'rose').length;
+        const [principal, ...resto] = ordenados;
+        const PrincipalIcon = principal.icon;
+        const principalTone = principal.tone === 'rose' ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50';
+
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <Link href={principal.href} className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${principalTone}`}>
+                <PrincipalIcon size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-slate-700 truncate">{principal.message}</p>
+                {alertas.length > 1 && (
+                  <p className="text-xs text-slate-400">
+                    +{alertas.length - 1} outro{alertas.length - 1 > 1 ? 's' : ''} alerta{alertas.length - 1 > 1 ? 's' : ''}
+                    {urgentes > 1 ? ` · ${urgentes} urgentes` : ''}
+                  </p>
+                )}
+              </div>
+              <ArrowRight size={15} className="text-slate-300 shrink-0" />
+            </Link>
+
+            {resto.length > 0 && (
+              <>
+                <button
+                  onClick={() => setAlertasExpandido((v) => !v)}
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border-t border-slate-100 py-2 transition-colors"
+                >
+                  {alertasExpandido ? 'Ocultar' : 'Ver todos'}
+                  <ChevronDown size={13} className={`transition-transform ${alertasExpandido ? 'rotate-180' : ''}`} />
+                </button>
+                {alertasExpandido && (
+                  <div className="border-t border-slate-100 divide-y divide-slate-50">
+                    {resto.map((a) => {
+                      const Icon = a.icon;
+                      const dotTone = a.tone === 'rose' ? 'bg-rose-500' : 'bg-amber-500';
+                      return (
+                        <Link key={a.id} href={a.href} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotTone}`} />
+                          <Icon size={14} className="text-slate-400 shrink-0" />
+                          <p className="text-xs text-slate-600 flex-1 min-w-0 truncate">{a.message}</p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
