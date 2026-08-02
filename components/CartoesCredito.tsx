@@ -6,7 +6,7 @@ import type { CartaoCredito, Fatura, Lancamento, ContaBancaria } from '@/lib/sup
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { competenciaForPurchase } from '@/lib/faturas';
-import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, CalendarClock } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -14,6 +14,14 @@ function currency(v: number) {
 
 function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+function fmtCompetencia(competencia: string) {
+  const [y, m] = competencia.split('-').map(Number);
+  const nome = MESES[m - 1] ?? competencia;
+  return `${nome.charAt(0).toUpperCase()}${nome.slice(1)}/${y}`;
 }
 
 function todayISO() {
@@ -83,12 +91,45 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const faturasFechadasPendentes = (cartao: CartaoCredito): Fatura[] => {
     const competenciaAtual = competenciaAtualDoCartao(cartao);
     return faturas
-      .filter((f) => f.cartao_id === cartao.id && f.status === 'aberta' && f.competencia !== competenciaAtual)
+      .filter((f) => f.cartao_id === cartao.id && f.status === 'aberta' && f.competencia < competenciaAtual)
       .sort((a, b) => a.competencia.localeCompare(b.competencia));
   };
 
   const totalDaFatura = (faturaId: number) =>
     entries.filter((e) => e.fatura_id === faturaId).reduce((s, e) => s + Number(e.valor), 0);
+
+  // Faturas futuras: compras já lançadas com data de compra posterior ao próximo
+  // fechamento do cartão. `ensureFatura` já cria o registro da fatura no momento
+  // do lançamento, então essas faturas existem mesmo antes de "chegar a vez" delas.
+  const faturasFuturasDoCartao = (cartao: CartaoCredito): Fatura[] => {
+    const competenciaAtual = competenciaAtualDoCartao(cartao);
+    return faturas
+      .filter((f) => f.cartao_id === cartao.id && f.competencia > competenciaAtual)
+      .sort((a, b) => a.competencia.localeCompare(b.competencia));
+  };
+
+  const totalFaturasFuturas = (cartao: CartaoCredito) =>
+    faturasFuturasDoCartao(cartao).reduce((s, f) => s + totalDaFatura(f.id), 0);
+
+  // Todas as faturas do cartão (passadas, atual e futuras), da mais recente para
+  // a mais antiga, para exibir o histórico completo quando o cartão é expandido.
+  const todasFaturasDoCartao = (cartao: CartaoCredito): Fatura[] =>
+    faturas.filter((f) => f.cartao_id === cartao.id).sort((a, b) => b.competencia.localeCompare(a.competencia));
+
+  const statusFatura = (cartao: CartaoCredito, fatura: Fatura): 'futura' | 'atual' | 'fechada' | 'paga' => {
+    if (fatura.status === 'paga') return 'paga';
+    const competenciaAtual = competenciaAtualDoCartao(cartao);
+    if (fatura.competencia > competenciaAtual) return 'futura';
+    if (fatura.competencia === competenciaAtual) return 'atual';
+    return 'fechada';
+  };
+
+  const FATURA_BADGE: Record<string, { label: string; className: string }> = {
+    futura: { label: 'Futura', className: 'text-indigo-700 bg-indigo-50' },
+    atual: { label: 'Em aberto', className: 'text-slate-600 bg-slate-100' },
+    fechada: { label: 'Fechada', className: 'text-amber-700 bg-amber-50' },
+    paga: { label: 'Paga', className: 'text-emerald-700 bg-emerald-50' },
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -183,6 +224,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const cartaoEntries = (cartaoId: number) =>
     entries.filter((e) => e.cartao_id === cartaoId).sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || '')));
 
+  const entriesDaFatura = (faturaId: number) =>
+    entries.filter((e) => e.fatura_id === faturaId).sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || '')));
+
   return (
     <main className="max-w-2xl mx-auto px-5 py-8 space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -215,6 +259,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             const faturaAtual = faturaAtualDoCartao(cartao);
             const totalAtual = faturaAtual ? totalDaFatura(faturaAtual.id) : 0;
             const pendentes = faturasFechadasPendentes(cartao);
+            const totalFuturo = totalFaturasFuturas(cartao);
             const isSelected = selectedCartao?.id === cartao.id;
             return (
               <div key={cartao.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -230,8 +275,13 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-xs text-slate-400">Fatura atual</p>
+                      <p className="text-xs text-slate-400">Fatura atual{faturaAtual ? ` · vence ${fmtDate(faturaAtual.data_vencimento)}` : ''}</p>
                       <p className="text-sm font-semibold text-slate-800">{currency(totalAtual)}</p>
+                      {totalFuturo > 0 && (
+                        <p className="text-[11px] text-indigo-600 flex items-center gap-1 justify-end mt-0.5">
+                          <CalendarClock size={11} /> +{currency(totalFuturo)} em faturas futuras
+                        </p>
+                      )}
                     </div>
                     <button onClick={() => openEdit(cartao)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
                     <button onClick={() => setDeleteConfirm(cartao)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
@@ -253,7 +303,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                             disabled={contas.length === 0}
                             className="flex-1 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors"
                           >
-                            <Check size={14} /> Pagar fatura de {f.competencia} — {currency(totalPendente)}
+                            <Check size={14} /> Pagar fatura de {fmtCompetencia(f.competencia)} (vence {fmtDate(f.data_vencimento)}) — {currency(totalPendente)}
                           </button>
                         </div>
                       );
@@ -261,23 +311,68 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </div>
                 )}
 
-                {isSelected && (
-                  <div className="border-t border-slate-100 divide-y divide-slate-100">
-                    {cartaoEntries(cartao.id).length === 0 ? (
-                      <div className="p-4 text-center text-xs text-slate-400">Nenhuma compra lançada neste cartão ainda.</div>
-                    ) : (
-                      cartaoEntries(cartao.id).map((e) => (
-                        <div key={e.id} className="flex items-center justify-between px-4 py-2.5">
-                          <div className="min-w-0">
-                            <p className="text-sm text-slate-700 truncate">{e.descricao}</p>
-                            <p className="text-xs text-slate-400">{fmtDate(e.data)} · {e.categoria}</p>
+                {isSelected && (() => {
+                  const grupos = todasFaturasDoCartao(cartao);
+                  const semFatura = cartaoEntries(cartao.id).filter((e) => !e.fatura_id);
+                  if (grupos.length === 0 && semFatura.length === 0) {
+                    return <div className="border-t border-slate-100 p-4 text-center text-xs text-slate-400">Nenhuma compra lançada neste cartão ainda.</div>;
+                  }
+                  return (
+                    <div className="border-t border-slate-100 divide-y divide-slate-100">
+                      {grupos.map((f) => {
+                        const status = statusFatura(cartao, f);
+                        const badge = FATURA_BADGE[status];
+                        const faturaEntries = entriesDaFatura(f.id);
+                        const total = totalDaFatura(f.id);
+                        if (faturaEntries.length === 0) return null;
+                        return (
+                          <div key={f.id} className="px-4 py-2.5">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-600">Fecha {fmtCompetencia(f.competencia).toLowerCase()} · vence {fmtDate(f.data_vencimento)}</span>
+                                <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${badge.className}`}>{badge.label}</span>
+                              </div>
+                              <span className="text-xs font-semibold text-slate-700">{currency(total)}</span>
+                            </div>
+                            {status === 'futura' && (
+                              <p className="text-[11px] text-indigo-500 mb-1.5">Cartão ainda não fechou para este ciclo — essas compras vão para a fatura que vence em {fmtDate(f.data_vencimento)}.</p>
+                            )}
+                            {status === 'atual' && (
+                              <p className="text-[11px] text-slate-400 mb-1.5">Ciclo em aberto — vai fechar e virar fatura com vencimento em {fmtDate(f.data_vencimento)}.</p>
+                            )}
+                            <div className="space-y-1.5">
+                              {faturaEntries.map((e) => (
+                                <div key={e.id} className="flex items-center justify-between">
+                                  <div className="min-w-0">
+                                    <p className="text-sm text-slate-700 truncate">{e.descricao}</p>
+                                    <p className="text-xs text-slate-400">{fmtDate(e.data)} · {e.categoria}</p>
+                                  </div>
+                                  <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
+                        );
+                      })}
+                      {semFatura.length > 0 && (
+                        <div className="px-4 py-2.5">
+                          <p className="text-xs font-semibold text-slate-600 mb-1.5">Sem fatura</p>
+                          <div className="space-y-1.5">
+                            {semFatura.map((e) => (
+                              <div key={e.id} className="flex items-center justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-sm text-slate-700 truncate">{e.descricao}</p>
+                                  <p className="text-xs text-slate-400">{fmtDate(e.data)} · {e.categoria}</p>
+                                </div>
+                                <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

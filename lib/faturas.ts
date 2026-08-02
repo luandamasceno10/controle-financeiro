@@ -30,8 +30,13 @@ export async function ensureFatura(cartao: CartaoCredito, competencia: string, u
   if (existing) return existing;
 
   const [y, m] = competencia.split('-').map(Number);
-  const diaVencimentoEfetivo = clampDayToMonth(y, m - 1, cartao.dia_vencimento);
-  const dataVencimento = new Date(y, m - 1, diaVencimentoEfetivo).toISOString().slice(0, 10);
+  // `competencia` é o mês em que a fatura fecha (ex: '2026-08' para fechamento
+  // dia 30/ago). Quando o vencimento é antes do fechamento (o caso comum, ex:
+  // fecha dia 30, vence dia 06), o vencimento cai no mês seguinte ao fechamento
+  // — senão a fatura venceria antes mesmo de estar totalmente fechada.
+  const mesVencimento = cartao.dia_vencimento < cartao.dia_fechamento ? m : m - 1;
+  const diaVencimentoEfetivo = clampDayToMonth(y, mesVencimento, cartao.dia_vencimento);
+  const dataVencimento = new Date(y, mesVencimento, diaVencimentoEfetivo).toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('faturas')
     .insert([{ user_id: userId, cartao_id: cartao.id, competencia, data_vencimento: dataVencimento, status: 'aberta' }])
