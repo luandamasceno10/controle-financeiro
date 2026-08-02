@@ -89,13 +89,16 @@ export default function Orcamentos({ userId }: { userId: string }) {
     return map;
   }, [orcamentos]);
 
+  // Só categorias-pai têm orçamento — subcategorias só existem para detalhar o
+  // gasto, o limite é sempre definido no nível da categoria principal.
+  const categoriasOrcaveis = useMemo(() => categorias.filter((c) => !c.parent_id), [categorias]);
+
   const totalLimite = useMemo(() => orcamentos.reduce((s, o) => s + Number(o.valor_limite), 0), [orcamentos]);
-  // Soma bruta por categoria orçada (sem rollup de filhos): se pai e subcategoria
-  // têm orçamento cada um, gastoComFilhos contaria o gasto da subcategoria duas
-  // vezes no total geral. gastoComFilhos fica só para a barra de progresso de cada linha.
+  // Agora que só categorias-pai têm orçamento, o total pode usar gastoComFilhos
+  // (gasto próprio + subcategorias) sem risco de contar o mesmo gasto duas vezes.
   const totalGasto = useMemo(
-    () => orcamentos.reduce((s, o) => s + (gastoPorCategoria[o.categoria_id] || 0), 0),
-    [orcamentos, gastoPorCategoria]
+    () => orcamentos.reduce((s, o) => s + gastoComFilhos(o.categoria_id), 0),
+    [orcamentos, gastoPorCategoria, filhosPorCategoria]
   );
   const totalPct = totalLimite > 0 ? Math.round((totalGasto / totalLimite) * 100) : 0;
 
@@ -174,10 +177,10 @@ export default function Orcamentos({ userId }: { userId: string }) {
       <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
         {loading ? (
           <div className="p-8 text-center text-sm text-slate-400">Carregando...</div>
-        ) : categorias.length === 0 ? (
+        ) : categoriasOrcaveis.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">Nenhuma categoria de saída cadastrada ainda.</div>
         ) : (
-          sortCategoriasNatural(categorias).map((cat) => {
+          sortCategoriasNatural(categoriasOrcaveis).map((cat) => {
             const gasto = gastoComFilhos(cat.id);
             const orc = orcamentoPorCategoria[cat.id];
             const limite = orc ? Number(orc.valor_limite) : null;
@@ -189,9 +192,6 @@ export default function Orcamentos({ userId }: { userId: string }) {
               <div key={cat.id} className="px-4 py-3.5">
                 <div className="flex items-center justify-between gap-3 mb-1.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    {cat.parent_id && (
-                      <span className="text-xs text-slate-400 shrink-0">{categorias.find((c) => c.id === cat.parent_id)?.nome} ›</span>
-                    )}
                     <span className="text-sm font-semibold text-slate-700 truncate">{cat.nome}</span>
                   </div>
                   {isEditing ? (
