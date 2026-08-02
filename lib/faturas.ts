@@ -11,10 +11,15 @@ function clampDayToMonth(year: number, monthIndex: number, day: number): number 
   return Math.min(day, daysInMonth(year, monthIndex));
 }
 
+// A fatura é nomeada pelo mês em que fica devendo (vencimento), não pelo mês da
+// compra: um cartão que fecha dia 30 cobra as compras de 01 a 30 de um mês na
+// fatura do mês SEGUINTE (que é quando ela vence). Por isso o offset mínimo é 1
+// mês (nunca 0) — só passa para 2 meses se a compra cair depois do dia de
+// fechamento (aí ela entra no próximo ciclo de fechamento).
 export function competenciaForPurchase(dataCompraISO: string, diaFechamento: number): string {
   const d = new Date(dataCompraISO + 'T00:00:00');
   const fechamentoEfetivo = clampDayToMonth(d.getFullYear(), d.getMonth(), diaFechamento);
-  const offset = d.getDate() >= fechamentoEfetivo ? 1 : 0;
+  const offset = d.getDate() <= fechamentoEfetivo ? 1 : 2;
   d.setDate(1);
   d.setMonth(d.getMonth() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
