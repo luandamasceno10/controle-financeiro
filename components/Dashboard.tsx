@@ -132,6 +132,20 @@ export default function Dashboard({ userId }: { userId: string }) {
     return c ? { color: c.cor } : undefined;
   };
 
+  const categoriaById = useMemo(() => {
+    const map: Record<number, Categoria> = {};
+    categorias.forEach(c => { map[c.id] = c; });
+    return map;
+  }, [categorias]);
+
+  // Para agrupamentos por categoria (gráficos), o gasto de uma subcategoria
+  // deve somar na categoria-pai, não aparecer como uma fatia própria.
+  const rollupCategoriaNome = (nome: string, tipo: 'entrada' | 'saida' = 'saida'): string => {
+    const c = categoriaByName[`${tipo}|${nome}`];
+    if (c?.parent_id) return categoriaById[c.parent_id]?.nome || nome;
+    return nome;
+  };
+
   const monthEntries = useMemo(
     () => entries.filter(e => monthKey(e.data) === currentMonth),
     [entries, currentMonth]
@@ -186,12 +200,13 @@ export default function Dashboard({ userId }: { userId: string }) {
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {};
     monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).forEach(e => {
-      map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor);
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      map[nome] = (map[nome] || 0) + Number(e.valor);
     });
     return Object.entries(map).map(([name, value]) => ({
       name, value, color: catMeta(name)?.color || '#64748B',
     })).sort((a, b) => b.value - a.value);
-  }, [monthEntries]);
+  }, [monthEntries, categoriaByName, categoriaById]);
 
   const orcamentoPorCategoriaId = useMemo(() => {
     const map: Record<number, number> = {};
@@ -209,11 +224,12 @@ export default function Dashboard({ userId }: { userId: string }) {
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
     monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).forEach(e => {
-      if (!grouped[e.categoria]) grouped[e.categoria] = { category: e.categoria, pix: 0, cartao: 0 };
-      grouped[e.categoria][e.forma_pagamento] += Number(e.valor);
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      if (!grouped[nome]) grouped[nome] = { category: nome, pix: 0, cartao: 0 };
+      grouped[nome][e.forma_pagamento] += Number(e.valor);
     });
     return Object.values(grouped).sort((a, b) => (b.pix + b.cartao) - (a.pix + a.cartao));
-  }, [monthEntries]);
+  }, [monthEntries, categoriaByName, categoriaById]);
 
   const cardEntries = useMemo(
     () => monthEntries.filter(e => e.tipo === 'saida' && !!e.cartao_id).sort(sortByDataHora),
@@ -265,9 +281,12 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const yearCategoryData = useMemo(() => {
     const map: Record<string, number> = {};
-    entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida' && !e.cartao_id).forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
+    entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida' && !e.cartao_id).forEach(e => {
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      map[nome] = (map[nome] || 0) + Number(e.valor);
+    });
     return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B' })).sort((a, b) => b.value - a.value);
-  }, [entries, currentYear]);
+  }, [entries, currentYear, categoriaByName, categoriaById]);
 
   const openNewEntry = () => {
     setEditingEntry(null);

@@ -6,7 +6,7 @@ import type { Lancamento, Categoria, ContaBancaria, CartaoCredito } from '@/lib/
 import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
-import { sortCategoriasForSelect, categoriaSelectLabel } from '@/lib/categorias';
+import { sortCategoriasNatural } from '@/lib/categorias';
 import { X, Trash2, Sparkles } from 'lucide-react';
 
 function todayISO() {
@@ -58,7 +58,7 @@ export default function LancamentoForm({
       };
     }
     return {
-      desc: '', type: 'saida' as 'entrada' | 'saida', category: categoriasSaida[0]?.nome || '',
+      desc: '', type: 'saida' as 'entrada' | 'saida', category: categoriasSaida.find(c => !c.parent_id)?.nome || '',
       payment: 'pix' as 'pix' | 'cartao', amount: '', date: todayISO(), hora: nowTime(),
       conta_id: contas[0]?.id ?? null,
       cartao_id: cartoes[0]?.id ?? null,
@@ -68,6 +68,12 @@ export default function LancamentoForm({
   const categoriaByName = useMemo(() => {
     const map: Record<string, Categoria> = {};
     [...categoriasEntrada, ...categoriasSaida].forEach((c) => { map[`${c.tipo}|${c.nome}`] = c; });
+    return map;
+  }, [categoriasEntrada, categoriasSaida]);
+
+  const categoriaById = useMemo(() => {
+    const map: Record<number, Categoria> = {};
+    [...categoriasEntrada, ...categoriasSaida].forEach((c) => { map[c.id] = c; });
     return map;
   }, [categoriasEntrada, categoriasSaida]);
 
@@ -122,6 +128,14 @@ export default function LancamentoForm({
   };
 
   const categoriaOptions = form.type === 'entrada' ? categoriasEntrada : categoriasSaida;
+  const categoriaPaiOptions = useMemo(() => sortCategoriasNatural(categoriaOptions.filter(c => !c.parent_id)), [categoriaOptions]);
+
+  const categoriaAtual = categoriaByName[`${form.type}|${form.category}`];
+  const categoriaPaiAtual = categoriaAtual?.parent_id ? categoriaById[categoriaAtual.parent_id] : categoriaAtual;
+  const subcategoriaOptions = useMemo(
+    () => sortCategoriasNatural(categoriaOptions.filter(c => c.parent_id === categoriaPaiAtual?.id)),
+    [categoriaOptions, categoriaPaiAtual]
+  );
 
   const handleDescricaoBlur = async () => {
     if (!form.desc || form.desc.trim().length < 3) return;
@@ -149,8 +163,8 @@ export default function LancamentoForm({
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada[0]?.nome || '', payment: 'pix' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida[0]?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada.find(c => !c.parent_id)?.nome || '', payment: 'pix' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida.find(c => !c.parent_id)?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
           </div>
           <div>
             <label className="text-xs font-medium text-slate-500 mb-1 block">Descrição {sugerindo && <span className="text-violet-400 font-normal">· sugerindo categoria...</span>}</label>
@@ -163,13 +177,34 @@ export default function LancamentoForm({
           </div>
           <div>
             <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label>
-            <select value={form.category} onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>{sortCategoriasForSelect(categoriaOptions).map(c => <option key={c.id} value={c.nome}>{categoriaSelectLabel(c, categoriaOptions)}</option>)}</select>
+            <select
+              value={categoriaPaiAtual?.nome || ''}
+              onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white"
+              disabled={saving}
+            >
+              {categoriaPaiOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+            </select>
             {categoriaSugerida && (
               <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
                 <Sparkles size={12} /> Sugestão: {categoriaSugerida}
               </button>
             )}
           </div>
+          {subcategoriaOptions.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Subcategoria (opcional)</label>
+              <select
+                value={categoriaAtual?.parent_id ? form.category : ''}
+                onChange={(e) => setForm(f => ({ ...f, category: e.target.value || (categoriaPaiAtual?.nome ?? f.category) }))}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white"
+                disabled={saving}
+              >
+                <option value="">Nenhuma — usar só {categoriaPaiAtual?.nome}</option>
+                {subcategoriaOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+              </select>
+            </div>
+          )}
           {form.type === 'saida' && (
             <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
           )}
