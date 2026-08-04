@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Lancamento, Categoria, ContaBancaria, CartaoCredito } from '@/lib/supabase';
 import { PAYMENTS } from '@/lib/payments';
@@ -137,6 +137,15 @@ export default function LancamentoForm({
     [categoriaOptions, categoriaPaiAtual]
   );
 
+  // Quando a categoria-pai tem subcategorias, o preenchimento é obrigatório:
+  // se a categoria atual não for uma delas, seleciona a primeira automaticamente
+  // em vez de deixar o lançamento salvo só no nível do pai.
+  useEffect(() => {
+    if (subcategoriaOptions.length > 0 && !categoriaAtual?.parent_id) {
+      setForm(f => ({ ...f, category: subcategoriaOptions[0].nome }));
+    }
+  }, [subcategoriaOptions, categoriaAtual]);
+
   const handleDescricaoBlur = async () => {
     if (!form.desc || form.desc.trim().length < 3) return;
     setSugerindo(true);
@@ -193,14 +202,14 @@ export default function LancamentoForm({
           </div>
           {subcategoriaOptions.length > 0 && (
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Subcategoria (opcional)</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Subcategoria</label>
               <select
-                value={categoriaAtual?.parent_id ? form.category : ''}
-                onChange={(e) => setForm(f => ({ ...f, category: e.target.value || (categoriaPaiAtual?.nome ?? f.category) }))}
+                value={categoriaAtual?.parent_id ? form.category : subcategoriaOptions[0].nome}
+                onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white"
                 disabled={saving}
+                required
               >
-                <option value="">Nenhuma — usar só {categoriaPaiAtual?.nome}</option>
                 {subcategoriaOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
               </select>
             </div>
