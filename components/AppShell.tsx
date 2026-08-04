@@ -51,9 +51,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 md:flex">
+    <div className="min-h-screen bg-slate-50 lg:flex">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:w-60 md:flex-col bg-slate-900 text-white shrink-0">
+      <aside className="hidden lg:flex lg:w-60 lg:flex-col bg-slate-900 text-white shrink-0">
         <div className="flex items-center gap-3 px-5 py-5">
           <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-slate-900">R$</div>
           <h1 className="text-sm font-semibold leading-tight">Controle Financeiro</h1>
@@ -70,7 +70,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden sticky top-0 z-40 bg-slate-900 text-white">
+      <div className="lg:hidden sticky top-0 z-40 bg-slate-900 text-white">
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-slate-900 text-sm">R$</div>
@@ -84,7 +84,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile drawer */}
       {drawerOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-slate-900/50" onClick={() => setDrawerOpen(false)} />
           <div className="relative w-64 bg-slate-900 text-white flex flex-col">
             <div className="flex items-center justify-between px-5 py-5">

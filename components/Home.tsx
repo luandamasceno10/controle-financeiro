@@ -136,14 +136,16 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     return lista;
   }, [contasPagar, faturas, cartoes, entries, metas, metasContribuicoes, orcamentos, categorias, monthEntries]);
 
+  // Categoria com maior valor gasto no mês (não a que tem mais lançamentos —
+  // "mais lançamentos" não indica onde o dinheiro está realmente indo).
   const categoriaDestaque = useMemo(() => {
-    const contagem: Record<string, number> = {};
-    monthEntries.filter((e) => e.tipo === 'saida').forEach((e) => {
-      contagem[e.categoria] = (contagem[e.categoria] || 0) + 1;
+    const somaPorCategoria: Record<string, number> = {};
+    monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
+      somaPorCategoria[e.categoria] = (somaPorCategoria[e.categoria] || 0) + Number(e.valor);
     });
-    const top = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0];
+    const top = Object.entries(somaPorCategoria).sort((a, b) => b[1] - a[1])[0];
     if (!top) return null;
-    return { nome: top[0], qtd: top[1] };
+    return { nome: top[0], valor: top[1] };
   }, [monthEntries]);
 
   const streakDias = useMemo(() => {
@@ -293,11 +295,14 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
           <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center mb-2">
             <Tag size={15} />
           </div>
-          <p className="text-xs text-slate-400">Categoria em destaque</p>
+          <p className="text-xs text-slate-400">Maior gasto do mês</p>
           {loading ? (
             <p className="text-lg font-semibold text-slate-800">—</p>
           ) : categoriaDestaque ? (
-            <p className="text-sm font-semibold text-slate-800 truncate">{categoriaDestaque.nome}</p>
+            <>
+              <p className="text-sm font-semibold text-slate-800 truncate">{categoriaDestaque.nome}</p>
+              <p className="text-xs text-slate-400">{currency(categoriaDestaque.valor)}</p>
+            </>
           ) : (
             <p className="text-sm text-slate-400">Sem gastos ainda</p>
           )}
