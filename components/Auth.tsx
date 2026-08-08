@@ -39,7 +39,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-8">
           <div className="flex items-center justify-center mb-6">
             <div className="w-12 h-12 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-white text-lg">
               R$
@@ -49,36 +49,36 @@ export default function Auth() {
           <h1 className="text-2xl font-bold text-center text-slate-900 mb-2">
             Controle Financeiro Pessoal
           </h1>
-          <p className="text-center text-slate-500 text-sm mb-6">
+          <p className="text-center text-slate-500 dark:text-slate-400 text-sm mb-6">
             {isSignUp ? 'Crie sua conta' : 'Faça login para começar'}
           </p>
 
           <form onSubmit={handleAuth} className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Email</label>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Email</label>
               <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
-                  className="w-full border border-slate-200 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-700 dark:text-slate-100"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Senha</label>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Senha</label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full border border-slate-200 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-700 dark:text-slate-100"
                   required
                 />
               </div>
@@ -87,8 +87,8 @@ export default function Auth() {
             {error && (
               <div className={`p-3 rounded-lg text-sm ${
                 error.includes('Cadastro') 
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 border border-emerald-200'
+                  : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 border border-rose-200'
               }`}>
                 {error}
               </div>
@@ -104,7 +104,7 @@ export default function Auth() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-200 text-center text-sm text-slate-600">
+          <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center text-sm text-slate-600 dark:text-slate-300">
             {isSignUp ? (
               <>
                 Já tem conta?{' '}
@@ -129,7 +129,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <p className="text-center text-slate-400 text-xs mt-6">
+        <p className="text-center text-slate-400 dark:text-slate-500 text-xs mt-6">
           Seus dados são privados e criptografados.
         </p>
       </div>

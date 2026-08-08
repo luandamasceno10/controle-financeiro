@@ -127,54 +127,54 @@ export default function ConciliacaoBancaria({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-semibold text-slate-800">Conciliar extrato — {conta.nome}</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100">Conciliar extrato — {conta.nome}</h3>
           <button onClick={onClose}><X size={18} /></button>
         </div>
-        <p className="text-xs text-slate-400 mb-5">Envie o extrato em OFX ou CSV do banco. Comparamos com o que já está lançado e você cria o que faltar em um clique.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Envie o extrato em OFX ou CSV do banco. Comparamos com o que já está lançado e você cria o que faltar em um clique.</p>
 
         {!lines && (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-10 text-center cursor-pointer hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
-            <FileUp size={28} className="mx-auto text-slate-400 mb-3" />
-            <p className="text-sm font-medium text-slate-600">Clique para escolher o arquivo OFX ou CSV</p>
-            <p className="text-xs text-slate-400 mt-1">OFX é o formato recomendado — já vem estruturado, com data, hora e valor certos. CSV também funciona.</p>
+            <FileUp size={28} className="mx-auto text-slate-400 dark:text-slate-500 mb-3" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Clique para escolher o arquivo OFX ou CSV</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">OFX é o formato recomendado — já vem estruturado, com data, hora e valor certos. CSV também funciona.</p>
             {/* accept amplo de propósito: pickers de arquivo no Android/iOS costumam esconder
                .ofx como "incompatível" quando só reconhecem os tipos MIME exatos */}
             <input ref={fileInputRef} type="file" accept=".ofx,.csv,text/csv,text/plain,application/x-ofx,application/vnd.intu.qbo,application/octet-stream" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
           </div>
         )}
 
-        {error && <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 mb-4">{error}</p>}
+        {error && <p className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 rounded-lg px-3 py-2.5 mb-4">{error}</p>}
 
         {lines && (
           <>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 <Upload size={12} className="inline mr-1" />{fileName} · {lines.length} linhas · {pendentes.length} pendentes
               </p>
               {pendentes.length > 0 && (
-                <button onClick={criarTodosPendentes} disabled={bulkCreating} className="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
+                <button onClick={criarTodosPendentes} disabled={bulkCreating} className="text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors">
                   {bulkCreating ? 'Criando...' : `Criar todos os ${pendentes.length} pendentes`}
                 </button>
               )}
             </div>
-            <div className="border border-slate-100 rounded-lg divide-y divide-slate-50 max-h-96 overflow-y-auto">
+            <div className="border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
               {lines.map((line, idx) => (
                 <div key={idx} className="px-4 py-2.5">
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-slate-700 truncate">{line.descricao}</p>
-                      <p className="text-xs text-slate-400">{fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}</p>
+                      <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{line.descricao}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}</p>
                     </div>
-                    <span className={`text-sm font-semibold tabular-nums shrink-0 ${line.valor >= 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
+                    <span className={`text-sm font-semibold tabular-nums shrink-0 ${line.valor >= 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
                       {line.valor >= 0 ? '+' : '-'}{currency(Math.abs(line.valor))}
                     </span>
                     {line.matched || line.created ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md shrink-0">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md shrink-0">
                         <CheckCircle2 size={12} /> {line.created ? 'Criado' : 'Já lançado'}
                       </span>
                     ) : (
@@ -189,7 +189,7 @@ export default function ConciliacaoBancaria({
                 </div>
               ))}
             </div>
-            <button onClick={() => { setLines(null); setFileName(''); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 self-start">
+            <button onClick={() => { setLines(null); setFileName(''); }} className="mt-4 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 self-start">
               Enviar outro arquivo
             </button>
           </>

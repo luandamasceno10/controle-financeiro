@@ -312,26 +312,26 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center">
           <Wallet size={16} />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-slate-800">Contas a Pagar/Receber</h1>
-          <p className="text-xs text-slate-400">Só afeta o saldo quando marcada como paga/recebida</p>
+          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Contas a Pagar/Receber</h1>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Só afeta o saldo quando marcada como paga/recebida</p>
         </div>
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">Carregando...</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
       ) : (
         <>
         {(totals.aPagar > 0 || totals.aReceber > 0) && (
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center"><TrendingUp size={16} /></div>
+              <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 flex items-center justify-center"><TrendingUp size={16} /></div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-700">A pagar x a receber ao longo do tempo</h2>
-                <p className="text-xs text-slate-400">Pendências por mês de vencimento</p>
+                <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">A pagar x a receber ao longo do tempo</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Pendências por mês de vencimento</p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={260}>
@@ -353,7 +353,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
             onAdd={() => openBillForm('pagar')} onToggle={(id: number) => handleToggle('pagar', id)}
             onEdit={(item: ContaPagar) => openEditBill('pagar', item)}
             onRemove={(id: number) => setDeleteConfirm({ kind: 'pagar', id })} doneLabel="pago"
-            renderMeta={(item: ContaPagar) => <span className="text-[11px] text-slate-400">{item.categoria}</span>}
+            renderMeta={(item: ContaPagar) => <span className="text-[11px] text-slate-400 dark:text-slate-500">{item.categoria}</span>}
           />
           <BillsPanel
             title="Contas a receber" icon={ArrowDownToLine} tone="emerald" total={totals.aReceber} totalLabel="Em aberto" items={upcomingReceivable}
@@ -367,30 +367,30 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 
       {showBillForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">{editingBill ? 'Editar conta a ' : 'Nova conta a '}{showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">{editingBill ? 'Editar conta a ' : 'Nova conta a '}{showBillForm === 'pagar' ? 'pagar' : 'receber'}</h3>
               <button onClick={() => { setShowBillForm(null); setEditingBill(null); }} disabled={savingBill}><X size={18} /></button>
             </div>
             <form onSubmit={handleBillSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Descrição</label>
-                <input type="text" value={billForm.desc} onChange={(e) => setBillForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Descrição</label>
+                <input type="text" value={billForm.desc} onChange={(e) => setBillForm(f => ({ ...f, desc: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={savingBill} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label>
-                  <input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} />
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label>
+                  <input type="number" step="0.01" value={billForm.amount} onChange={(e) => setBillForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={savingBill} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">{billForm.tipoRepeticao === 'parcelado' ? 'Primeiro vencimento' : 'Vencimento'}</label>
-                  <input type="date" value={billForm.due} onChange={(e) => setBillForm(f => ({ ...f, due: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={savingBill} />
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{billForm.tipoRepeticao === 'parcelado' ? 'Primeiro vencimento' : 'Vencimento'}</label>
+                  <input type="date" value={billForm.due} onChange={(e) => setBillForm(f => ({ ...f, due: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={savingBill} />
                 </div>
               </div>
               {showBillForm === 'pagar' && (
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label>
-                  <select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Categoria</label>
+                  <select value={billForm.category} onChange={(e) => setBillForm(f => ({ ...f, category: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={savingBill}>
                     {categoriasSaida.map(c => <option key={c.id} value={c.nome}>{categoriaSelectLabel(c, categoriasSaida)}</option>)}
                   </select>
                 </div>
@@ -398,30 +398,30 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
               {!editingBill && (
                 <>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Repetição</label>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Repetição</label>
                   <div className="grid grid-cols-3 gap-2">
-                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'nenhuma' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${billForm.tipoRepeticao === 'nenhuma' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}>Única</button>
-                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'recorrente' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'recorrente' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Repeat size={12} /> Recorrente</button>
-                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'parcelado' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'parcelado' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Layers size={12} /> Parcelado</button>
+                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'nenhuma' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${billForm.tipoRepeticao === 'nenhuma' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Única</button>
+                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'recorrente' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'recorrente' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}><Repeat size={12} /> Recorrente</button>
+                    <button type="button" onClick={() => setBillForm(f => ({ ...f, tipoRepeticao: 'parcelado' }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${billForm.tipoRepeticao === 'parcelado' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}><Layers size={12} /> Parcelado</button>
                   </div>
                 </div>
                 {billForm.tipoRepeticao !== 'nenhuma' && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-medium text-slate-500 mb-1 block">Periodicidade</label>
-                      <select value={billForm.periodo} onChange={(e) => setBillForm(f => ({ ...f, periodo: e.target.value as PeriodoRepeticao }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={savingBill}>
+                      <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Periodicidade</label>
+                      <select value={billForm.periodo} onChange={(e) => setBillForm(f => ({ ...f, periodo: e.target.value as PeriodoRepeticao }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={savingBill}>
                         {(['semanal', 'quinzenal', 'mensal'] as PeriodoRepeticao[]).map(p => <option key={p} value={p}>{PERIODO_LABEL[p]}</option>)}
                       </select>
                     </div>
                     {billForm.tipoRepeticao === 'parcelado' && (
                       <div>
-                        <label className="text-xs font-medium text-slate-500 mb-1 block">Nº de parcelas</label>
-                        <input type="number" min={2} max={60} value={billForm.parcelas} onChange={(e) => setBillForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={savingBill} />
+                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nº de parcelas</label>
+                        <input type="number" min={2} max={60} value={billForm.parcelas} onChange={(e) => setBillForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={savingBill} />
                       </div>
                     )}
                   </div>
                 )}
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 dark:text-slate-500">
                   {billForm.tipoRepeticao === 'parcelado'
                     ? 'O valor total informado é dividido igualmente entre as parcelas, cada uma com seu vencimento.'
                     : billForm.tipoRepeticao === 'recorrente'
@@ -431,7 +431,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
                 </>
               )}
               {editingBill && (
-                <p className="text-xs text-slate-400">Edição afeta apenas esta conta — parcelas ou recorrências já criadas não mudam.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Edição afeta apenas esta conta — parcelas ou recorrências já criadas não mudam.</p>
               )}
               <button type="submit" disabled={savingBill} className={`w-full font-semibold py-2.5 rounded-lg text-sm transition-colors ${showBillForm === 'pagar' ? 'bg-rose-500 hover:bg-rose-400 disabled:bg-slate-400 text-white' : 'bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900'}`}>{savingBill ? 'Salvando...' : 'Salvar conta'}</button>
             </form>
@@ -441,14 +441,14 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 
       {settleTarget && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-semibold text-slate-800 mb-1">Como foi {settleTarget.kind === 'pagar' ? 'pago' : 'recebido'}?</h3>
-            <p className="text-xs text-slate-400 mb-4">Isso será usado para categorizar corretamente.</p>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-1">Como foi {settleTarget.kind === 'pagar' ? 'pago' : 'recebido'}?</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Isso será usado para categorizar corretamente.</p>
             <div className="grid grid-cols-2 gap-2 mb-5">
               {PAYMENTS.map(p => {
                 const Icon = p.icon;
                 return (
-                  <button key={p.id} type="button" onClick={() => setSettlePayment(p.id as any)} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${settlePayment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}>
+                  <button key={p.id} type="button" onClick={() => setSettlePayment(p.id as any)} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${settlePayment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
                     <Icon size={15} /> {p.label}
                   </button>
                 );
@@ -456,8 +456,8 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
             </div>
             {contasBancarias.length > 0 ? (
               <div className="mb-5">
-                <label className="text-xs font-medium text-slate-500 mb-1 block">{settleTarget.kind === 'pagar' ? 'Debitar da conta' : 'Creditar na conta'}</label>
-                <select value={settleContaId ?? ''} onChange={(e) => setSettleContaId(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white">
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{settleTarget.kind === 'pagar' ? 'Debitar da conta' : 'Creditar na conta'}</label>
+                <select value={settleContaId ?? ''} onChange={(e) => setSettleContaId(Number(e.target.value))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800">
                   {contasBancarias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>
@@ -465,7 +465,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
               <p className="text-xs text-rose-500 mb-5">Cadastre uma conta bancária antes de quitar esta conta.</p>
             )}
             <div className="flex gap-2">
-              <button onClick={() => setSettleTarget(null)} className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600">Cancelar</button>
+              <button onClick={() => setSettleTarget(null)} className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">Cancelar</button>
               <button onClick={confirmSettle} disabled={!settleContaId} className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-300 disabled:cursor-not-allowed text-slate-900">Confirmar</button>
             </div>
           </div>
@@ -487,36 +487,36 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 }
 
 function BillsPanel({ title, icon: Icon, tone, total, totalLabel, items, onAdd, onToggle, onEdit, onRemove, doneLabel, renderMeta }: any) {
-  const tones: any = { rose: { bg: 'bg-rose-50', text: 'text-rose-600', btn: 'bg-rose-500 hover:bg-rose-400' }, emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', btn: 'bg-emerald-500 hover:bg-emerald-400' } };
+  const tones: any = { rose: { bg: 'bg-rose-50 dark:bg-rose-500/10', text: 'text-rose-600', btn: 'bg-rose-500 hover:bg-rose-400' }, emerald: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600', btn: 'bg-emerald-500 hover:bg-emerald-400' } };
   const t = tones[tone];
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3"><div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.bg} ${t.text}`}><Icon size={16} /></div><div><h3 className="text-sm font-semibold text-slate-700">{title}</h3><p className="text-xs text-slate-400">{totalLabel}: <span className="font-semibold text-slate-600">{currency(total)}</span></p></div></div>
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+      <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-3"><div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.bg} ${t.text}`}><Icon size={16} /></div><div><h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h3><p className="text-xs text-slate-400 dark:text-slate-500">{totalLabel}: <span className="font-semibold text-slate-600 dark:text-slate-300">{currency(total)}</span></p></div></div>
         <button onClick={onAdd} className={`flex items-center gap-1.5 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${t.btn}`}><Plus size={14} /> Adicionar</button>
       </div>
-      <div className="divide-y divide-slate-50 max-h-96 overflow-y-auto">
-        {items.length === 0 && <p className="px-5 py-8 text-center text-slate-400 text-sm">Nenhuma conta cadastrada.</p>}
+      <div className="divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
+        {items.length === 0 && <p className="px-5 py-8 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma conta cadastrada.</p>}
         {items.map((item: any) => {
           const isDone = item.status === doneLabel;
           const dleft = daysUntil(item.vencimento);
           let badge;
-          if (isDone) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md"><CheckCircle2 size={11} /> {doneLabel === 'pago' ? 'Pago' : 'Recebido'}</span>;
-          else if (dleft < 0) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md"><AlertTriangle size={11} /> Atrasado</span>;
-          else if (dleft <= 3) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md"><Clock size={11} /> Vence em {dleft}d</span>;
-          else badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md"><Calendar size={11} /> {fmtDate(item.vencimento)}</span>;
+          if (isDone) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md"><CheckCircle2 size={11} /> {doneLabel === 'pago' ? 'Pago' : 'Recebido'}</span>;
+          else if (dleft < 0) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded-md"><AlertTriangle size={11} /> Atrasado</span>;
+          else if (dleft <= 3) badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-md"><Clock size={11} /> Vence em {dleft}d</span>;
+          else badge = <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded-md"><Calendar size={11} /> {fmtDate(item.vencimento)}</span>;
           return (
             <div key={item.id} className={`px-5 py-3 flex items-center gap-3 group ${isDone ? 'opacity-60' : ''}`}>
               <button onClick={() => onToggle(item.id)} className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${isDone ? `${t.text} border-current` : 'border-slate-300'}`}>{isDone && <CheckCircle2 size={14} style={{ color: tone === 'rose' ? '#F43F5E' : '#10B981' }} />}</button>
               <div className="min-w-0 flex-1">
-                <p className={`text-sm font-medium text-slate-700 truncate flex items-center gap-1.5 ${isDone ? 'line-through' : ''}`}>
+                <p className={`text-sm font-medium text-slate-700 dark:text-slate-200 truncate flex items-center gap-1.5 ${isDone ? 'line-through' : ''}`}>
                   {item.descricao}
-                  {item.tipo_repeticao === 'recorrente' && <Repeat size={11} className="text-slate-400 shrink-0" />}
+                  {item.tipo_repeticao === 'recorrente' && <Repeat size={11} className="text-slate-400 dark:text-slate-500 shrink-0" />}
                   {item.tipo_repeticao === 'parcelado' && <span className="text-[10px] font-semibold text-violet-500 shrink-0">{item.parcela_atual}/{item.parcela_total}</span>}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">{badge}{renderMeta && renderMeta(item)}</div>
               </div>
-              <span className="text-sm font-bold tabular-nums text-slate-700 shrink-0">{currency(Number(item.valor))}</span>
+              <span className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200 shrink-0">{currency(Number(item.valor))}</span>
               <button onClick={() => onEdit(item)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-slate-600 transition-all shrink-0"><Pencil size={14} /></button>
               <button onClick={() => onRemove(item.id)} className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition-all shrink-0"><Trash2 size={14} /></button>
             </div>

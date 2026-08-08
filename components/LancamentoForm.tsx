@@ -208,48 +208,48 @@ export default function LancamentoForm({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-semibold text-slate-800">{editingEntry ? 'Editar lançamento' : 'Novo lançamento'}</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100">{editingEntry ? 'Editar lançamento' : 'Novo lançamento'}</h3>
           <button onClick={onClose} disabled={saving}><X size={18} /></button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada.find(c => !c.parent_id)?.nome || '', payment: 'pix' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida.find(c => !c.parent_id)?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada.find(c => !c.parent_id)?.nome || '', payment: 'pix' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Entrada</button>
+            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida.find(c => !c.parent_id)?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Saída</button>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Descrição {sugerindo && <span className="text-violet-400 font-normal">· sugerindo categoria...</span>}</label>
-            <input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} onBlur={handleDescricaoBlur} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Descrição {sugerindo && <span className="text-violet-400 font-normal">· sugerindo categoria...</span>}</label>
+            <input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} onBlur={handleDescricaoBlur} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
           </div>
-          <div><label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} /></div>
+          <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} /></div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-slate-500 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} /></div>
-            <div><label className="text-xs font-medium text-slate-500 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} /></div>
+            <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} /></div>
+            <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} /></div>
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Categoria</label>
             <select
               value={categoriaPaiAtual?.nome || ''}
               onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
               disabled={saving}
             >
               {categoriaPaiOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
             </select>
             {categoriaSugerida && (
-              <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
+              <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
                 <Sparkles size={12} /> Sugestão: {categoriaSugerida}
               </button>
             )}
           </div>
           {subcategoriaOptions.length > 0 && (
             <div>
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Subcategoria</label>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Subcategoria</label>
               <select
                 value={categoriaAtual?.parent_id ? form.category : subcategoriaOptions[0].nome}
                 onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
                 disabled={saving}
                 required
               >
@@ -258,29 +258,29 @@ export default function LancamentoForm({
             </div>
           )}
           {form.type === 'saida' && (
-            <div><label className="text-xs font-medium text-slate-500 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
+            <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
           )}
           {form.type === 'saida' && form.payment === 'cartao' ? (
             cartoes.length > 0 && (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Cartão de crédito</label>
-                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cartão de crédito</label>
+                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
                     {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
                 </div>
                 {!editingEntry && (
                   <div>
-                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                       <input type="checkbox" checked={form.parcelado} onChange={(e) => setForm(f => ({ ...f, parcelado: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
                       Compra parcelada
                     </label>
                     {form.parcelado && (
                       <div className="mt-2">
-                        <label className="text-xs font-medium text-slate-500 mb-1 block">Número de parcelas</label>
-                        <input type="number" min={2} max={24} value={form.parcelas} onChange={(e) => setForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} />
-                        <p className="text-xs text-slate-400 mt-1">O valor total informado é dividido igualmente entre as parcelas, cada uma lançada na fatura do mês correspondente.</p>
+                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Número de parcelas</label>
+                        <input type="number" min={2} max={24} value={form.parcelas} onChange={(e) => setForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor total informado é dividido igualmente entre as parcelas, cada uma lançada na fatura do mês correspondente.</p>
                       </div>
                     )}
                   </div>
@@ -290,8 +290,8 @@ export default function LancamentoForm({
           ) : (
             contas.length > 0 && (
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Conta bancária</label>
-                <select value={form.conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Conta bancária</label>
+                <select value={form.conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
                   {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>
               </div>

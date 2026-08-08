@@ -25,20 +25,20 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-slate-800">{title}</h3>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+          <button onClick={onCancel} className="text-slate-400 dark:text-slate-500 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
 
-        <p className="text-sm text-slate-600 mb-6">{message}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300 mb-6">{message}</p>
 
         <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50"
+            className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
           >
             {cancelText}
           </button>

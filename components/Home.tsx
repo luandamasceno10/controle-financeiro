@@ -209,8 +209,8 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <div>
-        <p className="text-xs text-slate-400 capitalize">{hoje}</p>
-        <h1 className="text-xl font-semibold text-slate-800">Olá{nome ? `, ${nome}` : ''}! 👋</h1>
+        <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">{hoje}</p>
+        <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Olá{nome ? `, ${nome}` : ''}! 👋</h1>
       </div>
 
       {alertas.length > 0 && (() => {
@@ -218,18 +218,18 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
         const urgentes = ordenados.filter((a) => a.tone === 'rose').length;
         const [principal, ...resto] = ordenados;
         const PrincipalIcon = principal.icon;
-        const principalTone = principal.tone === 'rose' ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50';
+        const principalTone = principal.tone === 'rose' ? 'text-rose-600 bg-rose-50 dark:bg-rose-500/10' : 'text-amber-600 bg-amber-50 dark:bg-amber-500/10';
 
         return (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <Link href={principal.href} className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <Link href={principal.href} className="flex items-center gap-3 p-4 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
               <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${principalTone}`}>
                 <PrincipalIcon size={16} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-700 truncate">{principal.message}</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{principal.message}</p>
                 {alertas.length > 1 && (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
                     +{alertas.length - 1} outro{alertas.length - 1 > 1 ? 's' : ''} alerta{alertas.length - 1 > 1 ? 's' : ''}
                     {urgentes > 1 ? ` · ${urgentes} urgentes` : ''}
                   </p>
@@ -242,21 +242,21 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
               <>
                 <button
                   onClick={() => setAlertasExpandido((v) => !v)}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border-t border-slate-100 py-2 transition-colors"
+                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 border-t border-slate-100 dark:border-slate-800 py-2 transition-colors"
                 >
                   {alertasExpandido ? 'Ocultar' : 'Ver todos'}
                   <ChevronDown size={13} className={`transition-transform ${alertasExpandido ? 'rotate-180' : ''}`} />
                 </button>
                 {alertasExpandido && (
-                  <div className="border-t border-slate-100 divide-y divide-slate-50">
+                  <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800">
                     {resto.map((a) => {
                       const Icon = a.icon;
                       const dotTone = a.tone === 'rose' ? 'bg-rose-500' : 'bg-amber-500';
                       return (
-                        <Link key={a.id} href={a.href} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors">
+                        <Link key={a.id} href={a.href} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotTone}`} />
-                          <Icon size={14} className="text-slate-400 shrink-0" />
-                          <p className="text-xs text-slate-600 flex-1 min-w-0 truncate">{a.message}</p>
+                          <Icon size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                          <p className="text-xs text-slate-600 dark:text-slate-300 flex-1 min-w-0 truncate">{a.message}</p>
                         </Link>
                       );
                     })}
@@ -269,68 +269,68 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
       })()}
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center mb-2">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 flex items-center justify-center mb-2">
             <Receipt size={15} />
           </div>
-          <p className="text-xs text-slate-400">Lançamentos este mês</p>
-          <p className="text-lg font-semibold text-slate-800">{loading ? '—' : monthEntries.length}</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Lançamentos este mês</p>
+          <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{loading ? '—' : monthEntries.length}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center mb-2">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 flex items-center justify-center mb-2">
             <CalendarClock size={15} />
           </div>
-          <p className="text-xs text-slate-400">Próxima conta</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Próxima conta</p>
           {loading ? (
-            <p className="text-lg font-semibold text-slate-800">—</p>
+            <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">—</p>
           ) : nextBill ? (
-            <p className="text-sm font-semibold text-slate-800 truncate">{nextBill.descricao} · {fmtDate(nextBill.vencimento)}</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{nextBill.descricao} · {fmtDate(nextBill.vencimento)}</p>
           ) : (
-            <p className="text-sm text-slate-400">Nenhuma pendente</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma pendente</p>
           )}
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="w-8 h-8 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center mb-2">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+          <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-500 flex items-center justify-center mb-2">
             <Flame size={15} />
           </div>
-          <p className="text-xs text-slate-400">Sequência ativa</p>
-          <p className="text-lg font-semibold text-slate-800">{loading ? '—' : streakDias > 0 ? `${streakDias} dia${streakDias > 1 ? 's' : ''}` : '—'}</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Sequência ativa</p>
+          <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">{loading ? '—' : streakDias > 0 ? `${streakDias} dia${streakDias > 1 ? 's' : ''}` : '—'}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="w-8 h-8 rounded-lg bg-slate-50 text-slate-500 flex items-center justify-center mb-2">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+          <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 flex items-center justify-center mb-2">
             <Tag size={15} />
           </div>
-          <p className="text-xs text-slate-400">Maior gasto do mês</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Maior gasto do mês</p>
           {loading ? (
-            <p className="text-lg font-semibold text-slate-800">—</p>
+            <p className="text-lg font-semibold text-slate-800 dark:text-slate-100">—</p>
           ) : categoriaDestaque ? (
             <>
-              <p className="text-sm font-semibold text-slate-800 truncate">{categoriaDestaque.nome}</p>
-              <p className="text-xs text-slate-400">{currency(categoriaDestaque.valor)}</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{categoriaDestaque.nome}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">{currency(categoriaDestaque.valor)}</p>
             </>
           ) : (
-            <p className="text-sm text-slate-400">Sem gastos ainda</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Sem gastos ainda</p>
           )}
         </div>
       </div>
 
       {!loading && metasInfo.total > 0 && (
-        <Link href="/metas" className="flex items-center gap-3 bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 transition-colors">
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+        <Link href="/metas" className="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-slate-300 transition-colors">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
             <Target size={16} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-700">{metasInfo.total} meta{metasInfo.total > 1 ? 's' : ''} em andamento</p>
-            <p className="text-xs text-slate-400">{metasInfo.noRitmo} de {metasInfo.total} no ritmo certo</p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{metasInfo.total} meta{metasInfo.total > 1 ? 's' : ''} em andamento</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">{metasInfo.noRitmo} de {metasInfo.total} no ritmo certo</p>
           </div>
-          <ArrowRight size={16} className="text-slate-400 shrink-0" />
+          <ArrowRight size={16} className="text-slate-400 dark:text-slate-500 shrink-0" />
         </Link>
       )}
 
       {!loading && contas.length === 0 ? (
         <Link
           href="/contas"
-          className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 hover:bg-emerald-100/60 transition-colors"
+          className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 rounded-xl p-4 hover:bg-emerald-100/60 transition-colors"
         >
           <div className="w-9 h-9 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0">
             <Landmark size={16} />
@@ -363,7 +363,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
           <>🤖 Analisar com IA</>
         )}
       </button>
-      {analiseHoje && <p className="text-xs text-slate-400 text-center -mt-3">Você já usou sua análise de hoje. Uma nova fica disponível amanhã.</p>}
+      {analiseHoje && <p className="text-xs text-slate-400 dark:text-slate-500 text-center -mt-3">Você já usou sua análise de hoje. Uma nova fica disponível amanhã.</p>}
 
       {showForm && (
         <LancamentoForm
@@ -381,12 +381,12 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
       {showAnalysis && analiseHoje && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800 text-lg">💡 Análise Financeira IA</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">💡 Análise Financeira IA</h3>
               <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
             </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
               {analiseHoje.texto}
             </div>
             <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">

@@ -227,12 +227,12 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 flex items-center justify-center">
             <CreditCard size={16} />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">Cartões de Crédito</h1>
-            <p className="text-xs text-slate-400">Compras no cartão só afetam o saldo quando a fatura é paga</p>
+            <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Cartões de Crédito</h1>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Compras no cartão só afetam o saldo quando a fatura é paga</p>
           </div>
         </div>
         <button
@@ -244,9 +244,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">Carregando...</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
       ) : cartoesAtivos.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">Nenhum cartão cadastrado ainda.</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhum cartão cadastrado ainda.</div>
       ) : (
         <div className="space-y-3">
           {cartoesAtivos.map((cartao) => {
@@ -254,24 +254,24 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             const totalAtual = faturaAtual ? totalDaFatura(faturaAtual.id) : 0;
             const pendentes = faturasFechadasPendentes(cartao);
             return (
-              <div key={cartao.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div key={cartao.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3.5">
                   <div className="flex items-center gap-3 cursor-pointer" onClick={() => openDetail(cartao)}>
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: cartao.cor + '20', color: cartao.cor }}>
                       <CreditCard size={14} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">{cartao.nome}</p>
-                      <p className="text-xs text-slate-400">Fecha dia {cartao.dia_fechamento} · Vence dia {cartao.dia_vencimento}</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{cartao.nome}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Fecha dia {cartao.dia_fechamento} · Vence dia {cartao.dia_vencimento}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-xs text-slate-400">Fatura atual</p>
-                      <p className="text-sm font-semibold text-slate-800">{currency(totalAtual)}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Fatura atual</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{currency(totalAtual)}</p>
                     </div>
-                    <button onClick={() => openEdit(cartao)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
-                    <button onClick={() => setDeleteConfirm(cartao)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
+                    <button onClick={() => openEdit(cartao)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={15} /></button>
+                    <button onClick={() => setDeleteConfirm(cartao)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                   </div>
                 </div>
 
@@ -282,7 +282,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                       if (totalPendente <= 0) return null;
                       return (
                         <div key={f.id} className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-1 rounded-md shrink-0">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-md shrink-0">
                             <Clock size={11} /> Fechada
                           </span>
                           <button
@@ -306,24 +306,24 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">{editing ? 'Editar cartão' : 'Novo cartão de crédito'}</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">{editing ? 'Editar cartão' : 'Novo cartão de crédito'}</h3>
               <button onClick={() => setShowForm(false)} disabled={saving}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Nome</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Nubank, Inter" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nome</label>
+                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Nubank, Inter" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Dia de fechamento</label>
-                  <input type="number" min={1} max={31} value={form.dia_fechamento} onChange={(e) => setForm(f => ({ ...f, dia_fechamento: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Dia de fechamento</label>
+                  <input type="number" min={1} max={31} value={form.dia_fechamento} onChange={(e) => setForm(f => ({ ...f, dia_fechamento: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Dia de vencimento</label>
-                  <input type="number" min={1} max={31} value={form.dia_vencimento} onChange={(e) => setForm(f => ({ ...f, dia_vencimento: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Dia de vencimento</label>
+                  <input type="number" min={1} max={31} value={form.dia_vencimento} onChange={(e) => setForm(f => ({ ...f, dia_vencimento: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
                 </div>
               </div>
               <button type="submit" disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
@@ -336,27 +336,27 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
       {detailCartao && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <CreditCard size={16} style={{ color: detailCartao.cor }} /> {detailCartao.nome}
               </h3>
               <button onClick={() => setDetailCartao(null)}><X size={18} /></button>
             </div>
 
             <div className="flex items-center justify-between mb-4">
-              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, -1))} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, -1))} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700">
                 <ChevronLeft size={18} />
               </button>
-              <p className="text-sm font-semibold text-slate-700 capitalize">{competenciaLabel(detailCompetencia)}</p>
-              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, 1))} disabled={detailEhAtual} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">{competenciaLabel(detailCompetencia)}</p>
+              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, 1))} disabled={detailEhAtual} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronRight size={18} />
               </button>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 mb-5">
+            <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 mb-5">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 dark:text-slate-500">
                   {detailEhAtual ? 'Em aberto — ainda acumulando' : !detailFatura ? 'Sem compras nesse mês' : detailFatura.status === 'paga' ? 'Paga' : 'Fechada — aguardando pagamento'}
                 </p>
                 {!detailEhAtual && detailFatura && (
@@ -366,8 +366,8 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </span>
                 )}
               </div>
-              <p className="text-2xl font-bold text-slate-800">{currency(detailTotal)}</p>
-              <p className="text-xs text-slate-400 mt-1">Vencimento {fmtDate(detailVencimento)}</p>
+              <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{currency(detailTotal)}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Vencimento {fmtDate(detailVencimento)}</p>
 
               {!detailEhAtual && detailFatura?.status === 'aberta' && detailTotal > 0 && (
                 <button
@@ -382,8 +382,8 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
             <div className="mb-5">
               <div className="flex items-center gap-2 mb-3">
-                <BarChart3 size={14} className="text-slate-400" />
-                <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Valor por mês</h4>
+                <BarChart3 size={14} className="text-slate-400 dark:text-slate-500" />
+                <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Valor por mês</h4>
               </div>
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={detailChartData}>
@@ -400,16 +400,16 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               </ResponsiveContainer>
             </div>
 
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Compras dessa fatura</h4>
-            <div className="border border-slate-100 rounded-lg overflow-hidden">
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Compras dessa fatura</h4>
+            <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
               {detailEntries.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-400">Nenhuma compra nessa fatura.</div>
+                <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500">Nenhuma compra nessa fatura.</div>
               ) : (
                 detailEntries.map((e) => (
                   <div key={e.id} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
                     <div className="min-w-0">
-                      <p className="text-sm text-slate-700 truncate">{e.descricao}</p>
-                      <p className="text-xs text-slate-400">{fmtDate(e.data)} · {e.categoria}</p>
+                      <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(e.data)} · {e.categoria}</p>
                     </div>
                     <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
                   </div>
@@ -422,16 +422,16 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
       {payFatura && selectedCartao && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">Pagar fatura</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Pagar fatura</h3>
               <button onClick={() => setPayFatura(null)} disabled={paying}><X size={18} /></button>
             </div>
-            <p className="text-sm text-slate-600 mb-1">{selectedCartao.nome} · {payFatura.competencia}</p>
-            <p className="text-2xl font-bold text-slate-800 mb-4">{currency(totalDaFatura(payFatura.id))}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">{selectedCartao.nome} · {payFatura.competencia}</p>
+            <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">{currency(totalDaFatura(payFatura.id))}</p>
             <div className="mb-4">
-              <label className="text-xs font-medium text-slate-500 mb-1 block">Debitar da conta</label>
-              <select value={payContaId ?? ''} onChange={(e) => setPayContaId(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={paying}>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Debitar da conta</label>
+              <select value={payContaId ?? ''} onChange={(e) => setPayContaId(Number(e.target.value))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={paying}>
                 {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
             </div>

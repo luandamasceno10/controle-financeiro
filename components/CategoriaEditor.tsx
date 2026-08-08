@@ -109,12 +109,12 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 flex items-center justify-center">
             <Tag size={16} />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">Categorias</h1>
-            <p className="text-xs text-slate-400">Gerencie as categorias de entrada e saída</p>
+            <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Categorias</h1>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Gerencie as categorias de entrada e saída</p>
           </div>
         </div>
         <button
@@ -125,49 +125,49 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
         </button>
       </div>
 
-      <div className="flex bg-slate-100 rounded-lg p-1 w-fit">
-        <button onClick={() => setTab('saida')} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${tab === 'saida' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Saída</button>
-        <button onClick={() => setTab('entrada')} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${tab === 'entrada' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>Entrada</button>
+      <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
+        <button onClick={() => setTab('saida')} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${tab === 'saida' ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'}`}>Saída</button>
+        <button onClick={() => setTab('entrada')} className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-colors ${tab === 'entrada' ? 'bg-white dark:bg-slate-800 text-slate-900 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800'}`}>Entrada</button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400">Carregando...</div>
+          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
         ) : topLevel.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">Nenhuma categoria de {tab === 'saida' ? 'saída' : 'entrada'} ainda.</div>
+          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhuma categoria de {tab === 'saida' ? 'saída' : 'entrada'} ainda.</div>
         ) : (
           topLevel.map((cat) => {
             const Icon = ICONS[cat.icone] || Tag;
             const subs = childrenOf(cat.id);
             return (
               <div key={cat.id}>
-                <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors">
+                <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: cat.cor + '20', color: cat.cor }}>
                       <Icon size={15} />
                     </div>
-                    <span className="text-sm text-slate-700">{cat.nome}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-200">{cat.nome}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={() => openNew(cat.id)} title="Nova subcategoria" className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"><Plus size={15} /></button>
-                    <button onClick={() => openEdit(cat)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
-                    <button onClick={() => setDeleteConfirm(cat)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
+                    <button onClick={() => openNew(cat.id)} title="Nova subcategoria" className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"><Plus size={15} /></button>
+                    <button onClick={() => openEdit(cat)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={15} /></button>
+                    <button onClick={() => setDeleteConfirm(cat)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                   </div>
                 </div>
                 {subs.map((sub) => {
                   const SubIcon = ICONS[sub.icone] || Tag;
                   return (
-                    <div key={sub.id} className="flex items-center justify-between pl-10 pr-4 py-2.5 hover:bg-slate-50 transition-colors border-t border-slate-50">
+                    <div key={sub.id} className="flex items-center justify-between pl-10 pr-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-50">
                       <div className="flex items-center gap-2.5">
                         <CornerDownRight size={13} className="text-slate-300 shrink-0" />
                         <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: sub.cor + '20', color: sub.cor }}>
                           <SubIcon size={13} />
                         </div>
-                        <span className="text-sm text-slate-600">{sub.nome}</span>
+                        <span className="text-sm text-slate-600 dark:text-slate-300">{sub.nome}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => openEdit(sub)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={14} /></button>
-                        <button onClick={() => setDeleteConfirm(sub)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={14} /></button>
+                        <button onClick={() => openEdit(sub)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={14} /></button>
+                        <button onClick={() => setDeleteConfirm(sub)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={14} /></button>
                       </div>
                     </div>
                   );
@@ -180,30 +180,30 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">{editing ? 'Editar categoria' : form.parent_id ? 'Nova subcategoria' : 'Nova categoria'}</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">{editing ? 'Editar categoria' : form.parent_id ? 'Nova subcategoria' : 'Nova categoria'}</h3>
               <button onClick={() => setShowForm(false)} disabled={saving}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setForm(f => ({ ...f, tipo: 'saida', parent_id: null }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white text-slate-600 border-slate-200'}`}>Saída</button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, tipo: 'entrada', parent_id: null }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200'}`}>Entrada</button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, tipo: 'saida', parent_id: null }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Saída</button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, tipo: 'entrada', parent_id: null }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.tipo === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Entrada</button>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Nome</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nome</label>
+                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Categoria pai (opcional)</label>
-                <select value={form.parent_id ?? ''} onChange={(e) => setForm(f => ({ ...f, parent_id: e.target.value ? Number(e.target.value) : null }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Categoria pai (opcional)</label>
+                <select value={form.parent_id ?? ''} onChange={(e) => setForm(f => ({ ...f, parent_id: e.target.value ? Number(e.target.value) : null }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
                   <option value="">Nenhuma — categoria principal</option>
                   {parentOptions.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select>
-                <p className="text-xs text-slate-400 mt-1">Escolha para criar como subcategoria de outra já existente.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Escolha para criar como subcategoria de outra já existente.</p>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Cor</label>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cor</label>
                 <div className="flex flex-wrap gap-2">
                   {COLOR_SWATCHES.map((c) => (
                     <button key={c} type="button" onClick={() => setForm(f => ({ ...f, cor: c }))} className={`w-8 h-8 rounded-full transition-transform ${form.cor === c ? 'ring-2 ring-offset-2 ring-slate-800 scale-105' : ''}`} style={{ backgroundColor: c }} disabled={saving} />
@@ -211,12 +211,12 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Ícone</label>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Ícone</label>
                 <div className="grid grid-cols-8 gap-2">
                   {ICON_NAMES.map((name) => {
                     const Icon = ICONS[name];
                     return (
-                      <button key={name} type="button" onClick={() => setForm(f => ({ ...f, icone: name }))} className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${form.icone === name ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`} disabled={saving}>
+                      <button key={name} type="button" onClick={() => setForm(f => ({ ...f, icone: name }))} className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${form.icone === name ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'}`} disabled={saving}>
                         <Icon size={15} />
                       </button>
                     );

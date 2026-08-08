@@ -35,9 +35,9 @@ export function ToastContainer({ toasts, onRemove }: { toasts: ToastMessage[]; o
     <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
       {toasts.map(toast => {
         const colors = {
-          success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-          error: 'bg-rose-50 border-rose-200 text-rose-800',
-          info: 'bg-blue-50 border-blue-200 text-blue-800',
+          success: 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 text-emerald-800',
+          error: 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 text-rose-800',
+          info: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 text-blue-800',
         };
 
         const icons = {

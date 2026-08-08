@@ -110,35 +110,35 @@ export default function Perfil({ user }: { user: User }) {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 flex items-center justify-center">
           <UserCircle size={16} />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-slate-800">Perfil</h1>
-          <p className="text-xs text-slate-400">Suas informações e preferências</p>
+          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Perfil</h1>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Suas informações e preferências</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <h2 className="text-sm font-semibold text-slate-700 mb-4">Informações básicas</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Informações básicas</h2>
         <form onSubmit={handleSaveNome} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Email</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Email</label>
             <input
               type="text"
               value={user.email || ''}
               disabled
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-slate-50 text-slate-500"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Como você gostaria de ser chamado?</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Como você gostaria de ser chamado?</label>
             <input
               type="text"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Seu nome ou apelido"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
               disabled={savingNome}
             />
           </div>
@@ -153,23 +153,23 @@ export default function Perfil({ user }: { user: User }) {
         </form>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Mail size={15} className="text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-700">Alterar e-mail</h2>
+          <Mail size={15} className="text-slate-400 dark:text-slate-500" />
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Alterar e-mail</h2>
         </div>
         <form onSubmit={handleChangeEmail} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Novo e-mail</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Novo e-mail</label>
             <input
               type="email"
               value={novoEmail}
               onChange={(e) => setNovoEmail(e.target.value)}
               placeholder={user.email || 'novo@email.com'}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
               disabled={savingEmail}
             />
-            <p className="text-xs text-slate-400 mt-1">Enviaremos um link de confirmação para o novo endereço — a troca só vale depois de clicar nele.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Enviaremos um link de confirmação para o novo endereço — a troca só vale depois de clicar nele.</p>
           </div>
           <button
             type="submit"
@@ -183,22 +183,22 @@ export default function Perfil({ user }: { user: User }) {
       </div>
 
       {pushStatus !== 'unsupported' && (
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
                 {pushStatus === 'subscribed' ? <Bell size={16} /> : <BellOff size={16} />}
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-slate-700">Notificações push</h2>
-                <p className="text-xs text-slate-400">Fatura vencendo, conta atrasada, meta fora do ritmo</p>
+                <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Notificações push</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Fatura vencendo, conta atrasada, meta fora do ritmo</p>
               </div>
             </div>
             <button
               onClick={handleTogglePush}
               disabled={pushBusy || pushStatus === 'loading'}
               className={`shrink-0 flex items-center gap-2 font-semibold text-xs px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 ${
-                pushStatus === 'subscribed' ? 'border border-slate-200 text-slate-600 hover:bg-slate-50' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-900'
+                pushStatus === 'subscribed' ? 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-900'
               }`}
             >
               {pushBusy && <Loader size={13} className="animate-spin" />}
@@ -208,31 +208,31 @@ export default function Perfil({ user }: { user: User }) {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Lock size={15} className="text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-700">Alterar senha</h2>
+          <Lock size={15} className="text-slate-400 dark:text-slate-500" />
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Alterar senha</h2>
         </div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Nova senha</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nova senha</label>
             <input
               type="password"
               value={novaSenha}
               onChange={(e) => setNovaSenha(e.target.value)}
               placeholder="••••••••"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
               disabled={savingSenha}
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Confirmar nova senha</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Confirmar nova senha</label>
             <input
               type="password"
               value={confirmarSenha}
               onChange={(e) => setConfirmarSenha(e.target.value)}
               placeholder="••••••••"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
               disabled={savingSenha}
             />
           </div>

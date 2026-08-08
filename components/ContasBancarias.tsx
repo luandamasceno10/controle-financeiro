@@ -126,12 +126,12 @@ export default function ContasBancarias({ userId }: { userId: string }) {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 flex items-center justify-center">
             <Landmark size={16} />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">Contas Bancárias</h1>
-            <p className="text-xs text-slate-400">Saldo por conta, somado no total do dashboard</p>
+            <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Contas Bancárias</h1>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Saldo por conta, somado no total do dashboard</p>
           </div>
         </div>
         <button
@@ -142,32 +142,32 @@ export default function ContasBancarias({ userId }: { userId: string }) {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <p className="text-xs text-slate-400 mb-1">Saldo total</p>
-        <p className="text-2xl font-bold text-slate-800">{loading ? '—' : currency(saldoTotal)}</p>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Saldo total</p>
+        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{loading ? '—' : currency(saldoTotal)}</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400">Carregando...</div>
+          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
         ) : contasAtivas.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">Nenhuma conta cadastrada ainda.</div>
+          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhuma conta cadastrada ainda.</div>
         ) : (
           contasAtivas.map((conta) => {
             return (
-              <div key={conta.id} className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 transition-colors">
+              <div key={conta.id} className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                 <div className="flex items-center gap-3">
                   <BancoIcon nome={conta.banco || conta.nome} size={32} />
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">{conta.nome}</p>
-                    {conta.banco && <p className="text-xs text-slate-400">{conta.banco}</p>}
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{conta.nome}</p>
+                    {conta.banco && <p className="text-xs text-slate-400 dark:text-slate-500">{conta.banco}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-slate-800">{currency(saldoDaConta(conta.id, conta.saldo_inicial))}</span>
-                  <button onClick={() => setConciliando(conta)} title="Conciliar extrato" className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"><FileUp size={15} /></button>
-                  <button onClick={() => openEdit(conta)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
-                  <button onClick={() => setDeleteConfirm(conta)} className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{currency(saldoDaConta(conta.id, conta.saldo_inicial))}</span>
+                  <button onClick={() => setConciliando(conta)} title="Conciliar extrato" className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50"><FileUp size={15} /></button>
+                  <button onClick={() => openEdit(conta)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={15} /></button>
+                  <button onClick={() => setDeleteConfirm(conta)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                 </div>
               </div>
             );
@@ -177,28 +177,28 @@ export default function ContasBancarias({ userId }: { userId: string }) {
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">{editing ? 'Editar conta' : 'Nova conta bancária'}</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">{editing ? 'Editar conta' : 'Nova conta bancária'}</h3>
               <button onClick={() => setShowForm(false)} disabled={saving}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Apelido</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Conta principal, Reserva" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Apelido</label>
+                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Conta principal, Reserva" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Banco</label>
-                <select value={form.banco} onChange={(e) => setForm(f => ({ ...f, banco: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Banco</label>
+                <select value={form.banco} onChange={(e) => setForm(f => ({ ...f, banco: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
                   {BANCOS.map(b => <option key={b.nome} value={b.nome}>{b.nome}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">
                   {editing ? 'Saldo inicial' : 'Saldo desta conta hoje'}
                 </label>
-                <input type="number" step="0.01" value={form.saldo_inicial} onChange={(e) => setForm(f => ({ ...f, saldo_inicial: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
-                <p className="text-xs text-slate-400 mt-1">O app passa a contabilizar a partir daqui — lançamentos futuros somam ou subtraem deste valor.</p>
+                <input type="number" step="0.01" value={form.saldo_inicial} onChange={(e) => setForm(f => ({ ...f, saldo_inicial: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O app passa a contabilizar a partir daqui — lançamentos futuros somam ou subtraem deste valor.</p>
               </div>
               <button type="submit" disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
                 {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar conta'}

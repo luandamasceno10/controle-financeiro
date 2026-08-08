@@ -29,8 +29,20 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Controle Financeiro" />
         <meta name="theme-color" content="#10B981" />
         <link rel="manifest" href="/manifest.json" />
+        {/* Aplica o tema salvo antes do primeiro paint — evita o "flash" de tela
+            clara no meio de um carregamento em dark mode. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try {
+              var t = localStorage.getItem('theme');
+              if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+              }
+            } catch (e) {}`,
+          }}
+        />
       </head>
-      <body className="bg-slate-50">{children}</body>
+      <body className="bg-slate-50 dark:bg-slate-900">{children}</body>
     </html>
   )
 }

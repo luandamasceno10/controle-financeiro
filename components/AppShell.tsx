@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards } from 'lucide-react';
+import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Início', icon: HomeIcon },
@@ -42,6 +43,19 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button
+      onClick={toggleTheme}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+    >
+      {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+      {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+    </button>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -51,7 +65,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 lg:flex">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 lg:flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex lg:w-60 lg:flex-col bg-slate-900 text-white shrink-0">
         <div className="flex items-center gap-3 px-5 py-5">
@@ -59,7 +73,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <h1 className="text-sm font-semibold leading-tight">Controle Financeiro</h1>
         </div>
         <NavLinks pathname={pathname} />
-        <div className="p-3 border-t border-slate-800">
+        <div className="p-3 border-t border-slate-800 space-y-1">
+          <ThemeToggle />
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
@@ -94,7 +109,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <NavLinks pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
-            <div className="p-3 border-t border-slate-800">
+            <div className="p-3 border-t border-slate-800 space-y-1">
+              <ThemeToggle />
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"

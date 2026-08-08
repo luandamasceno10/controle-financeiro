@@ -202,12 +202,12 @@ export default function Metas({ userId }: { userId: string }) {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
             <Target size={16} />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-slate-800">Metas e Objetivos</h1>
-            <p className="text-xs text-slate-400">Defina um alvo e acompanhe seu ritmo até chegar lá</p>
+            <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Metas e Objetivos</h1>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Defina um alvo e acompanhe seu ritmo até chegar lá</p>
           </div>
         </div>
         <button
@@ -219,14 +219,14 @@ export default function Metas({ userId }: { userId: string }) {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-sm text-slate-400">Carregando...</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
       ) : metasAtivas.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-          <div className="w-12 h-12 rounded-lg bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-4">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center">
+          <div className="w-12 h-12 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto mb-4">
             <Target size={22} />
           </div>
-          <h2 className="text-sm font-semibold text-slate-700 mb-1">Nenhuma meta ainda</h2>
-          <p className="text-xs text-slate-400">Crie sua primeira meta para começar a acompanhar seu progresso.</p>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Nenhuma meta ainda</h2>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Crie sua primeira meta para começar a acompanhar seu progresso.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -237,7 +237,7 @@ export default function Metas({ userId }: { userId: string }) {
             const isExpanded = expanded === meta.id;
 
             return (
-              <div key={meta.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div key={meta.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-3 min-w-0 cursor-pointer" onClick={() => setExpanded(isExpanded ? null : meta.id)}>
@@ -245,26 +245,26 @@ export default function Metas({ userId }: { userId: string }) {
                         {concluida ? <Trophy size={16} /> : <Target size={16} />}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-700 truncate">{meta.nome}</p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{meta.nome}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
                           {currency(p.valorAtual)} de {currency(Number(meta.valor_alvo))}
                           {meta.data_alvo && ` · até ${fmtDate(meta.data_alvo)}`}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0 relative">
-                      <button onClick={() => openEdit(meta)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><Pencil size={15} /></button>
-                      <button onClick={() => setMenuOpenFor(menuOpenFor === meta.id ? null : meta.id)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><MoreVertical size={15} /></button>
+                      <button onClick={() => openEdit(meta)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={15} /></button>
+                      <button onClick={() => setMenuOpenFor(menuOpenFor === meta.id ? null : meta.id)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><MoreVertical size={15} /></button>
                       {menuOpenFor === meta.id && (
-                        <div className="absolute right-0 top-10 z-10 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-40">
-                          <button onClick={() => { setArchiveConfirm(meta); setMenuOpenFor(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"><Archive size={13} /> Arquivar</button>
+                        <div className="absolute right-0 top-10 z-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 w-40">
+                          <button onClick={() => { setArchiveConfirm(meta); setMenuOpenFor(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"><Archive size={13} /> Arquivar</button>
                           <button onClick={() => { setDeleteConfirm(meta); setMenuOpenFor(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 hover:bg-rose-50"><Trash2 size={13} /> Apagar</button>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden mb-2">
+                  <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-2">
                     <div
                       className="h-full rounded-full transition-all"
                       style={{ width: `${p.pct}%`, backgroundColor: concluida ? '#059669' : meta.cor }}
@@ -280,14 +280,14 @@ export default function Metas({ userId }: { userId: string }) {
                     ) : p.noPrazo === true ? (
                       <span className="inline-flex items-center gap-1 text-emerald-600 font-medium"><TrendingUp size={12} /> No ritmo certo</span>
                     ) : (
-                      <span className="text-slate-400">Sem prazo definido</span>
+                      <span className="text-slate-400 dark:text-slate-500">Sem prazo definido</span>
                     )}
                   </div>
 
                   {!concluida && (p.ritmoNecessarioMensal !== null || p.diasRestantes !== null) && (
-                    <div className="mt-3 bg-slate-50 rounded-lg px-3 py-2.5 flex items-center gap-2">
-                      <Calendar size={14} className="text-slate-400 shrink-0" />
-                      <p className="text-xs text-slate-600">
+                    <div className="mt-3 bg-slate-50 dark:bg-slate-900 rounded-lg px-3 py-2.5 flex items-center gap-2">
+                      <Calendar size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                      <p className="text-xs text-slate-600 dark:text-slate-300">
                         {p.diasRestantes !== null && p.diasRestantes > 0 ? (
                           <>Faltam <strong>{currency(p.restante)}</strong> em <strong>{p.diasRestantes}</strong> dias — reserve cerca de <strong>{currency(p.ritmoNecessarioMensal || 0)}</strong>/mês para chegar lá.</>
                         ) : p.diasRestantes === 0 ? (
@@ -310,15 +310,15 @@ export default function Metas({ userId }: { userId: string }) {
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-slate-100 divide-y divide-slate-100">
+                  <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
                     {contribs.length === 0 ? (
-                      <div className="p-4 text-center text-xs text-slate-400">Nenhuma contribuição ainda.</div>
+                      <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500">Nenhuma contribuição ainda.</div>
                     ) : (
                       contribs.map((c) => (
                         <div key={c.id} className="flex items-center justify-between px-4 py-2.5">
                           <div className="min-w-0">
-                            <p className="text-sm text-slate-700">{fmtDate(c.data)}</p>
-                            {c.nota && <p className="text-xs text-slate-400 truncate">{c.nota}</p>}
+                            <p className="text-sm text-slate-700 dark:text-slate-200">{fmtDate(c.data)}</p>
+                            {c.nota && <p className="text-xs text-slate-400 dark:text-slate-500 truncate">{c.nota}</p>}
                           </div>
                           <span className="text-sm font-semibold text-emerald-600 shrink-0">+{currency(Number(c.valor))}</span>
                         </div>
@@ -334,27 +334,27 @@ export default function Metas({ userId }: { userId: string }) {
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">{editing ? 'Editar meta' : 'Nova meta'}</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">{editing ? 'Editar meta' : 'Nova meta'}</h3>
               <button onClick={() => setShowForm(false)} disabled={saving}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Nome da meta</label>
-                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Reserva de emergência, Viagem" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nome da meta</label>
+                <input type="text" value={form.nome} onChange={(e) => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Reserva de emergência, Viagem" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Valor alvo (R$)</label>
-                <input type="number" step="0.01" min="0.01" value={form.valor_alvo} onChange={(e) => setForm(f => ({ ...f, valor_alvo: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={saving} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor alvo (R$)</label>
+                <input type="number" step="0.01" min="0.01" value={form.valor_alvo} onChange={(e) => setForm(f => ({ ...f, valor_alvo: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Prazo (opcional)</label>
-                <input type="date" value={form.data_alvo} onChange={(e) => setForm(f => ({ ...f, data_alvo: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} />
-                <p className="text-xs text-slate-400 mt-1">Com um prazo, calculamos quanto reservar por mês para chegar lá.</p>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Prazo (opcional)</label>
+                <input type="date" value={form.data_alvo} onChange={(e) => setForm(f => ({ ...f, data_alvo: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Com um prazo, calculamos quanto reservar por mês para chegar lá.</p>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Cor</label>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cor</label>
                 <div className="flex gap-2">
                   {CORES.map((c) => (
                     <button key={c} type="button" onClick={() => setForm(f => ({ ...f, cor: c }))} className={`w-8 h-8 rounded-full border-2 transition-transform ${form.cor === c ? 'border-slate-800 scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} disabled={saving} />
@@ -371,27 +371,27 @@ export default function Metas({ userId }: { userId: string }) {
 
       {contributingTo && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-slate-800">Contribuir com "{contributingTo.nome}"</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Contribuir com "{contributingTo.nome}"</h3>
               <button onClick={() => setContributingTo(null)} disabled={contributing}><X size={18} /></button>
             </div>
             <form onSubmit={handleContribute} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Valor (R$)</label>
-                <input type="number" step="0.01" min="0.01" autoFocus value={contribForm.valor} onChange={(e) => setContribForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" required disabled={contributing} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label>
+                <input type="number" step="0.01" min="0.01" autoFocus value={contribForm.valor} onChange={(e) => setContribForm(f => ({ ...f, valor: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={contributing} />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Nota (opcional)</label>
-                <input type="text" value={contribForm.nota} onChange={(e) => setContribForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ex: 13º salário" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={contributing} />
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nota (opcional)</label>
+                <input type="text" value={contribForm.nota} onChange={(e) => setContribForm(f => ({ ...f, nota: e.target.value }))} placeholder="Ex: 13º salário" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={contributing} />
               </div>
               {contas.length > 0 ? (
                 <div>
-                  <label className="text-xs font-medium text-slate-500 mb-1 block">Debitar da conta</label>
-                  <select value={contribForm.conta_id ?? ''} onChange={(e) => setContribForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={contributing} required>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Debitar da conta</label>
+                  <select value={contribForm.conta_id ?? ''} onChange={(e) => setContribForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={contributing} required>
                     {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">O valor sai da conta agora e soma no progresso da meta.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor sai da conta agora e soma no progresso da meta.</p>
                 </div>
               ) : (
                 <p className="text-xs text-rose-500">Cadastre uma conta bancária antes de contribuir.</p>
