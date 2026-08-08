@@ -55,6 +55,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [view, setView] = useState('mensal');
   const [saldoPorConta, setSaldoPorConta] = useState<Record<number, number>>({});
   const [hasAnyEntry, setHasAnyEntry] = useState(false);
+  const [patrimonioEvolucao, setPatrimonioEvolucao] = useState<{ mes: number; saldo: number }[]>([]);
 
   const now = new Date();
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
@@ -146,6 +147,15 @@ export default function Dashboard({ userId }: { userId: string }) {
       setSaldoPorConta(map);
     });
   }, [userId, currentMonth]);
+
+  // Evolução patrimonial: saldo total acumulado ao fim de cada mês do ano
+  // exibido — busca só quando a vista Anual está aberta (é o único lugar que usa).
+  useEffect(() => {
+    if (view !== 'anual') return;
+    supabase.rpc('saldo_evolucao_mensal', { p_ano: currentYear }).then(({ data }) => {
+      if (data) setPatrimonioEvolucao(data);
+    });
+  }, [userId, currentYear, view]);
 
   const categoriasSaida = useMemo(() => categorias.filter(c => c.tipo === 'saida'), [categorias]);
   const categoriasEntrada = useMemo(() => categorias.filter(c => c.tipo === 'entrada'), [categorias]);
@@ -587,9 +597,9 @@ export default function Dashboard({ userId }: { userId: string }) {
               {paymentBarData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={paymentBarData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-                    <XAxis type="number" tickFormatter={(v) => `R$${v}`} fontSize={11} stroke="#94A3B8" />
-                    <YAxis type="category" dataKey="category" width={140} fontSize={10.5} stroke="#94A3B8" />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--chart-grid)" />
+                    <XAxis type="number" tickFormatter={(v) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
+                    <YAxis type="category" dataKey="category" width={140} fontSize={10.5} stroke="var(--chart-text)" />
                     <Tooltip formatter={(v: any) => currency(v)} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Bar dataKey="pix" name="Pix" fill="#0891B2" radius={[0, 4, 4, 0]} />
@@ -697,7 +707,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           </div>
         </main>
       ) : (
-        <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
+        <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} patrimonioEvolucao={patrimonioEvolucao} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
       )}
       {showForm && (
         <LancamentoForm
@@ -776,7 +786,11 @@ export default function Dashboard({ userId }: { userId: string }) {
   );
 }
 
-function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentYear, setCurrentYear, onGoToMonth }: any) {
+function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao, forecast, currentYear, setCurrentYear, onGoToMonth }: any) {
+  const patrimonioData = MONTH_NAMES.map((label, i) => ({
+    label,
+    saldo: patrimonioEvolucao.find((p: any) => p.mes === i + 1)?.saldo ?? null,
+  }));
   const totalForecast = Object.values(forecast).reduce((s: number, v: any) => s + v, 0);
   return (
     <main className="max-w-6xl mx-auto px-5 py-6 space-y-6">
@@ -796,9 +810,9 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentY
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Entradas x Saídas por mês</h2>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={yearData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-            <XAxis dataKey="label" fontSize={11} stroke="#94A3B8" />
-            <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="#94A3B8" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+            <XAxis dataKey="label" fontSize={11} stroke="var(--chart-text)" />
+            <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
             <Tooltip formatter={(v: any) => currency(v)} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="entrada" name="Entradas" fill="#10B981" radius={[4, 4, 0, 0]} />
@@ -807,12 +821,25 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, forecast, currentY
         </ResponsiveContainer>
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Evolução do saldo mensal</h2>
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Evolução patrimonial</h2>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Saldo total acumulado ao fim de cada mês (soma de todas as contas)</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={patrimonioData}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+            <XAxis dataKey="label" fontSize={11} stroke="var(--chart-text)" />
+            <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" domain={['auto', 'auto']} />
+            <Tooltip formatter={(v: any) => (v === null ? '—' : currency(v))} />
+            <Line type="monotone" dataKey="saldo" name="Saldo total" stroke="#0EA5E9" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Resultado mensal (entradas − saídas)</h2>
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={yearData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-            <XAxis dataKey="label" fontSize={11} stroke="#94A3B8" />
-            <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="#94A3B8" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+            <XAxis dataKey="label" fontSize={11} stroke="var(--chart-text)" />
+            <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
             <Tooltip formatter={(v: any) => currency(v)} />
             <Line type="monotone" dataKey="saldo" name="Saldo" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 3 }} />
           </LineChart>

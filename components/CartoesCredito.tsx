@@ -388,9 +388,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               </div>
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={detailChartData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis dataKey="label" fontSize={10.5} stroke="#94A3B8" />
-                  <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={10.5} stroke="#94A3B8" width={45} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                  <XAxis dataKey="label" fontSize={10.5} stroke="var(--chart-text)" />
+                  <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={10.5} stroke="var(--chart-text)" width={45} />
                   <Tooltip formatter={(v: any) => currency(v)} />
                   <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
                     {detailChartData.map((d, i) => (

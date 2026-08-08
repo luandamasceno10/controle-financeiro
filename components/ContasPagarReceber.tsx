@@ -337,9 +337,9 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
             </div>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                <XAxis dataKey="label" fontSize={11} stroke="#94A3B8" />
-                <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="#94A3B8" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                <XAxis dataKey="label" fontSize={11} stroke="var(--chart-text)" />
+                <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
                 <Tooltip formatter={(v: any) => currency(v)} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="aPagar" name="A pagar" fill="#F43F5E" radius={[4, 4, 0, 0]} />
