@@ -369,3 +369,11 @@ ALTER TABLE contas_receber ADD COLUMN lancamento_id BIGINT REFERENCES lancamento
 -- Subcategorias: uma categoria pode opcionalmente pertencer a outra (1 nível)
 ALTER TABLE categorias ADD COLUMN parent_id BIGINT REFERENCES categorias(id) ON DELETE SET NULL;
 CREATE INDEX categorias_parent_id ON categorias(parent_id);
+
+-- Compras parceladas no cartão: cada parcela vira seu próprio lançamento,
+-- ligado à fatura do mês correspondente. parcelamento_id agrupa as parcelas
+-- da mesma compra (mesmo padrão parcela_atual/parcela_total de contas_pagar).
+ALTER TABLE lancamentos ADD COLUMN parcela_atual INTEGER;
+ALTER TABLE lancamentos ADD COLUMN parcela_total INTEGER;
+ALTER TABLE lancamentos ADD COLUMN parcelamento_id UUID;
+CREATE INDEX lancamentos_parcelamento_id ON lancamentos(parcelamento_id);

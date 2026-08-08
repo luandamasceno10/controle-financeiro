@@ -25,6 +25,19 @@ export function competenciaForPurchase(dataCompraISO: string, diaFechamento: num
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// Cada parcela de uma compra parcelada entra na fatura do mês seguinte à
+// anterior — simula isso avançando a data da compra em `delta` meses (mantendo
+// o dia, com o mesmo clamp de fim de mês) antes de calcular a competência.
+export function shiftPurchaseDate(dataCompraISO: string, delta: number): string {
+  const d = new Date(dataCompraISO + 'T00:00:00');
+  const dia = d.getDate();
+  const y = d.getFullYear();
+  const m = d.getMonth() + delta;
+  const target = new Date(y, m, 1);
+  const diaEfetivo = clampDayToMonth(target.getFullYear(), target.getMonth(), dia);
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(diaEfetivo).padStart(2, '0')}`;
+}
+
 export function shiftCompetencia(competencia: string, delta: number): string {
   const [y, m] = competencia.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);

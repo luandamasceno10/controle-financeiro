@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Lancamento, Categoria, ContaBancaria, CartaoCredito } from '@/lib/supabase';
 import { PAYMENTS } from '@/lib/payments';
-import { competenciaForPurchase, ensureFatura } from '@/lib/faturas';
+import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import { X, Trash2, Sparkles } from 'lucide-react';
@@ -55,6 +55,8 @@ export default function LancamentoForm({
         hora: editingEntry.hora ? editingEntry.hora.slice(0, 5) : '00:00',
         conta_id: editingEntry.conta_id ?? contas[0]?.id ?? null,
         cartao_id: editingEntry.cartao_id ?? cartoes[0]?.id ?? null,
+        parcelado: false,
+        parcelas: '2',
       };
     }
     return {
@@ -62,6 +64,8 @@ export default function LancamentoForm({
       payment: 'pix' as 'pix' | 'cartao', amount: '', date: todayISO(), hora: nowTime(),
       conta_id: contas[0]?.id ?? null,
       cartao_id: cartoes[0]?.id ?? null,
+      parcelado: false,
+      parcelas: '2',
     };
   });
 
@@ -85,6 +89,45 @@ export default function LancamentoForm({
     try {
       const categoriaId = categoriaByName[`${form.type}|${form.category}`]?.id ?? null;
       const isCartao = form.payment === 'cartao' && form.type === 'saida';
+      const isParcelado = isCartao && !editingEntry && form.parcelado;
+      const totalParcelas = isParcelado ? Math.max(2, parseInt(form.parcelas, 10) || 2) : 1;
+
+      if (isParcelado) {
+        const cartao = cartoes.find(c => c.id === form.cartao_id);
+        if (!cartao) throw new Error('Selecione um cartão de crédito');
+        const valorTotal = parseFloat(form.amount);
+        const valorParcela = Math.floor((valorTotal / totalParcelas) * 100) / 100;
+        const parcelamentoId = crypto.randomUUID();
+        const rows = [];
+        for (let i = 1; i <= totalParcelas; i++) {
+          const dataParcela = shiftPurchaseDate(form.date, i - 1);
+          const competencia = competenciaForPurchase(dataParcela, cartao.dia_fechamento);
+          const fatura = await ensureFatura(cartao, competencia, userId);
+          const valor = i === totalParcelas ? Number((valorTotal - valorParcela * (totalParcelas - 1)).toFixed(2)) : valorParcela;
+          rows.push({
+            user_id: userId,
+            data: dataParcela,
+            hora: form.hora,
+            descricao: `${form.desc} (${i}/${totalParcelas})`,
+            tipo: 'saida',
+            categoria: form.category,
+            categoria_id: categoriaId,
+            forma_pagamento: 'cartao',
+            conta_id: null,
+            cartao_id: cartao.id,
+            fatura_id: fatura.id,
+            valor,
+            parcela_atual: i,
+            parcela_total: totalParcelas,
+            parcelamento_id: parcelamentoId,
+          });
+        }
+        const { error } = await supabase.from('lancamentos').insert(rows);
+        if (error) throw error;
+        onSaved();
+        return;
+      }
+
       let cartaoId: number | null = null;
       let faturaId: number | null = null;
       let contaId: number | null = form.conta_id;
@@ -219,12 +262,29 @@ export default function LancamentoForm({
           )}
           {form.type === 'saida' && form.payment === 'cartao' ? (
             cartoes.length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-slate-500 mb-1 block">Cartão de crédito</label>
-                <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
-                  {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-                <p className="text-xs text-slate-400 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-500 mb-1 block">Cartão de crédito</label>
+                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white" disabled={saving}>
+                    {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
+                </div>
+                {!editingEntry && (
+                  <div>
+                    <label className="flex items-center gap-2 text-sm text-slate-600">
+                      <input type="checkbox" checked={form.parcelado} onChange={(e) => setForm(f => ({ ...f, parcelado: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
+                      Compra parcelada
+                    </label>
+                    {form.parcelado && (
+                      <div className="mt-2">
+                        <label className="text-xs font-medium text-slate-500 mb-1 block">Número de parcelas</label>
+                        <input type="number" min={2} max={24} value={form.parcelas} onChange={(e) => setForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800" disabled={saving} />
+                        <p className="text-xs text-slate-400 mt-1">O valor total informado é dividido igualmente entre as parcelas, cada uma lançada na fatura do mês correspondente.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           ) : (

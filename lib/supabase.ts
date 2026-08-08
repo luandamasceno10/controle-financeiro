@@ -20,6 +20,9 @@ export interface Lancamento {
   cartao_id: number | null;
   fatura_id: number | null;
   recorrente_id: number | null;
+  parcela_atual: number | null;
+  parcela_total: number | null;
+  parcelamento_id: string | null;
   valor: number;
   created_at: string;
 }
