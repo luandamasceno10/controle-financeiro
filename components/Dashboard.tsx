@@ -243,6 +243,21 @@ export default function Dashboard({ userId }: { userId: string }) {
     })).sort((a, b) => b.value - a.value);
   }, [monthEntries, categoriaByName, categoriaById]);
 
+  // Comparação com o mês anterior por categoria — só cobre lançamentos dentro
+  // do ano em exibição (a tabela é carregada por ano); em janeiro, sem dados de
+  // dezembro do ano anterior, a comparação fica indisponível para aquele mês.
+  const categoryDataPrevMonth = useMemo(() => {
+    const [y, m] = currentMonth.split('-').map(Number);
+    const prevKey = m === 1 ? null : `${y}-${String(m - 1).padStart(2, '0')}`;
+    if (!prevKey) return null;
+    const map: Record<string, number> = {};
+    entries.filter(e => monthKey(e.data) === prevKey && e.tipo === 'saida' && !e.cartao_id).forEach(e => {
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      map[nome] = (map[nome] || 0) + Number(e.valor);
+    });
+    return map;
+  }, [entries, currentMonth, categoriaByName, categoriaById]);
+
   const orcamentoPorCategoriaId = useMemo(() => {
     const map: Record<number, number> = {};
     orcamentos.forEach((o) => { map[o.categoria_id] = Number(o.valor_limite); });
@@ -574,18 +589,29 @@ export default function Dashboard({ userId }: { userId: string }) {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-1.5 mt-2 max-h-44 overflow-y-auto pr-1">
-                    {categoryData.map((c, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
-                          <span className="text-slate-600 dark:text-slate-300">{c.name}</span>
-                          {limiteExcedido(c.name, c.value) && (
-                            <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded">Estourou</span>
-                          )}
+                    {categoryData.map((c, i) => {
+                      const prevValue = categoryDataPrevMonth?.[c.name];
+                      const variacao = prevValue !== undefined && prevValue > 0 ? Math.round(((c.value - prevValue) / prevValue) * 100) : null;
+                      return (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
+                            <span className="text-slate-600 dark:text-slate-300 truncate">{c.name}</span>
+                            {limiteExcedido(c.name, c.value) && (
+                              <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">Estourou</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {variacao !== null && (
+                              <span className={`text-[10px] font-semibold ${variacao > 0 ? 'text-rose-500' : variacao < 0 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                                {variacao > 0 ? '+' : ''}{variacao}%
+                              </span>
+                            )}
+                            <span className="font-semibold tabular-nums">{currency(c.value)}</span>
+                          </div>
                         </div>
-                        <span className="font-semibold tabular-nums shrink-0 ml-2">{currency(c.value)}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem despesas neste mês ainda.</p>}
