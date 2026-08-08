@@ -8,6 +8,7 @@ import { sortCategoriasForSelect, categoriaSelectLabel } from '@/lib/categorias'
 import { PAYMENTS } from '@/lib/payments';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { SkeletonList } from './Skeleton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   Plus, X, Pencil, Trash2, Wallet, ArrowUpFromLine, ArrowDownToLine,
@@ -322,7 +323,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
       </div>
 
       {loading ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><SkeletonList /></div>
       ) : (
         <>
         {(totals.aPagar > 0 || totals.aReceber > 0) && (

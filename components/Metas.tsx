@@ -6,6 +6,7 @@ import type { Meta, MetaContribuicao, ContaBancaria } from '@/lib/supabase';
 import { computeProgresso } from '@/lib/metas';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { SkeletonList } from './Skeleton';
 import {
   Plus, X, Pencil, Trash2, Target, TrendingUp, Calendar, CheckCircle2,
   AlertTriangle, PlusCircle, Trophy, Archive, MoreVertical,
@@ -219,7 +220,7 @@ export default function Metas({ userId }: { userId: string }) {
       </div>
 
       {loading ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><SkeletonList /></div>
       ) : metasAtivas.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center">
           <div className="w-12 h-12 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 flex items-center justify-center mx-auto mb-4">

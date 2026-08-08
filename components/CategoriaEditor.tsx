@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { Categoria } from '@/lib/supabase';
 import { ICONS, ICON_NAMES, COLOR_SWATCHES, sortCategoriasNatural } from '@/lib/categorias';
 import { useToast, ToastContainer } from './Toast';
+import { SkeletonList } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Plus, X, Pencil, Trash2, Tag, CornerDownRight } from 'lucide-react';
 
@@ -132,7 +133,7 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
+          <SkeletonList />
         ) : topLevel.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhuma categoria de {tab === 'saida' ? 'saída' : 'entrada'} ainda.</div>
         ) : (

@@ -656,16 +656,18 @@ export default function Dashboard({ userId }: { userId: string }) {
                   )}
                   {paginated.map((e) => {
                     const meta = catMeta(e.categoria, e.tipo);
+                    const catObj = categoriaByName[`${e.tipo}|${e.categoria}`];
+                    const CatIcon = catObj ? ICONS[catObj.icone] : null;
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
                     const selected = selectedIds.has(e.id);
                     return (
-                      <tr key={e.id} onClick={() => openEditEntry(e)} className={`border-b border-slate-50 hover:bg-slate-50/80 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60' : ''}`}>
+                      <tr key={e.id} onClick={() => openEditEntry(e)} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
                         <td className="px-5 py-3" onClick={(ev) => ev.stopPropagation()}>
                           <input type="checkbox" className="w-4 h-4 accent-rose-600" checked={selected} onChange={() => toggleSelect(e.id)} />
                         </td>
                         <td className="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{fmtDate(e.data)}</td>
                         <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-200">{e.descricao}</td>
-                        <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td>
+                        <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td>
                         <td className="px-5 py-3 text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
                         <td className={`px-5 py-3 text-right font-semibold tabular-nums ${e.tipo === 'entrada' ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' ? '+' : '-'}{currency(Number(e.valor))}</td>
                         <td className="px-5 py-3 text-right">
@@ -734,7 +736,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
                   <table className="w-full text-sm"><tbody>
-                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); return (<tr key={e.id} className="border-b border-slate-50 last:border-0"><td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700 dark:text-slate-200">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700 dark:text-slate-200">{currency(Number(e.valor))}</td></tr>); })}
+                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); const catObj = categoriaByName[`${e.tipo}|${e.categoria}`]; const CatIcon = catObj ? ICONS[catObj.icone] : null; return (<tr key={e.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0"><td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700 dark:text-slate-200">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700 dark:text-slate-200">{currency(Number(e.valor))}</td></tr>); })}
                   </tbody></table>
                 </div>
               </>

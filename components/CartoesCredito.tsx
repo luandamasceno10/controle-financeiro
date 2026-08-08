@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { CartaoCredito, Fatura, Lancamento, ContaBancaria } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { SkeletonList } from './Skeleton';
 import { competenciaForPurchase, shiftCompetencia, estimatedVencimento } from '@/lib/faturas';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
@@ -244,7 +245,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       </div>
 
       {loading ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><SkeletonList /></div>
       ) : cartoesAtivos.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhum cartão cadastrado ainda.</div>
       ) : (

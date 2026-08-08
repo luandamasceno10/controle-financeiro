@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Categoria, OrcamentoCategoria, Lancamento } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
+import { SkeletonList } from './Skeleton';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import { Wallet, Check, X, AlertTriangle, ChevronLeft, ChevronRight, PieChart } from 'lucide-react';
 
@@ -181,7 +182,7 @@ export default function Orcamentos({ userId }: { userId: string }) {
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
+          <SkeletonList />
         ) : categoriasOrcaveis.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhuma categoria de saída cadastrada ainda.</div>
         ) : (

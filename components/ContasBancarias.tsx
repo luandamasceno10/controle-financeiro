@@ -7,6 +7,7 @@ import { BANCOS, bancoMeta } from '@/lib/bancos';
 import { BancoIcon } from './BancoIcon';
 import ConciliacaoBancaria from './ConciliacaoBancaria';
 import { useToast, ToastContainer } from './Toast';
+import { SkeletonList } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Plus, X, Pencil, Trash2, Landmark, FileUp } from 'lucide-react';
 
@@ -149,7 +150,7 @@ export default function ContasBancarias({ userId }: { userId: string }) {
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
         {loading ? (
-          <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Carregando...</div>
+          <SkeletonList />
         ) : contasAtivas.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400 dark:text-slate-500">Nenhuma conta cadastrada ainda.</div>
         ) : (
