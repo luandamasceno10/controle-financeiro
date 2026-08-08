@@ -43,15 +43,20 @@ export default function Orcamentos({ userId }: { userId: string }) {
 
   useEffect(() => {
     loadData();
-  }, [userId]);
+  }, [userId, mes]);
 
   const loadData = async () => {
     try {
       setLoading(true);
+      // O orçamento só compara gasto contra limite dentro do mês selecionado —
+      // não precisa do histórico inteiro de lançamentos, só desse mês.
+      const [y, m] = mes.split('-').map(Number);
+      const mesInicio = `${y}-${String(m).padStart(2, '0')}-01`;
+      const mesFim = new Date(y, m, 0).toISOString().slice(0, 10);
       const [catResult, orcResult, entriesResult] = await Promise.all([
         supabase.from('categorias').select('*').eq('user_id', userId).eq('tipo', 'saida').eq('ativa', true).order('ordem'),
         supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
-        supabase.from('lancamentos').select('*').eq('user_id', userId).eq('tipo', 'saida'),
+        supabase.from('lancamentos').select('*').eq('user_id', userId).eq('tipo', 'saida').gte('data', mesInicio).lte('data', mesFim),
       ]);
       if (catResult.data) setCategorias(catResult.data);
       if (orcResult.data) setOrcamentos(orcResult.data);

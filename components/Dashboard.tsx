@@ -53,6 +53,8 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
+  const [saldoPorConta, setSaldoPorConta] = useState<Record<number, number>>({});
+  const [hasAnyEntry, setHasAnyEntry] = useState(false);
 
   const now = new Date();
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
@@ -82,13 +84,19 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   useEffect(() => {
     loadData();
-  }, [userId]);
+  }, [userId, currentYear]);
 
   const loadData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
+      // O histórico completo de lançamentos só é necessário pro saldo (livro-razão
+      // cumulativo, nunca reinicia) — isso é resolvido no banco via RPC (soma
+      // agregada, não traz linha por linha). A tabela em si só carrega o ano em
+      // exibição, pra não crescer sem limite conforme o histórico do usuário aumenta.
+      const anoInicio = `${currentYear}-01-01`;
+      const anoFim = `${currentYear}-12-31`;
       const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult] = await Promise.all([
-        supabase.from('lancamentos').select('*').eq('user_id', userId),
+        supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', anoInicio).lte('data', anoFim),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
@@ -112,12 +120,32 @@ export default function Dashboard({ userId }: { userId: string }) {
       if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (categoriasResult.data) setCategorias(categoriasResult.data);
       if (orcamentosResult.data) setOrcamentos(orcamentosResult.data);
+
+      if (!hasAnyEntry) {
+        const { count } = await supabase.from('lancamentos').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+        setHasAnyEntry((count ?? 0) > 0);
+      }
     } catch (error: any) {
       addToast('Erro ao carregar dados: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
   };
+
+  // Saldo é um livro-razão cumulativo (nunca reinicia no ano) — em vez de baixar
+  // todo o histórico de lançamentos pra somar em JS, a soma é feita no banco via
+  // RPC. Roda à parte do loadData principal porque o corte é por mês selecionado
+  // (currentMonth), granularidade mais fina do que o ano carregado na tabela.
+  useEffect(() => {
+    const [y, m] = currentMonth.split('-').map(Number);
+    const cutoff = `${y}-${String(m).padStart(2, '0')}-31`;
+    supabase.rpc('saldo_por_conta', { p_cutoff: cutoff }).then(({ data }) => {
+      if (!data) return;
+      const map: Record<number, number> = {};
+      data.forEach((r: { conta_id: number; saldo: number }) => { map[r.conta_id] = Number(r.saldo); });
+      setSaldoPorConta(map);
+    });
+  }, [userId, currentMonth]);
 
   const categoriasSaida = useMemo(() => categorias.filter(c => c.tipo === 'saida'), [categorias]);
   const categoriasEntrada = useMemo(() => categorias.filter(c => c.tipo === 'entrada'), [categorias]);
@@ -166,12 +194,9 @@ export default function Dashboard({ userId }: { userId: string }) {
   // Livro-razão cumulativo — não reinicia na virada do ano.
   const saldoAteMes = useMemo(() => {
     const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
-    const [y, m] = currentMonth.split('-').map(Number);
-    const cutoff = `${y}-${String(m).padStart(2, '0')}-31`;
-    return entries
-      .filter(e => e.conta_id && e.data <= cutoff)
-      .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), base);
-  }, [entries, currentMonth, contas]);
+    const lancamentos = contas.reduce((s, c) => s + (saldoPorConta[c.id] || 0), 0);
+    return base + lancamentos;
+  }, [contas, saldoPorConta]);
 
   const carryOver = useMemo(() => saldoAteMes - totals.entrada + totals.saida, [saldoAteMes, totals]);
 
@@ -374,7 +399,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   };
 
   const monthIdx = MONTH_NAMES.findIndex((_, i) => currentMonth === `${currentYear}-${String(i + 1).padStart(2, '0')}`);
-  const isEmpty = entries.length === 0;
+  const isEmpty = !loading && !hasAnyEntry;
 
   if (loading) {
     return (

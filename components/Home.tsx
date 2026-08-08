@@ -52,8 +52,13 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
   const loadData = async () => {
     const hoje = todayISO();
+    // A Home só precisa de lançamentos recentes (mês atual, sequência de dias
+    // ativos, faturas em aberto) — não do histórico completo do usuário. 13 meses
+    // cobre com folga qualquer fatura aberta esquecida sem crescer sem limite.
+    const janelaInicio = new Date();
+    janelaInicio.setMonth(janelaInicio.getMonth() - 13);
     const [entriesResult, billsResult, allBillsResult, categoriasResult, contasResult, cartoesResult, faturasResult, metasResult, contribsResult, orcamentosResult, analiseResult] = await Promise.all([
-      supabase.from('lancamentos').select('*').eq('user_id', userId),
+      supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', janelaInicio.toISOString().slice(0, 10)),
       supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente').order('vencimento', { ascending: true }).limit(1),
       supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente'),
       supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
