@@ -8,7 +8,7 @@ import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { computeProgresso } from '@/lib/metas';
 import { useToast, ToastContainer } from './Toast';
 import LancamentoForm from './LancamentoForm';
-import { Plus, Landmark, Target, CalendarClock, Receipt, Loader, X, ArrowRight, Wallet, AlertTriangle, Clock, Flame, Tag, ChevronDown } from 'lucide-react';
+import { Plus, Landmark, Target, CalendarClock, Receipt, Loader, X, ArrowRight, Wallet, AlertTriangle, Clock, Flame, Tag, ChevronDown, CheckCircle2, Circle } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -45,6 +45,16 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [alertasExpandido, setAlertasExpandido] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(true);
+
+  useEffect(() => {
+    setOnboardingDismissed(localStorage.getItem('onboarding_dismissed') === '1');
+  }, []);
+
+  const dismissOnboarding = () => {
+    localStorage.setItem('onboarding_dismissed', '1');
+    setOnboardingDismissed(true);
+  };
 
   useEffect(() => {
     loadData();
@@ -204,6 +214,15 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 
+  const onboardingSteps = useMemo(() => [
+    { id: 'conta', label: 'Cadastre uma conta bancária', done: contas.length > 0, href: '/contas' },
+    { id: 'lancamento', label: 'Registre seu primeiro lançamento', done: entries.length > 0, href: '/dashboard' },
+    { id: 'orcamento', label: 'Defina um orçamento por categoria', done: orcamentos.length > 0, href: '/orcamentos' },
+    { id: 'meta', label: 'Crie uma meta financeira', done: metas.length > 0, href: '/metas' },
+  ], [contas, entries, orcamentos, metas]);
+  const onboardingConcluido = onboardingSteps.every((s) => s.done);
+  const mostrarOnboarding = !loading && !onboardingDismissed && !onboardingConcluido;
+
   return (
     <main className="max-w-3xl mx-auto px-5 py-8 space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -212,6 +231,28 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
         <p className="text-xs text-slate-400 dark:text-slate-500 capitalize">{hoje}</p>
         <h1 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Olá{nome ? `, ${nome}` : ''}! 👋</h1>
       </div>
+
+      {mostrarOnboarding && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Complete seu setup</h2>
+            <button onClick={dismissOnboarding} className="text-slate-300 dark:text-slate-500 hover:text-slate-500 dark:hover:text-slate-300 p-1"><X size={14} /></button>
+          </div>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">{onboardingSteps.filter((s) => s.done).length} de {onboardingSteps.length} passos concluídos</p>
+          <div className="space-y-1">
+            {onboardingSteps.map((s) => (
+              <Link
+                key={s.id}
+                href={s.href}
+                className={`flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-colors ${s.done ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+              >
+                {s.done ? <CheckCircle2 size={16} className="text-emerald-500 shrink-0" /> : <Circle size={16} className="text-slate-300 dark:text-slate-600 shrink-0" />}
+                <span className={s.done ? 'line-through' : ''}>{s.label}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {alertas.length > 0 && (() => {
         const ordenados = [...alertas].sort((a, b) => (a.tone === 'rose' ? 0 : 1) - (b.tone === 'rose' ? 0 : 1));
