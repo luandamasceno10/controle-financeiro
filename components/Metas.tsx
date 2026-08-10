@@ -9,7 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
 import {
   Plus, X, Pencil, Trash2, Target, TrendingUp, Calendar, CheckCircle2,
-  AlertTriangle, PlusCircle, Trophy, Archive, MoreVertical,
+  AlertTriangle, PlusCircle, Trophy, Archive, MoreVertical, Repeat,
 } from 'lucide-react';
 
 function currency(v: number) {
@@ -41,7 +41,10 @@ export default function Metas({ userId }: { userId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Meta | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nome: '', valor_alvo: '', data_alvo: '', cor: CORES[0] });
+  const [form, setForm] = useState({
+    nome: '', valor_alvo: '', data_alvo: '', cor: CORES[0],
+    aporteRecorrenteAtivo: false, aporte_recorrente_valor: '', aporte_recorrente_dia: '5', aporte_recorrente_conta_id: null as number | null,
+  });
   const [archiveConfirm, setArchiveConfirm] = useState<Meta | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Meta | null>(null);
   const [menuOpenFor, setMenuOpenFor] = useState<number | null>(null);
@@ -79,19 +82,33 @@ export default function Metas({ userId }: { userId: string }) {
 
   const openNew = () => {
     setEditing(null);
-    setForm({ nome: '', valor_alvo: '', data_alvo: '', cor: CORES[Math.floor(Math.random() * CORES.length)] });
+    setForm({
+      nome: '', valor_alvo: '', data_alvo: '', cor: CORES[Math.floor(Math.random() * CORES.length)],
+      aporteRecorrenteAtivo: false, aporte_recorrente_valor: '', aporte_recorrente_dia: '5', aporte_recorrente_conta_id: contas[0]?.id ?? null,
+    });
     setShowForm(true);
   };
 
   const openEdit = (meta: Meta) => {
     setEditing(meta);
-    setForm({ nome: meta.nome, valor_alvo: String(meta.valor_alvo), data_alvo: meta.data_alvo || '', cor: meta.cor });
+    setForm({
+      nome: meta.nome, valor_alvo: String(meta.valor_alvo), data_alvo: meta.data_alvo || '', cor: meta.cor,
+      aporteRecorrenteAtivo: !!meta.aporte_recorrente_valor,
+      aporte_recorrente_valor: meta.aporte_recorrente_valor ? String(meta.aporte_recorrente_valor) : '',
+      aporte_recorrente_dia: meta.aporte_recorrente_dia ? String(meta.aporte_recorrente_dia) : '5',
+      aporte_recorrente_conta_id: meta.aporte_recorrente_conta_id ?? contas[0]?.id ?? null,
+    });
     setShowForm(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nome || !form.valor_alvo || parseFloat(form.valor_alvo) <= 0) return;
+
+    if (form.aporteRecorrenteAtivo && (!form.aporte_recorrente_valor || parseFloat(form.aporte_recorrente_valor) <= 0 || !form.aporte_recorrente_conta_id)) {
+      addToast('Preencha valor e conta do aporte automático', 'error');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -100,6 +117,9 @@ export default function Metas({ userId }: { userId: string }) {
         valor_alvo: parseFloat(form.valor_alvo),
         data_alvo: form.data_alvo || null,
         cor: form.cor,
+        aporte_recorrente_valor: form.aporteRecorrenteAtivo ? parseFloat(form.aporte_recorrente_valor) : null,
+        aporte_recorrente_dia: form.aporteRecorrenteAtivo ? parseInt(form.aporte_recorrente_dia, 10) : null,
+        aporte_recorrente_conta_id: form.aporteRecorrenteAtivo ? form.aporte_recorrente_conta_id : null,
       };
       if (editing) {
         const { error } = await supabase.from('metas').update(payload).eq('id', editing.id);
@@ -250,6 +270,11 @@ export default function Metas({ userId }: { userId: string }) {
                         <p className="text-xs text-slate-400 dark:text-slate-500">
                           {currency(p.valorAtual)} de {currency(Number(meta.valor_alvo))}
                           {meta.data_alvo && ` · até ${fmtDate(meta.data_alvo)}`}
+                          {meta.aporte_recorrente_valor && (
+                            <span className="inline-flex items-center gap-1 ml-1.5 text-emerald-600">
+                              <Repeat size={10} /> {currency(Number(meta.aporte_recorrente_valor))}/mês
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -361,6 +386,37 @@ export default function Metas({ userId }: { userId: string }) {
                     <button key={c} type="button" onClick={() => setForm(f => ({ ...f, cor: c }))} className={`w-8 h-8 rounded-full border-2 transition-transform ${form.cor === c ? 'border-slate-800 scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} disabled={saving} />
                   ))}
                 </div>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={form.aporteRecorrenteAtivo} onChange={(e) => setForm(f => ({ ...f, aporteRecorrenteAtivo: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
+                  <Repeat size={14} /> Aporte automático recorrente
+                </label>
+                {form.aporteRecorrenteAtivo && (
+                  contas.length > 0 ? (
+                    <div className="mt-3 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label>
+                          <input type="number" step="0.01" min="0.01" value={form.aporte_recorrente_valor} onChange={(e) => setForm(f => ({ ...f, aporte_recorrente_valor: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Dia do mês</label>
+                          <input type="number" min={1} max={28} value={form.aporte_recorrente_dia} onChange={(e) => setForm(f => ({ ...f, aporte_recorrente_dia: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Debitar da conta</label>
+                        <select value={form.aporte_recorrente_conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, aporte_recorrente_conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
+                          {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                        </select>
+                      </div>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Todo dia {form.aporte_recorrente_dia}, contribuímos automaticamente com essa conta, sem precisar clicar em nada.</p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-rose-500">Cadastre uma conta bancária antes de ativar o aporte automático.</p>
+                  )
+                )}
               </div>
               <button type="submit" disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
                 {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar meta'}

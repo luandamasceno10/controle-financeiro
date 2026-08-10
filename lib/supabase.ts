@@ -136,6 +136,10 @@ export interface Meta {
   cor: string;
   status: 'ativa' | 'concluida' | 'arquivada';
   created_at: string;
+  aporte_recorrente_valor: number | null;
+  aporte_recorrente_dia: number | null;
+  aporte_recorrente_conta_id: number | null;
+  aporte_recorrente_ultimo_mes: string | null;
 }
 
 export interface MetaContribuicao {

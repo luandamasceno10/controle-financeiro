@@ -383,3 +383,12 @@ CREATE INDEX lancamentos_parcelamento_id ON lancamentos(parcelamento_id);
 -- é um lançamento independente com sua própria categoria/valor.
 ALTER TABLE lancamentos ADD COLUMN split_id UUID;
 CREATE INDEX lancamentos_split_id ON lancamentos(split_id);
+
+-- Aporte automático recorrente para metas: se configurado, um cron diário
+-- (/api/cron/aportes-metas) cria a contribuição + lançamento sozinho no dia
+-- escolhido do mês, sem precisar do usuário clicar em "Contribuir".
+-- aporte_recorrente_ultimo_mes evita duplicar o aporte no mesmo mês.
+ALTER TABLE metas ADD COLUMN aporte_recorrente_valor DECIMAL(12, 2);
+ALTER TABLE metas ADD COLUMN aporte_recorrente_dia INTEGER CHECK (aporte_recorrente_dia BETWEEN 1 AND 28);
+ALTER TABLE metas ADD COLUMN aporte_recorrente_conta_id BIGINT REFERENCES contas_bancarias(id) ON DELETE SET NULL;
+ALTER TABLE metas ADD COLUMN aporte_recorrente_ultimo_mes TEXT;
