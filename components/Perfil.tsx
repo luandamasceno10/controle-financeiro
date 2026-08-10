@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client';
+import { biometricEnabled, biometricAvailable, enableBiometric, disableBiometric } from '@/lib/biometric';
 import { useToast, ToastContainer } from './Toast';
-import { UserCircle, Lock, Loader, Bell, BellOff, Mail } from 'lucide-react';
+import { UserCircle, Lock, Loader, Bell, BellOff, Mail, Fingerprint } from 'lucide-react';
 
 export default function Perfil({ user }: { user: User }) {
   const { toasts, addToast, removeToast } = useToast();
@@ -23,9 +24,34 @@ export default function Perfil({ user }: { user: User }) {
   const [pushStatus, setPushStatus] = useState<'subscribed' | 'not-subscribed' | 'unsupported' | 'loading'>('loading');
   const [pushBusy, setPushBusy] = useState(false);
 
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioEnabled, setBioEnabled] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
+
   useEffect(() => {
     getPushSubscriptionStatus().then(setPushStatus);
+    biometricAvailable().then(setBioAvailable);
+    setBioEnabled(biometricEnabled());
   }, []);
+
+  const handleToggleBiometric = async () => {
+    setBioBusy(true);
+    try {
+      if (bioEnabled) {
+        disableBiometric();
+        setBioEnabled(false);
+        addToast('Bloqueio por biometria desativado', 'success');
+      } else {
+        await enableBiometric(user.id, user.email || 'usuário');
+        setBioEnabled(true);
+        addToast('Bloqueio por biometria ativado! Da próxima vez que abrir o app, ele vai pedir Face ID/Touch ID.', 'success');
+      }
+    } catch (err: any) {
+      addToast('Erro ao configurar biometria: ' + err.message, 'error');
+    } finally {
+      setBioBusy(false);
+    }
+  };
 
   const handleTogglePush = async () => {
     setPushBusy(true);
@@ -203,6 +229,32 @@ export default function Perfil({ user }: { user: User }) {
             >
               {pushBusy && <Loader size={13} className="animate-spin" />}
               {pushStatus === 'subscribed' ? 'Desativar' : 'Ativar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {bioAvailable && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 flex items-center justify-center shrink-0">
+                <Fingerprint size={16} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Abrir com Face ID / Touch ID</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Pede biometria neste aparelho antes de mostrar seus dados</p>
+              </div>
+            </div>
+            <button
+              onClick={handleToggleBiometric}
+              disabled={bioBusy}
+              className={`shrink-0 flex items-center gap-2 font-semibold text-xs px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 ${
+                bioEnabled ? 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-900'
+              }`}
+            >
+              {bioBusy && <Loader size={13} className="animate-spin" />}
+              {bioEnabled ? 'Desativar' : 'Ativar'}
             </button>
           </div>
         </div>
