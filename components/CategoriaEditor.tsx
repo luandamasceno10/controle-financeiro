@@ -7,7 +7,7 @@ import { ICONS, ICON_NAMES, COLOR_SWATCHES, sortCategoriasNatural } from '@/lib/
 import { useToast, ToastContainer } from './Toast';
 import { SkeletonList } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
-import { Plus, X, Pencil, Trash2, Tag, CornerDownRight } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, Tag, CornerDownRight, ChevronRight } from 'lucide-react';
 
 export default function CategoriaEditor({ userId }: { userId: string }) {
   const { toasts, addToast, removeToast } = useToast();
@@ -21,6 +21,7 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
   const [form, setForm] = useState({ nome: '', tipo: 'saida' as 'entrada' | 'saida', cor: COLOR_SWATCHES[0], icone: ICON_NAMES[0], parent_id: null as number | null });
 
   const [deleteConfirm, setDeleteConfirm] = useState<Categoria | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -140,22 +141,32 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
           topLevel.map((cat) => {
             const Icon = ICONS[cat.icone] || Tag;
             const subs = childrenOf(cat.id);
+            const expanded = expandedId === cat.id;
             return (
               <div key={cat.id}>
-                <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: cat.cor + '20', color: cat.cor }}>
+                <div
+                  className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  onClick={() => subs.length > 0 && setExpandedId(expanded ? null : cat.id)}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {subs.length > 0 ? (
+                      <ChevronRight size={14} className={`text-slate-300 dark:text-slate-600 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                    ) : (
+                      <span className="w-3.5 shrink-0" />
+                    )}
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: cat.cor + '20', color: cat.cor }}>
                       <Icon size={15} />
                     </div>
-                    <span className="text-sm text-slate-700 dark:text-slate-200">{cat.nome}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{cat.nome}</span>
+                    {subs.length > 0 && <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{subs.length}</span>}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => openNew(cat.id)} title="Nova subcategoria" className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"><Plus size={15} /></button>
                     <button onClick={() => openEdit(cat)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={15} /></button>
                     <button onClick={() => setDeleteConfirm(cat)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-600 hover:bg-rose-50"><Trash2 size={15} /></button>
                   </div>
                 </div>
-                {subs.map((sub) => {
+                {expanded && subs.map((sub) => {
                   const SubIcon = ICONS[sub.icone] || Tag;
                   return (
                     <div key={sub.id} className="flex items-center justify-between pl-10 pr-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-50">
