@@ -294,26 +294,14 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   </div>
                 </div>
 
-                {pendentes.length > 0 && (
-                  <div className="px-4 pb-3 space-y-2">
-                    {pendentes.map((f) => {
-                      const totalPendente = totalDaFatura(f.id);
-                      if (totalPendente <= 0) return null;
-                      return (
-                        <div key={f.id} className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-500/10 px-2 py-1 rounded-md shrink-0">
-                            <Clock size={11} /> Fechada
-                          </span>
-                          <button
-                            onClick={() => { setSelectedCartao(cartao); openPayFatura(f); }}
-                            disabled={contas.length === 0}
-                            className="flex-1 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2 rounded-lg transition-colors"
-                          >
-                            <Check size={14} /> Pagar fatura de {f.competencia} — {currency(totalPendente)}
-                          </button>
-                        </div>
-                      );
-                    })}
+                {pendentes.filter((f) => totalDaFatura(f.id) > 0).length > 0 && (
+                  <div className="px-4 pb-3">
+                    <button
+                      onClick={() => { setDetailCartao(cartao); setDetailCompetencia(pendentes.find((f) => totalDaFatura(f.id) > 0)!.competencia); }}
+                      className="w-full flex items-center justify-center gap-2 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 text-amber-700 font-semibold text-xs px-3 py-2 rounded-lg transition-colors"
+                    >
+                      <Clock size={13} /> {pendentes.filter((f) => totalDaFatura(f.id) > 0).length} fatura{pendentes.filter((f) => totalDaFatura(f.id) > 0).length > 1 ? 's' : ''} fechada{pendentes.filter((f) => totalDaFatura(f.id) > 0).length > 1 ? 's' : ''} aguardando pagamento — Consultar
+                    </button>
                   </div>
                 )}
 
@@ -385,7 +373,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                 <ChevronLeft size={18} />
               </button>
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">{competenciaLabel(detailCompetencia)}</p>
-              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, 1))} disabled={detailEhAtual} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
+              <button onClick={() => setDetailCompetencia((c) => shiftCompetencia(c, 1))} disabled={detailCompetencia >= shiftCompetencia(detailCompetenciaAtual, 12)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronRight size={18} />
               </button>
             </div>
@@ -393,7 +381,13 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 mb-5">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  {detailEhAtual ? 'Em aberto — ainda acumulando' : !detailFatura ? 'Sem compras nesse mês' : detailFatura.status === 'paga' ? 'Paga' : 'Fechada — aguardando pagamento'}
+                  {detailEhAtual
+                    ? 'Em aberto — ainda acumulando'
+                    : detailFatura
+                    ? (detailFatura.status === 'paga' ? 'Paga' : 'Fechada — aguardando pagamento')
+                    : detailCompetencia > detailCompetenciaAtual
+                    ? 'Prévia — ainda não começou a acumular'
+                    : 'Sem compras nesse mês'}
                 </p>
                 {!detailEhAtual && detailFatura && (
                   <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md ${detailFatura.status === 'paga' ? 'text-emerald-700 bg-emerald-100' : 'text-amber-700 bg-amber-100'}`}>
