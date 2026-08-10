@@ -11,6 +11,7 @@ import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import LancamentoForm from './LancamentoForm';
+import CategoryRing from './CategoryRing';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
@@ -264,7 +265,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       map[nome] = (map[nome] || 0) + Number(e.valor);
     });
     return Object.entries(map).map(([name, value]) => ({
-      name, value, color: catMeta(name)?.color || '#64748B',
+      name, value, color: catMeta(name)?.color || '#64748B', icone: categoriaByName[`saida|${name}`]?.icone,
     })).sort((a, b) => b.value - a.value);
   }, [monthEntries, categoriaByName, categoriaById]);
 
@@ -605,14 +606,9 @@ export default function Dashboard({ userId }: { userId: string }) {
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Onde seu dinheiro está indo</p>
               {categoryData.length > 0 ? (
                 <>
-                  <ResponsiveContainer width="100%" height={230}>
-                    <PieChart>
-                      <Pie data={categoryData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                        {categoryData.map((entry, i) => <Cell key={i} fill={entry.color} stroke="var(--card-bg)" strokeWidth={2} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: any) => currency(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <div className="py-3">
+                    <CategoryRing data={categoryData} size={220} thickness={24} />
+                  </div>
                   <div className="space-y-1.5 mt-2 max-h-44 overflow-y-auto pr-1">
                     {categoryData.map((c, i) => {
                       const prevValue = categoryDataPrevMonth?.[c.name];
