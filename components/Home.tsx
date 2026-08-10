@@ -431,6 +431,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
           categoriasSaida={categoriasSaida}
           contas={contas}
           cartoes={cartoes}
+          metas={metas}
           editingEntry={null}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); refreshEntries(); addToast('Lançamento salvo!', 'success'); }}

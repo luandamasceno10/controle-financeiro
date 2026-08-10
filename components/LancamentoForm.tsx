@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, Categoria, ContaBancaria, CartaoCredito } from '@/lib/supabase';
+import type { Lancamento, Categoria, ContaBancaria, CartaoCredito, Meta } from '@/lib/supabase';
 import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import { uploadAnexo, removeAnexo, getAnexoUrl } from '@/lib/anexos';
 import MoneyInput from './MoneyInput';
-import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal, Paperclip } from 'lucide-react';
+import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal, Paperclip, Target } from 'lucide-react';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -25,6 +25,7 @@ export default function LancamentoForm({
   categoriasSaida,
   contas,
   cartoes,
+  metas = [],
   editingEntry,
   onClose,
   onSaved,
@@ -36,6 +37,7 @@ export default function LancamentoForm({
   categoriasSaida: Categoria[];
   contas: ContaBancaria[];
   cartoes: CartaoCredito[];
+  metas?: Meta[];
   editingEntry: Lancamento | null;
   onClose: () => void;
   onSaved: () => void;
@@ -65,6 +67,7 @@ export default function LancamentoForm({
         parcelas: '2',
         splitEnabled: false,
         splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
+        meta_id: null as number | null,
       };
     }
     return {
@@ -76,6 +79,7 @@ export default function LancamentoForm({
       parcelas: '2',
       splitEnabled: false,
       splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
+      meta_id: null as number | null,
     };
   });
 
@@ -224,6 +228,19 @@ export default function LancamentoForm({
       if (editingEntry) {
         const { error } = await supabase.from('lancamentos').update({ ...payload, anexo_path: anexoPath }).eq('id', editingEntry.id);
         if (error) throw error;
+      } else if (form.meta_id) {
+        const { data: lanc, error } = await supabase.from('lancamentos').insert([{ ...payload, anexo_path: anexoPath, user_id: userId }]).select().single();
+        if (error) throw error;
+        const { error: contribError } = await supabase.from('metas_contribuicoes').insert([{
+          meta_id: form.meta_id, user_id: userId, valor: payload.valor, nota: 'Vinculado ao lançamento', lancamento_id: lanc.id,
+        }]);
+        if (contribError) throw contribError;
+        const { data: contribs } = await supabase.from('metas_contribuicoes').select('valor').eq('meta_id', form.meta_id);
+        const meta = metas.find(m => m.id === form.meta_id);
+        const total = (contribs || []).reduce((s, c) => s + Number(c.valor), 0);
+        if (meta && total >= Number(meta.valor_alvo)) {
+          await supabase.from('metas').update({ status: 'concluida' }).eq('id', meta.id);
+        }
       } else {
         const { error } = await supabase.from('lancamentos').insert([{ ...payload, anexo_path: anexoPath, user_id: userId }]);
         if (error) throw error;
@@ -414,6 +431,23 @@ export default function LancamentoForm({
                   </p>
                 </div>
               )}
+            </div>
+          )}
+          {!editingEntry && form.type === 'saida' && !form.splitEnabled && !form.parcelado && metas.length > 0 && (
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
+                <Target size={13} /> Vincular a uma meta (opcional)
+              </label>
+              <select
+                value={form.meta_id ?? ''}
+                onChange={(e) => setForm(f => ({ ...f, meta_id: e.target.value ? Number(e.target.value) : null }))}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                disabled={saving}
+              >
+                <option value="">Nenhuma</option>
+                {metas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
+              {form.meta_id && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor deste lançamento também conta como aporte para a meta.</p>}
             </div>
           )}
           {!form.splitEnabled && !form.parcelado && (

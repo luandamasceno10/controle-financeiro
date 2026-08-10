@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta } from '@/lib/supabase';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
@@ -55,6 +55,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
+  const [metas, setMetas] = useState<Meta[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
   const [saldoPorConta, setSaldoPorConta] = useState<Record<number, number>>({});
@@ -108,7 +109,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       // exibição, pra não crescer sem limite conforme o histórico do usuário aumenta.
       const anoInicio = `${currentYear}-01-01`;
       const anoFim = `${currentYear}-12-31`;
-      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult, metasResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', anoInicio).lte('data', anoFim),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
@@ -117,6 +118,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         supabase.from('cartoes_credito').select('*').eq('user_id', userId).eq('ativo', true),
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
         supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
+        supabase.from('metas').select('*').eq('user_id', userId).eq('status', 'ativa'),
       ]);
 
       if (lancResult.data) setEntries(lancResult.data);
@@ -133,6 +135,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (categoriasResult.data) setCategorias(categoriasResult.data);
       if (orcamentosResult.data) setOrcamentos(orcamentosResult.data);
+      if (metasResult.data) setMetas(metasResult.data);
 
       if (!hasAnyEntry) {
         const { count } = await supabase.from('lancamentos').select('id', { count: 'exact', head: true }).eq('user_id', userId);
@@ -769,6 +772,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           categoriasSaida={categoriasSaida}
           contas={contas}
           cartoes={cartoes}
+          metas={metas}
           editingEntry={editingEntry}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); refreshEntries(); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}
