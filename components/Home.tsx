@@ -95,6 +95,16 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     setLoading(false);
   };
 
+  // Salvar um lançamento rápido não muda contas/cartões/metas/orçamentos —
+  // só a tabela lancamentos. Recarregar só ela evita refazer as 11 queries
+  // de loadData a cada "Salvar", que era a maior fonte de lentidão percebida.
+  const refreshEntries = async () => {
+    const janelaInicio = new Date();
+    janelaInicio.setMonth(janelaInicio.getMonth() - 13);
+    const { data } = await supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', janelaInicio.toISOString().slice(0, 10));
+    if (data) setEntries(data);
+  };
+
   const categoriasEntrada = useMemo(() => categorias.filter(c => c.tipo === 'entrada'), [categorias]);
   const categoriasSaida = useMemo(() => categorias.filter(c => c.tipo === 'saida'), [categorias]);
 
@@ -423,7 +433,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
           cartoes={cartoes}
           editingEntry={null}
           onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); loadData(); addToast('Lançamento salvo!', 'success'); }}
+          onSaved={() => { setShowForm(false); refreshEntries(); addToast('Lançamento salvo!', 'success'); }}
           onError={(msg) => addToast(msg, 'error')}
         />
       )}

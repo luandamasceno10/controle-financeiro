@@ -145,6 +145,16 @@ export default function Dashboard({ userId }: { userId: string }) {
     }
   };
 
+  // Salvar/editar/apagar um lançamento não muda contas, cartões, categorias,
+  // orçamentos ou previsões — só a tabela lancamentos. Recarregar só ela (em
+  // vez das 8 queries de loadData) deixa a UI bem mais rápida após "Salvar".
+  const refreshEntries = async () => {
+    const anoInicio = `${currentYear}-01-01`;
+    const anoFim = `${currentYear}-12-31`;
+    const { data } = await supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', anoInicio).lte('data', anoFim);
+    if (data) setEntries(data);
+  };
+
   // Saldo é um livro-razão cumulativo (nunca reinicia no ano) — em vez de baixar
   // todo o histórico de lançamentos pra somar em JS, a soma é feita no banco via
   // RPC. Roda à parte do loadData principal porque o corte é por mês selecionado
@@ -363,7 +373,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const removeEntry = async (id: number) => {
     try {
       await supabase.from('lancamentos').delete().eq('id', id);
-      await loadData(true);
+      await refreshEntries();
       addToast('Lançamento deletado', 'success');
     } catch (err: any) {
       addToast('Erro ao deletar: ' + err.message, 'error');
@@ -385,7 +395,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       const ids = Array.from(selectedIds);
       const { error } = await supabase.from('lancamentos').delete().in('id', ids);
       if (error) throw error;
-      await loadData(true);
+      await refreshEntries();
       setSelectedIds(new Set());
       addToast(`${ids.length} lançamento${ids.length > 1 ? 's' : ''} deletado${ids.length > 1 ? 's' : ''}`, 'success');
     } catch (err: any) {
@@ -761,7 +771,7 @@ export default function Dashboard({ userId }: { userId: string }) {
           cartoes={cartoes}
           editingEntry={editingEntry}
           onClose={() => setShowForm(false)}
-          onSaved={() => { setShowForm(false); loadData(true); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}
+          onSaved={() => { setShowForm(false); refreshEntries(); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}
           onRequestDelete={(id) => { setShowForm(false); setDeleteConfirm({ type: 'lancamento', id }); }}
           onError={(msg) => addToast(msg, 'error')}
         />
