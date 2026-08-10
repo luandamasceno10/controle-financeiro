@@ -446,7 +446,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
               <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">💡 Análise Financeira IA</h3>
               <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
             </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+            <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-lg p-4 text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
               {analiseHoje.texto}
             </div>
             <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">
