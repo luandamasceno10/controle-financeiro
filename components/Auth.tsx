@@ -10,6 +10,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +37,23 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/redefinir-senha`,
+      });
+      if (resetError) throw resetError;
+      setError('Enviamos um link de redefinição de senha para o seu e-mail. Confira também a caixa de spam.');
+    } catch (err: any) {
+      setError(err.message || 'Erro ao enviar e-mail de redefinição');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -50,10 +68,10 @@ export default function Auth() {
             Controle Financeiro Pessoal
           </h1>
           <p className="text-center text-slate-500 dark:text-slate-400 text-sm mb-6">
-            {isSignUp ? 'Crie sua conta' : 'Faça login para começar'}
+            {forgotPassword ? 'Redefinir senha' : isSignUp ? 'Crie sua conta' : 'Faça login para começar'}
           </p>
 
-          <form onSubmit={handleAuth} className="space-y-4">
+          <form onSubmit={forgotPassword ? handleForgotPassword : handleAuth} className="space-y-4">
             <div>
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Email</label>
               <div className="relative">
@@ -69,24 +87,33 @@ export default function Auth() {
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Senha</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-700 dark:text-slate-100"
-                  required
-                />
+            {!forgotPassword && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block">Senha</label>
+                  {!isSignUp && (
+                    <button type="button" onClick={() => { setForgotPassword(true); setError(''); }} className="text-xs font-medium text-emerald-600 hover:text-emerald-700">
+                      Esqueceu a senha?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-700 dark:text-slate-100"
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {error && (
               <div className={`p-3 rounded-lg text-sm ${
-                error.includes('Cadastro') 
+                error.includes('Cadastro') || error.includes('Enviamos')
                   ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 border border-emerald-200'
                   : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 border border-rose-200'
               }`}>
@@ -100,12 +127,19 @@ export default function Auth() {
               className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
             >
               {loading && <Loader size={16} className="animate-spin" />}
-              {isSignUp ? 'Criar conta' : 'Entrar'}
+              {forgotPassword ? 'Enviar link de redefinição' : isSignUp ? 'Criar conta' : 'Entrar'}
             </button>
           </form>
 
           <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 text-center text-sm text-slate-600 dark:text-slate-300">
-            {isSignUp ? (
+            {forgotPassword ? (
+              <button
+                onClick={() => { setForgotPassword(false); setError(''); }}
+                className="text-emerald-600 hover:text-emerald-700 font-semibold"
+              >
+                Voltar para o login
+              </button>
+            ) : isSignUp ? (
               <>
                 Já tem conta?{' '}
                 <button
