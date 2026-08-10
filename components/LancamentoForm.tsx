@@ -7,7 +7,7 @@ import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
 import { sortCategoriasNatural } from '@/lib/categorias';
-import { X, Trash2, Sparkles } from 'lucide-react';
+import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal } from 'lucide-react';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -57,6 +57,8 @@ export default function LancamentoForm({
         cartao_id: editingEntry.cartao_id ?? cartoes[0]?.id ?? null,
         parcelado: false,
         parcelas: '2',
+        splitEnabled: false,
+        splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
       };
     }
     return {
@@ -66,6 +68,8 @@ export default function LancamentoForm({
       cartao_id: cartoes[0]?.id ?? null,
       parcelado: false,
       parcelas: '2',
+      splitEnabled: false,
+      splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
     };
   });
 
@@ -91,6 +95,51 @@ export default function LancamentoForm({
       const isCartao = form.payment === 'cartao' && form.type === 'saida';
       const isParcelado = isCartao && !editingEntry && form.parcelado;
       const totalParcelas = isParcelado ? Math.max(2, parseInt(form.parcelas, 10) || 2) : 1;
+      const isSplit = !editingEntry && form.type === 'saida' && !form.parcelado && form.splitEnabled;
+
+      if (isSplit) {
+        const validSplits = form.splits.filter(s => s.category && parseFloat(s.amount) > 0);
+        if (validSplits.length < 2) throw new Error('Informe ao menos 2 categorias com valor no split');
+        const somaSplits = validSplits.reduce((s, x) => s + parseFloat(x.amount), 0);
+        const valorTotal = parseFloat(form.amount);
+        if (Math.abs(somaSplits - valorTotal) > 0.01) {
+          throw new Error(`A soma das partes (${somaSplits.toFixed(2)}) não bate com o valor total (${valorTotal.toFixed(2)})`);
+        }
+
+        let cartaoIdSplit: number | null = null;
+        let faturaIdSplit: number | null = null;
+        let contaIdSplit: number | null = form.conta_id;
+        if (isCartao) {
+          const cartao = cartoes.find(c => c.id === form.cartao_id);
+          if (!cartao) throw new Error('Selecione um cartão de crédito');
+          const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento);
+          const fatura = await ensureFatura(cartao, competencia, userId);
+          cartaoIdSplit = cartao.id;
+          faturaIdSplit = fatura.id;
+          contaIdSplit = null;
+        }
+
+        const splitId = crypto.randomUUID();
+        const rows = validSplits.map(s => ({
+          user_id: userId,
+          data: form.date,
+          hora: form.hora,
+          descricao: `${form.desc} (${s.category})`,
+          tipo: 'saida',
+          categoria: s.category,
+          categoria_id: categoriaByName[`saida|${s.category}`]?.id ?? null,
+          forma_pagamento: form.payment,
+          conta_id: contaIdSplit,
+          cartao_id: cartaoIdSplit,
+          fatura_id: faturaIdSplit,
+          valor: parseFloat(s.amount),
+          split_id: splitId,
+        }));
+        const { error } = await supabase.from('lancamentos').insert(rows);
+        if (error) throw error;
+        onSaved();
+        return;
+      }
 
       if (isParcelado) {
         const cartao = cartoes.find(c => c.id === form.cartao_id);
@@ -172,6 +221,15 @@ export default function LancamentoForm({
 
   const categoriaOptions = form.type === 'entrada' ? categoriasEntrada : categoriasSaida;
   const categoriaPaiOptions = useMemo(() => sortCategoriasNatural(categoriaOptions.filter(c => !c.parent_id)), [categoriaOptions]);
+  const flatCategoriaSaidaOptions = useMemo(() => sortCategoriasNatural(categoriasSaida), [categoriasSaida]);
+
+  const updateSplit = (index: number, patch: Partial<{ category: string; amount: string }>) => {
+    setForm(f => ({ ...f, splits: f.splits.map((s, i) => (i === index ? { ...s, ...patch } : s)) }));
+  };
+  const addSplitRow = () => setForm(f => ({ ...f, splits: [...f.splits, { category: '', amount: '' }] }));
+  const removeSplitRow = (index: number) => setForm(f => ({ ...f, splits: f.splits.filter((_, i) => i !== index) }));
+  const splitSoma = useMemo(() => form.splits.reduce((s, x) => s + (parseFloat(x.amount) || 0), 0), [form.splits]);
+  const splitRestante = (parseFloat(form.amount) || 0) - splitSoma;
 
   const categoriaAtual = categoriaByName[`${form.type}|${form.category}`];
   const categoriaPaiAtual = categoriaAtual?.parent_id ? categoriaById[categoriaAtual.parent_id] : categoriaAtual;
@@ -227,23 +285,25 @@ export default function LancamentoForm({
             <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} /></div>
             <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} /></div>
           </div>
-          <div>
-            <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Categoria</label>
-            <select
-              value={categoriaPaiAtual?.nome || ''}
-              onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }}
-              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
-              disabled={saving}
-            >
-              {categoriaPaiOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
-            </select>
-            {categoriaSugerida && (
-              <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
-                <Sparkles size={12} /> Sugestão: {categoriaSugerida}
-              </button>
-            )}
-          </div>
-          {subcategoriaOptions.length > 0 && (
+          {!form.splitEnabled && (
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Categoria</label>
+              <select
+                value={categoriaPaiAtual?.nome || ''}
+                onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                disabled={saving}
+              >
+                {categoriaPaiOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+              </select>
+              {categoriaSugerida && (
+                <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                  <Sparkles size={12} /> Sugestão: {categoriaSugerida}
+                </button>
+              )}
+            </div>
+          )}
+          {!form.splitEnabled && subcategoriaOptions.length > 0 && (
             <div>
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Subcategoria</label>
               <select
@@ -255,6 +315,48 @@ export default function LancamentoForm({
               >
                 {subcategoriaOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
               </select>
+            </div>
+          )}
+          {!editingEntry && form.type === 'saida' && !form.parcelado && (
+            <div>
+              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <input type="checkbox" checked={form.splitEnabled} onChange={(e) => setForm(f => ({ ...f, splitEnabled: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
+                <SplitSquareHorizontal size={14} /> Dividir entre categorias
+              </label>
+              {form.splitEnabled && (
+                <div className="mt-2 space-y-2">
+                  {form.splits.map((s, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <select
+                        value={s.category}
+                        onChange={(e) => updateSplit(i, { category: e.target.value })}
+                        className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                        disabled={saving}
+                      >
+                        <option value="">Categoria...</option>
+                        {flatCategoriaSaidaOptions.map(c => <option key={c.id} value={c.nome}>{c.parent_id ? `↳ ${c.nome}` : c.nome}</option>)}
+                      </select>
+                      <input
+                        type="number" step="0.01" placeholder="Valor" value={s.amount}
+                        onChange={(e) => updateSplit(i, { amount: e.target.value })}
+                        className="w-24 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
+                        disabled={saving}
+                      />
+                      {form.splits.length > 2 && (
+                        <button type="button" onClick={() => removeSplitRow(i)} disabled={saving} className="text-slate-400 hover:text-rose-500">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={addSplitRow} disabled={saving} className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700">
+                    <Plus size={13} /> Adicionar categoria
+                  </button>
+                  <p className={`text-xs ${Math.abs(splitRestante) < 0.01 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {Math.abs(splitRestante) < 0.01 ? 'Soma bate com o valor total ✓' : `Restam R$ ${splitRestante.toFixed(2)} para completar o valor total`}
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {form.type === 'saida' && (
@@ -270,7 +372,7 @@ export default function LancamentoForm({
                   </select>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
                 </div>
-                {!editingEntry && (
+                {!editingEntry && !form.splitEnabled && (
                   <div>
                     <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                       <input type="checkbox" checked={form.parcelado} onChange={(e) => setForm(f => ({ ...f, parcelado: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />

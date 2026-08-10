@@ -377,3 +377,9 @@ ALTER TABLE lancamentos ADD COLUMN parcela_atual INTEGER;
 ALTER TABLE lancamentos ADD COLUMN parcela_total INTEGER;
 ALTER TABLE lancamentos ADD COLUMN parcelamento_id UUID;
 CREATE INDEX lancamentos_parcelamento_id ON lancamentos(parcelamento_id);
+
+-- Split de despesa: divide um único lançamento entre várias categorias.
+-- split_id agrupa as partes (mesmo padrão de parcelamento_id); cada parte
+-- é um lançamento independente com sua própria categoria/valor.
+ALTER TABLE lancamentos ADD COLUMN split_id UUID;
+CREATE INDEX lancamentos_split_id ON lancamentos(split_id);
