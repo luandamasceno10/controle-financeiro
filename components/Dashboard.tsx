@@ -285,7 +285,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
-    monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).forEach(e => {
+    monthEntries.filter(e => e.tipo === 'saida').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
       if (!grouped[nome]) grouped[nome] = { category: nome, pix: 0, cartao: 0 };
       grouped[nome][e.forma_pagamento] += Number(e.valor);

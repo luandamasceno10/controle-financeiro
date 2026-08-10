@@ -297,6 +297,46 @@ export default function LancamentoForm({
             <input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} onBlur={handleDescricaoBlur} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
           </div>
           <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} /></div>
+          {form.type === 'saida' && (
+            <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
+          )}
+          {form.type === 'saida' && form.payment === 'cartao' ? (
+            cartoes.length > 0 && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cartão de crédito</label>
+                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
+                    {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
+                </div>
+                {!editingEntry && !form.splitEnabled && (
+                  <div>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <input type="checkbox" checked={form.parcelado} onChange={(e) => setForm(f => ({ ...f, parcelado: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
+                      Compra parcelada
+                    </label>
+                    {form.parcelado && (
+                      <div className="mt-2">
+                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Número de parcelas</label>
+                        <input type="number" min={2} max={24} value={form.parcelas} onChange={(e) => setForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor total informado é dividido igualmente entre as parcelas, cada uma lançada na fatura do mês correspondente.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          ) : (
+            contas.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Conta bancária</label>
+                <select value={form.conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
+                  {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
+              </div>
+            )
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Data</label><input type="date" value={form.date} onChange={(e) => setForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} /></div>
             <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Hora</label><input type="time" value={form.hora} onChange={(e) => setForm(f => ({ ...f, hora: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} /></div>
@@ -374,46 +414,6 @@ export default function LancamentoForm({
                 </div>
               )}
             </div>
-          )}
-          {form.type === 'saida' && (
-            <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
-          )}
-          {form.type === 'saida' && form.payment === 'cartao' ? (
-            cartoes.length > 0 && (
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cartão de crédito</label>
-                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
-                    {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
-                </div>
-                {!editingEntry && !form.splitEnabled && (
-                  <div>
-                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                      <input type="checkbox" checked={form.parcelado} onChange={(e) => setForm(f => ({ ...f, parcelado: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
-                      Compra parcelada
-                    </label>
-                    {form.parcelado && (
-                      <div className="mt-2">
-                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Número de parcelas</label>
-                        <input type="number" min={2} max={24} value={form.parcelas} onChange={(e) => setForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor total informado é dividido igualmente entre as parcelas, cada uma lançada na fatura do mês correspondente.</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          ) : (
-            contas.length > 0 && (
-              <div>
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Conta bancária</label>
-                <select value={form.conta_id ?? ''} onChange={(e) => setForm(f => ({ ...f, conta_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
-                  {contas.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </div>
-            )
           )}
           {!form.splitEnabled && !form.parcelado && (
             <div>

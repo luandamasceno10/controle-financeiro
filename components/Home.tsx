@@ -136,12 +136,20 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
       }
     });
 
+    // Mesma regra de Orcamentos.tsx: compras no cartão só entram no orçamento
+    // quando a fatura é paga (não na data da compra), e o gasto de uma
+    // subcategoria soma no orçamento da categoria-pai correspondente.
     const gastoPorCategoriaId: Record<number, number> = {};
-    monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id).forEach((e) => {
+    monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id && !e.cartao_id).forEach((e) => {
       gastoPorCategoriaId[e.categoria_id as number] = (gastoPorCategoriaId[e.categoria_id as number] || 0) + Number(e.valor);
     });
+    const filhosPorCategoriaId: Record<number, number[]> = {};
+    categorias.forEach((c) => {
+      if (c.parent_id) (filhosPorCategoriaId[c.parent_id] ||= []).push(c.id);
+    });
     orcamentos.forEach((o) => {
-      const gasto = gastoPorCategoriaId[o.categoria_id] || 0;
+      const gasto = (gastoPorCategoriaId[o.categoria_id] || 0)
+        + (filhosPorCategoriaId[o.categoria_id] || []).reduce((s, id) => s + (gastoPorCategoriaId[id] || 0), 0);
       if (gasto > Number(o.valor_limite)) {
         const cat = categorias.find((c) => c.id === o.categoria_id);
         lista.push({ id: `orc-${o.id}`, tone: 'rose', icon: Wallet, message: `Orçamento de "${cat?.nome || 'categoria'}" estourou (${currency(gasto)} de ${currency(Number(o.valor_limite))})`, href: '/orcamentos' });
