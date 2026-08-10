@@ -20,7 +20,7 @@ import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
   ArrowUpRight, ArrowDownRight, CircleEllipsis,
   Calendar, ChevronLeft, ChevronRight,
-  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText, Paperclip
+  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText, Paperclip, Info
 } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -562,7 +562,13 @@ export default function Dashboard({ userId }: { userId: string }) {
             <SummaryCard label="Entradas (mês)" value={totals.entrada} icon={ArrowUpRight} tone="emerald" />
             <SummaryCard label="Saídas (mês)" value={totals.saida} icon={ArrowDownRight} tone="rose" />
             <SummaryCard label="Saldo do mês" value={totals.saldo} icon={Wallet} tone={totals.saldo >= 0 ? 'blue' : 'rose'} />
-            <SummaryCard label="Saldo projetado" value={billTotals.saldoProjetado} icon={Calendar} tone={billTotals.saldoProjetado >= 0 ? 'violet' : 'rose'} />
+            <SummaryCard
+              label="Saldo projetado"
+              value={billTotals.saldoProjetado}
+              icon={Calendar}
+              tone={billTotals.saldoProjetado >= 0 ? 'violet' : 'rose'}
+              tooltip={`É o "disponível" (${currency(commitment.disponivel)}) somado ao que você ainda vai receber (${currency(billTotals.aReceber)}) e descontado do que ainda vai pagar (${currency(billTotals.aPagar)}) — uma prévia de como seu saldo deve ficar depois que essas contas em aberto forem resolvidas.`}
+            />
           </div>
 
           {(billTotals.aPagar > 0 || billTotals.aReceber > 0) && (
@@ -603,7 +609,15 @@ export default function Dashboard({ userId }: { userId: string }) {
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
             <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
               <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Despesas por categoria</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Onde seu dinheiro está indo</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-1">
+                Onde seu dinheiro está indo
+                <span className="group relative inline-flex">
+                  <Info size={11} className="text-slate-300 dark:text-slate-600 cursor-help" />
+                  <span className="pointer-events-none absolute left-0 bottom-full mb-1.5 w-56 bg-slate-800 text-white text-[11px] leading-snug rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    O % ao lado de cada categoria compara o gasto deste mês com o do mês anterior — verde quando gastou menos, vermelho quando gastou mais.
+                  </span>
+                </span>
+              </p>
               {categoryData.length > 0 ? (
                 <>
                   <div className="py-3">
@@ -945,9 +959,25 @@ function MiniStat({ label, value, tone, bold }: any) {
   return (<div><p className="text-[11px] text-slate-400 dark:text-slate-500 mb-0.5">{label}</p><p className={`text-base tabular-nums ${bold ? 'font-bold' : 'font-semibold'} ${tones[tone]}`}>{currency(value)}</p></div>);
 }
 
-function SummaryCard({ label, value, icon: Icon, tone }: any) {
+function SummaryCard({ label, value, icon: Icon, tone, tooltip }: any) {
   const tones: any = { emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600', rose: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600', blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600', violet: 'bg-violet-50 dark:bg-violet-500/10 text-violet-600' };
-  return (<div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4"><div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${tones[tone]}`}><Icon size={16} /></div><p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">{label}</p><p className="text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{currency(value)}</p></div>);
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${tones[tone]}`}><Icon size={16} /></div>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 flex items-center gap-1">
+        {label}
+        {tooltip && (
+          <span className="group relative inline-flex">
+            <Info size={11} className="text-slate-300 dark:text-slate-600 cursor-help" />
+            <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-52 bg-slate-800 text-white text-[11px] leading-snug rounded-lg px-2.5 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+              {tooltip}
+            </span>
+          </span>
+        )}
+      </p>
+      <p className="text-xl font-bold tabular-nums text-slate-800 dark:text-slate-100">{currency(value)}</p>
+    </div>
+  );
 }
 
 function FilterSelect({ value, onChange, options }: any) {

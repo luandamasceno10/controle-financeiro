@@ -44,20 +44,32 @@ export default function CategoryRing({
     return () => cancelAnimationFrame(raf);
   }, [data.length]);
 
+  const iconR = size / 2;
+  // Categorias pequenas (poucos % do total) ficam com o ícone muito perto do
+  // vizinho e um esconde o outro — afasta os ícones no mínimo o suficiente
+  // para não sobrepor, sem mexer no tamanho real dos segmentos do anel.
+  const minIconGap = Math.min((28 + 6) / iconR, data.length > 0 ? (2 * Math.PI) / data.length : Infinity);
+
   let cumulative = 0;
-  const segments = data.map((d) => {
+  const rawSegments = data.map((d) => {
     const pct = total > 0 ? d.value / total : 0;
     const startPct = cumulative;
     cumulative += pct;
-    const midAngle = (startPct + pct / 2) * 2 * Math.PI - Math.PI / 2;
-    const iconR = size / 2;
     const arcLength = Math.max(0, pct * circumference - gap);
+    return { ...d, pct, startPct, arcLength, rawAngle: (startPct + pct / 2) * 2 * Math.PI };
+  });
+
+  let prevAngle = -Infinity;
+  const segments = rawSegments.map((s) => {
+    const angle = Math.max(s.rawAngle, prevAngle + minIconGap);
+    prevAngle = angle;
+    const iconAngle = angle - Math.PI / 2;
     return {
-      ...d,
-      dasharray: `${arcLength * progress} ${circumference}`,
-      dashoffset: -startPct * circumference,
-      ix: cx + iconR * Math.cos(midAngle),
-      iy: cy + iconR * Math.sin(midAngle),
+      ...s,
+      dasharray: `${s.arcLength * progress} ${circumference}`,
+      dashoffset: -s.startPct * circumference,
+      ix: cx + iconR * Math.cos(iconAngle),
+      iy: cy + iconR * Math.sin(iconAngle),
     };
   });
 
