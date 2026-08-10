@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { CartaoCredito, Fatura, Lancamento, ContaBancaria } from '@/lib/supabase';
+import type { CartaoCredito, Fatura, Lancamento, ContaBancaria, CompraRecorrente } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
 import { competenciaForPurchase, shiftCompetencia, estimatedVencimento } from '@/lib/faturas';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -39,7 +39,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [faturas, setFaturas] = useState<Fatura[]>([]);
   const [entries, setEntries] = useState<Lancamento[]>([]);
   const [contas, setContas] = useState<ContaBancaria[]>([]);
+  const [comprasRecorrentes, setComprasRecorrentes] = useState<CompraRecorrente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancelConfirm, setCancelConfirm] = useState<CompraRecorrente | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CartaoCredito | null>(null);
@@ -62,16 +64,18 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [cartoesResult, faturasResult, entriesResult, contasResult] = await Promise.all([
+      const [cartoesResult, faturasResult, entriesResult, contasResult, comprasResult] = await Promise.all([
         supabase.from('cartoes_credito').select('*').eq('user_id', userId).order('id'),
         supabase.from('faturas').select('*').eq('user_id', userId),
         supabase.from('lancamentos').select('*').eq('user_id', userId).not('cartao_id', 'is', null),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
+        supabase.from('compras_recorrentes').select('*').eq('user_id', userId).eq('ativa', true),
       ]);
       if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (faturasResult.data) setFaturas(faturasResult.data);
       if (entriesResult.data) setEntries(entriesResult.data as Lancamento[]);
       if (contasResult.data) setContas(contasResult.data);
+      if (comprasResult.data) setComprasRecorrentes(comprasResult.data);
     } catch (err: any) {
       addToast('Erro ao carregar cartões: ' + err.message, 'error');
     } finally {
@@ -173,6 +177,19 @@ export default function CartoesCredito({ userId }: { userId: string }) {
     }
   };
 
+  const confirmCancelRecorrente = async () => {
+    if (!cancelConfirm) return;
+    try {
+      await supabase.from('compras_recorrentes').update({ ativa: false }).eq('id', cancelConfirm.id);
+      await loadData();
+      addToast('Assinatura cancelada — nenhum lançamento futuro será gerado', 'success');
+    } catch (err: any) {
+      addToast('Erro ao cancelar: ' + err.message, 'error');
+    } finally {
+      setCancelConfirm(null);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -254,6 +271,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             const faturaAtual = faturaAtualDoCartao(cartao);
             const totalAtual = faturaAtual ? totalDaFatura(faturaAtual.id) : 0;
             const pendentes = faturasFechadasPendentes(cartao);
+            const assinaturas = comprasRecorrentes.filter((c) => c.cartao_id === cartao.id);
             return (
               <div key={cartao.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3.5">
@@ -296,6 +314,23 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {assinaturas.length > 0 && (
+                  <div className="px-4 pb-3 space-y-1.5 border-t border-slate-50 dark:border-slate-800 pt-3">
+                    {assinaturas.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300 min-w-0">
+                          <Repeat size={11} className="text-violet-500 shrink-0" />
+                          <span className="truncate">{a.descricao}</span>
+                          <span className="text-slate-400 dark:text-slate-500 shrink-0">{currency(Number(a.valor))}/mês</span>
+                        </span>
+                        <button onClick={() => setCancelConfirm(a)} className="text-slate-400 hover:text-rose-500 shrink-0" title="Cancelar assinatura">
+                          <Ban size={13} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -450,6 +485,16 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteConfirm(null)}
         confirmText="Remover"
+        danger
+      />
+
+      <ConfirmDialog
+        open={!!cancelConfirm}
+        title="Cancelar assinatura"
+        message={`Tem certeza que deseja cancelar "${cancelConfirm?.descricao}"? Nenhum lançamento novo será gerado nos próximos meses — os já lançados continuam no histórico.`}
+        onConfirm={confirmCancelRecorrente}
+        onCancel={() => setCancelConfirm(null)}
+        confirmText="Cancelar assinatura"
         danger
       />
     </main>

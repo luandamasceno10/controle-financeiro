@@ -25,6 +25,7 @@ export interface Lancamento {
   parcelamento_id: string | null;
   split_id: string | null;
   anexo_path: string | null;
+  compra_recorrente_id: number | null;
   valor: number;
   created_at: string;
 }
@@ -125,6 +126,19 @@ export interface Fatura {
   competencia: string;
   data_vencimento: string;
   status: 'aberta' | 'paga';
+  created_at: string;
+}
+
+export interface CompraRecorrente {
+  id: number;
+  user_id: string;
+  cartao_id: number;
+  descricao: string;
+  categoria: string;
+  categoria_id: number | null;
+  valor: number;
+  ativa: boolean;
+  ultima_competencia: string | null;
   created_at: string;
 }
 

@@ -400,3 +400,26 @@ ALTER TABLE push_subscriptions ADD COLUMN last_report_month TEXT;
 -- Anexo/comprovante no lançamento: arquivo fica no Storage (bucket privado
 -- "comprovantes", path "<user_id>/<uuid>.<ext>"), só o caminho é salvo aqui.
 ALTER TABLE lancamentos ADD COLUMN anexo_path TEXT;
+
+-- Compra recorrente no cartão (assinaturas): ao contrário da compra parcelada
+-- (N parcelas com fim definido), aqui o mesmo valor é lançado automaticamente
+-- todo mês, indefinidamente, até o usuário cancelar (ativa = false).
+-- ultima_competencia evita gerar o lançamento duas vezes no mesmo mês.
+CREATE TABLE compras_recorrentes (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  cartao_id BIGINT NOT NULL REFERENCES cartoes_credito(id) ON DELETE CASCADE,
+  descricao TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  categoria_id BIGINT REFERENCES categorias(id) ON DELETE SET NULL,
+  valor DECIMAL(12, 2) NOT NULL,
+  ativa BOOLEAN NOT NULL DEFAULT true,
+  ultima_competencia TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX compras_recorrentes_user_id ON compras_recorrentes(user_id);
+ALTER TABLE compras_recorrentes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own compras_recorrentes" ON compras_recorrentes
+  FOR ALL USING (auth.uid() = user_id);
+
+ALTER TABLE lancamentos ADD COLUMN compra_recorrente_id BIGINT REFERENCES compras_recorrentes(id) ON DELETE SET NULL;

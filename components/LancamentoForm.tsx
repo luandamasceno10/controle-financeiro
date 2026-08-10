@@ -65,6 +65,7 @@ export default function LancamentoForm({
         cartao_id: editingEntry.cartao_id ?? cartoes[0]?.id ?? null,
         parcelado: false,
         parcelas: '2',
+        recorrente: false,
         splitEnabled: false,
         splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
         meta_id: null as number | null,
@@ -228,6 +229,16 @@ export default function LancamentoForm({
       if (editingEntry) {
         const { error } = await supabase.from('lancamentos').update({ ...payload, anexo_path: anexoPath }).eq('id', editingEntry.id);
         if (error) throw error;
+      } else if (isCartao && form.recorrente) {
+        const cartao = cartoes.find(c => c.id === form.cartao_id)!;
+        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento);
+        const { data: compra, error: compraError } = await supabase.from('compras_recorrentes').insert([{
+          user_id: userId, cartao_id: cartao.id, descricao: form.desc, categoria: form.category,
+          categoria_id: categoriaId, valor: payload.valor, ultima_competencia: competencia,
+        }]).select().single();
+        if (compraError) throw compraError;
+        const { error } = await supabase.from('lancamentos').insert([{ ...payload, anexo_path: anexoPath, user_id: userId, compra_recorrente_id: compra.id }]);
+        if (error) throw error;
       } else if (form.meta_id) {
         const { data: lanc, error } = await supabase.from('lancamentos').insert([{ ...payload, anexo_path: anexoPath, user_id: userId }]).select().single();
         if (error) throw error;
@@ -328,7 +339,7 @@ export default function LancamentoForm({
                   </select>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
                 </div>
-                {!editingEntry && !form.splitEnabled && (
+                {!editingEntry && !form.splitEnabled && !form.recorrente && (
                   <div>
                     <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                       <input type="checkbox" checked={form.parcelado} onChange={(e) => setForm(f => ({ ...f, parcelado: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
@@ -340,6 +351,17 @@ export default function LancamentoForm({
                         <input type="number" min={2} max={24} value={form.parcelas} onChange={(e) => setForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={saving} />
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor total informado é dividido igualmente entre as parcelas, cada uma lançada na fatura do mês correspondente.</p>
                       </div>
+                    )}
+                  </div>
+                )}
+                {!editingEntry && !form.splitEnabled && !form.parcelado && (
+                  <div>
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <input type="checkbox" checked={form.recorrente} onChange={(e) => setForm(f => ({ ...f, recorrente: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
+                      Compra recorrente (assinatura)
+                    </label>
+                    {form.recorrente && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Esse mesmo valor será lançado automaticamente todo mês, até você cancelar em Cartões de Crédito.</p>
                     )}
                   </div>
                 )}
@@ -391,7 +413,7 @@ export default function LancamentoForm({
               </select>
             </div>
           )}
-          {!editingEntry && form.type === 'saida' && !form.parcelado && (
+          {!editingEntry && form.type === 'saida' && !form.parcelado && !form.recorrente && (
             <div>
               <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input type="checkbox" checked={form.splitEnabled} onChange={(e) => setForm(f => ({ ...f, splitEnabled: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
@@ -433,7 +455,7 @@ export default function LancamentoForm({
               )}
             </div>
           )}
-          {!editingEntry && form.type === 'saida' && !form.splitEnabled && !form.parcelado && metas.length > 0 && (
+          {!editingEntry && form.type === 'saida' && !form.splitEnabled && !form.parcelado && !form.recorrente && metas.length > 0 && (
             <div>
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
                 <Target size={13} /> Vincular a uma meta (opcional)
