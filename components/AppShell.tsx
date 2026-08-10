@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon } from 'lucide-react';
+import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Início', icon: HomeIcon },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/buscar', label: 'Buscar', icon: Search },
   { href: '/contas', label: 'Contas Bancárias', icon: Landmark },
   { href: '/cartoes', label: 'Cartões de Crédito', icon: CreditCard },
   { href: '/pagar-receber', label: 'Contas a Pagar/Receber', icon: WalletCards },

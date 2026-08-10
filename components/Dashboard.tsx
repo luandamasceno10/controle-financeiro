@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria } from '@/lib/supabase';
 import { ICONS } from '@/lib/categorias';
@@ -42,6 +43,9 @@ function monthKey(iso: string) {
 
 export default function Dashboard({ userId }: { userId: string }) {
   const { toasts, addToast, removeToast } = useToast();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [entries, setEntries] = useState<Lancamento[]>([]);
   const [payable, setPayable] = useState<ContaPagar[]>([]);
@@ -58,10 +62,18 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [patrimonioEvolucao, setPatrimonioEvolucao] = useState<{ mes: number; saldo: number }[]>([]);
 
   const now = new Date();
-  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  // Vindo da busca global (?mes=YYYY-MM), abre o Dashboard já no mês do
+  // lançamento encontrado, em vez de sempre no mês atual.
+  const mesFromUrl = searchParams.get('mes');
+  const [currentYear, setCurrentYear] = useState(() => mesFromUrl ? Number(mesFromUrl.slice(0, 4)) : now.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(() => {
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return mesFromUrl || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  useEffect(() => {
+    if (mesFromUrl) router.replace(pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<Lancamento | null>(null);
