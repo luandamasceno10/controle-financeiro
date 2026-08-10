@@ -8,6 +8,7 @@ import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/f
 import { suggestCategoria } from '@/lib/categorize';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import { uploadAnexo, removeAnexo, getAnexoUrl } from '@/lib/anexos';
+import MoneyInput from './MoneyInput';
 import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal, Paperclip } from 'lucide-react';
 
 function todayISO() {
@@ -296,7 +297,7 @@ export default function LancamentoForm({
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Descrição {sugerindo && <span className="text-violet-400 font-normal">· sugerindo categoria...</span>}</label>
             <input type="text" value={form.desc} onChange={(e) => setForm(f => ({ ...f, desc: e.target.value }))} onBlur={handleDescricaoBlur} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
           </div>
-          <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label><input type="number" step="0.01" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} /></div>
+          <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor (R$)</label><MoneyInput value={form.amount} onChange={(v) => setForm(f => ({ ...f, amount: v }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} /></div>
           {form.type === 'saida' && (
             <div><label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Forma de pagamento</label><div className="grid grid-cols-2 gap-2">{PAYMENTS.map(p => { const Icon = p.icon; const disabledOpt = p.id === 'cartao' && cartoes.length === 0; return (<button key={p.id} type="button" onClick={() => !disabledOpt && setForm(f => ({ ...f, payment: p.id as any }))} disabled={saving || disabledOpt} className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.payment === p.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}><Icon size={15} /> {p.label}</button>); })}</div></div>
           )}
@@ -392,9 +393,9 @@ export default function LancamentoForm({
                         <option value="">Categoria...</option>
                         {flatCategoriaSaidaOptions.map(c => <option key={c.id} value={c.nome}>{c.parent_id ? `↳ ${c.nome}` : c.nome}</option>)}
                       </select>
-                      <input
-                        type="number" step="0.01" placeholder="Valor" value={s.amount}
-                        onChange={(e) => updateSplit(i, { amount: e.target.value })}
+                      <MoneyInput
+                        placeholder="Valor" value={s.amount}
+                        onChange={(v) => updateSplit(i, { amount: v })}
                         className="w-24 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
                         disabled={saving}
                       />
