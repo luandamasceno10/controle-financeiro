@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { ContaBancaria, Lancamento, Categoria } from '@/lib/supabase';
+import type { ContaBancaria, Lancamento, Categoria, ContaReceber } from '@/lib/supabase';
 import { BANCOS, bancoMeta } from '@/lib/bancos';
 import { BancoIcon } from './BancoIcon';
 import ConciliacaoBancaria from './ConciliacaoBancaria';
@@ -28,6 +28,7 @@ export default function ContasBancarias({ userId }: { userId: string }) {
 
   const [deleteConfirm, setDeleteConfirm] = useState<ContaBancaria | null>(null);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [receivable, setReceivable] = useState<ContaReceber[]>([]);
   const [conciliando, setConciliando] = useState<ContaBancaria | null>(null);
 
   useEffect(() => {
@@ -37,14 +38,16 @@ export default function ContasBancarias({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [contasResult, entriesResult, categoriasResult] = await Promise.all([
+      const [contasResult, entriesResult, categoriasResult, receberResult] = await Promise.all([
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).order('id'),
         supabase.from('lancamentos').select('*').eq('user_id', userId),
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
+        supabase.from('contas_receber').select('*').eq('user_id', userId).eq('status', 'pendente'),
       ]);
       if (contasResult.data) setContas(contasResult.data);
       if (entriesResult.data) setEntries(entriesResult.data as Lancamento[]);
       if (categoriasResult.data) setCategorias(categoriasResult.data);
+      if (receberResult.data) setReceivable(receberResult.data);
     } catch (err: any) {
       addToast('Erro ao carregar contas: ' + err.message, 'error');
     } finally {
@@ -215,6 +218,7 @@ export default function ContasBancarias({ userId }: { userId: string }) {
           conta={conciliando}
           entries={entries}
           categorias={categorias}
+          receivable={receivable}
           onClose={() => setConciliando(null)}
           onCreated={loadData}
         />
