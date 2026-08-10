@@ -396,3 +396,7 @@ ALTER TABLE metas ADD COLUMN aporte_recorrente_ultimo_mes TEXT;
 -- Relatório mensal automático: dedup para não duplicar o resumo em pushes
 -- retentativas (cron /api/cron/relatorio-mensal roda no dia 1 de cada mês).
 ALTER TABLE push_subscriptions ADD COLUMN last_report_month TEXT;
+
+-- Anexo/comprovante no lançamento: arquivo fica no Storage (bucket privado
+-- "comprovantes", path "<user_id>/<uuid>.<ext>"), só o caminho é salvo aqui.
+ALTER TABLE lancamentos ADD COLUMN anexo_path TEXT;

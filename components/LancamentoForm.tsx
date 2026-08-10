@@ -7,7 +7,8 @@ import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
 import { sortCategoriasNatural } from '@/lib/categorias';
-import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal } from 'lucide-react';
+import { uploadAnexo, removeAnexo, getAnexoUrl } from '@/lib/anexos';
+import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal, Paperclip } from 'lucide-react';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -41,6 +42,10 @@ export default function LancamentoForm({
   onError?: (message: string) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [anexoFile, setAnexoFile] = useState<File | null>(null);
+  const [anexoRemover, setAnexoRemover] = useState(false);
+  const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
+  const [anexoLoading, setAnexoLoading] = useState(false);
   const [categoriaSugerida, setCategoriaSugerida] = useState<string | null>(null);
   const [sugerindo, setSugerindo] = useState(false);
   const [form, setForm] = useState(() => {
@@ -204,11 +209,22 @@ export default function LancamentoForm({
         fatura_id: faturaId,
         valor: parseFloat(form.amount),
       };
+
+      let anexoPath = editingEntry?.anexo_path ?? null;
+      if (anexoRemover && anexoPath) {
+        await removeAnexo(anexoPath);
+        anexoPath = null;
+      }
+      if (anexoFile) {
+        if (anexoPath) await removeAnexo(anexoPath);
+        anexoPath = await uploadAnexo(userId, anexoFile);
+      }
+
       if (editingEntry) {
-        const { error } = await supabase.from('lancamentos').update(payload).eq('id', editingEntry.id);
+        const { error } = await supabase.from('lancamentos').update({ ...payload, anexo_path: anexoPath }).eq('id', editingEntry.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]);
+        const { error } = await supabase.from('lancamentos').insert([{ ...payload, anexo_path: anexoPath, user_id: userId }]);
         if (error) throw error;
       }
       onSaved();
@@ -398,6 +414,41 @@ export default function LancamentoForm({
                 </select>
               </div>
             )
+          )}
+          {!form.splitEnabled && !form.parcelado && (
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
+                <Paperclip size={13} /> Comprovante (opcional)
+              </label>
+              {editingEntry?.anexo_path && !anexoRemover && !anexoFile ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={anexoLoading}
+                    onClick={async () => {
+                      setAnexoLoading(true);
+                      const url = await getAnexoUrl(editingEntry.anexo_path!);
+                      setAnexoLoading(false);
+                      if (url) window.open(url, '_blank');
+                    }}
+                    className="flex-1 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-700"
+                  >
+                    {anexoLoading ? 'Abrindo...' : 'Ver comprovante anexado'}
+                  </button>
+                  <button type="button" onClick={() => setAnexoRemover(true)} disabled={saving} className="text-slate-400 hover:text-rose-500 p-2">
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ) : (
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => { setAnexoFile(e.target.files?.[0] ?? null); setAnexoRemover(false); }}
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100 file:mr-3 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-100 dark:file:bg-slate-600 file:text-slate-600 dark:file:text-slate-100"
+                  disabled={saving}
+                />
+              )}
+            </div>
           )}
           <div className="flex gap-2">
             {editingEntry && onRequestDelete && (

@@ -24,6 +24,7 @@ export interface Lancamento {
   parcela_total: number | null;
   parcelamento_id: string | null;
   split_id: string | null;
+  anexo_path: string | null;
   valor: number;
   created_at: string;
 }

@@ -19,7 +19,7 @@ import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
   ArrowUpRight, ArrowDownRight, CircleEllipsis,
   Calendar, ChevronLeft, ChevronRight,
-  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText
+  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText, Paperclip
 } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -714,7 +714,12 @@ export default function Dashboard({ userId }: { userId: string }) {
                           <input type="checkbox" className="w-4 h-4 accent-rose-600" checked={selected} onChange={() => toggleSelect(e.id)} />
                         </td>
                         <td className="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{fmtDate(e.data)}</td>
-                        <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-200">{e.descricao}</td>
+                        <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-200">
+                          <span className="inline-flex items-center gap-1.5">
+                            {e.descricao}
+                            {e.anexo_path && <Paperclip size={11} className="text-slate-300 dark:text-slate-500 shrink-0" />}
+                          </span>
+                        </td>
                         <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td>
                         <td className="px-5 py-3 text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
                         <td className={`px-5 py-3 text-right font-semibold tabular-nums ${e.tipo === 'entrada' ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' ? '+' : '-'}{currency(Number(e.valor))}</td>
