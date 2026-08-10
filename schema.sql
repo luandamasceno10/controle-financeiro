@@ -392,3 +392,7 @@ ALTER TABLE metas ADD COLUMN aporte_recorrente_valor DECIMAL(12, 2);
 ALTER TABLE metas ADD COLUMN aporte_recorrente_dia INTEGER CHECK (aporte_recorrente_dia BETWEEN 1 AND 28);
 ALTER TABLE metas ADD COLUMN aporte_recorrente_conta_id BIGINT REFERENCES contas_bancarias(id) ON DELETE SET NULL;
 ALTER TABLE metas ADD COLUMN aporte_recorrente_ultimo_mes TEXT;
+
+-- Relatório mensal automático: dedup para não duplicar o resumo em pushes
+-- retentativas (cron /api/cron/relatorio-mensal roda no dia 1 de cada mês).
+ALTER TABLE push_subscriptions ADD COLUMN last_report_month TEXT;
