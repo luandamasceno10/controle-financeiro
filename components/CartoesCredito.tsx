@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { CartaoCredito, Fatura, Lancamento, ContaBancaria, CompraRecorrente } from '@/lib/supabase';
+import type { CartaoCredito, Fatura, Lancamento, ContaBancaria, CompraRecorrente, Categoria } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
-import { competenciaForPurchase, shiftCompetencia, estimatedVencimento } from '@/lib/faturas';
+import { competenciaForPurchase, shiftCompetencia, estimatedVencimento, ensureFatura } from '@/lib/faturas';
+import ImportarFaturaPdf from './ImportarFaturaPdf';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban, FileUp } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -56,6 +57,8 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
   const [detailCartao, setDetailCartao] = useState<CartaoCredito | null>(null);
   const [detailCompetencia, setDetailCompetencia] = useState('');
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [importFatura, setImportFatura] = useState<Fatura | null>(null);
 
   useEffect(() => {
     loadData();
@@ -64,18 +67,20 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [cartoesResult, faturasResult, entriesResult, contasResult, comprasResult] = await Promise.all([
+      const [cartoesResult, faturasResult, entriesResult, contasResult, comprasResult, categoriasResult] = await Promise.all([
         supabase.from('cartoes_credito').select('*').eq('user_id', userId).order('id'),
         supabase.from('faturas').select('*').eq('user_id', userId),
         supabase.from('lancamentos').select('*').eq('user_id', userId).not('cartao_id', 'is', null),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
         supabase.from('compras_recorrentes').select('*').eq('user_id', userId).eq('ativa', true),
+        supabase.from('categorias').select('*').eq('user_id', userId).eq('tipo', 'saida').eq('ativa', true).order('ordem'),
       ]);
       if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (faturasResult.data) setFaturas(faturasResult.data);
       if (entriesResult.data) setEntries(entriesResult.data as Lancamento[]);
       if (contasResult.data) setContas(contasResult.data);
       if (comprasResult.data) setComprasRecorrentes(comprasResult.data);
+      if (categoriasResult.data) setCategorias(categoriasResult.data);
     } catch (err: any) {
       addToast('Erro ao carregar cartões: ' + err.message, 'error');
     } finally {
@@ -408,6 +413,21 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   <Check size={14} /> Pagar esta fatura
                 </button>
               )}
+              {detailFatura?.status !== 'paga' && (
+                <button
+                  onClick={async () => {
+                    let f = detailFatura;
+                    if (!f && detailCartao) {
+                      f = await ensureFatura(detailCartao, detailCompetencia, userId);
+                      await loadData();
+                    }
+                    if (f) setImportFatura(f);
+                  }}
+                  className="w-full mt-2 flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors"
+                >
+                  <FileUp size={14} /> Importar fatura em PDF
+                </button>
+              )}
             </div>
 
             <div className="mb-5">
@@ -470,6 +490,18 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             </button>
           </div>
         </div>
+      )}
+
+      {importFatura && detailCartao && (
+        <ImportarFaturaPdf
+          userId={userId}
+          cartao={detailCartao}
+          fatura={importFatura}
+          entries={entries}
+          categorias={categorias}
+          onClose={() => setImportFatura(null)}
+          onImported={loadData}
+        />
       )}
 
       <ConfirmDialog

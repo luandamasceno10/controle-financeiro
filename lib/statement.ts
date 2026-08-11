@@ -32,7 +32,7 @@ function splitCsvLine(line: string, delimiter: string): string[] {
   return cells;
 }
 
-function parseBRNumber(raw: string): number | null {
+export function parseBRNumber(raw: string): number | null {
   let s = raw.trim().replace(/^"|"$/g, '').replace(/R\$\s?/i, '');
   if (!s) return null;
   const negative = /^\(.*\)$/.test(s) || s.startsWith('-');
@@ -48,7 +48,7 @@ function parseBRNumber(raw: string): number | null {
   return negative ? -n : n;
 }
 
-function parseDate(raw: string): string | null {
+export function parseDate(raw: string): string | null {
   const s = raw.trim().replace(/^"|"$/g, '');
   // ISO: 2026-07-29
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
