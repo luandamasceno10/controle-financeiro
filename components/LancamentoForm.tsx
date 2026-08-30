@@ -9,7 +9,7 @@ import { suggestCategoria } from '@/lib/categorize';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import { uploadAnexo, removeAnexo, getAnexoUrl } from '@/lib/anexos';
 import MoneyInput from './MoneyInput';
-import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal, Paperclip, Target } from 'lucide-react';
+import { X, Trash2, Sparkles, Plus, SplitSquareHorizontal, Paperclip, Target, History } from 'lucide-react';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -50,6 +50,7 @@ export default function LancamentoForm({
   const [anexoUrl, setAnexoUrl] = useState<string | null>(null);
   const [anexoLoading, setAnexoLoading] = useState(false);
   const [categoriaSugerida, setCategoriaSugerida] = useState<string | null>(null);
+  const [categoriaMemoria, setCategoriaMemoria] = useState<string | null>(null);
   const [sugerindo, setSugerindo] = useState(false);
   const [form, setForm] = useState(() => {
     if (editingEntry) {
@@ -294,8 +295,34 @@ export default function LancamentoForm({
 
   const handleDescricaoBlur = async () => {
     if (!form.desc || form.desc.trim().length < 3) return;
+    setCategoriaMemoria(null);
+    setCategoriaSugerida(null);
     setSugerindo(true);
     try {
+      // Memória própria primeiro: se esse mesmo lançamento (por descrição) já
+      // apareceu antes, a categoria usada da última vez é um sinal muito mais
+      // forte do que qualquer palpite de IA — aplica direto, sem gastar chamada.
+      // Compara ignorando maiúsculas/espaços nas pontas — dados reais (import
+      // de extrato, digitação manual) costumam ter espaço sobrando no fim.
+      const descBusca = form.desc.trim();
+      const descBuscaLower = descBusca.toLowerCase();
+      const { data: candidatos } = await supabase
+        .from('lancamentos')
+        .select('categoria, descricao, data')
+        .eq('user_id', userId)
+        .eq('tipo', form.type)
+        .ilike('descricao', `${descBusca}%`)
+        .order('data', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(50);
+      const match = candidatos?.find((c) => c.descricao.trim().toLowerCase() === descBuscaLower);
+      const categoriaAnterior = match?.categoria;
+      if (categoriaAnterior && categoriaOptions.some(c => c.nome === categoriaAnterior)) {
+        if (categoriaAnterior !== form.category) setForm(f => ({ ...f, category: categoriaAnterior }));
+        setCategoriaMemoria(categoriaAnterior);
+        return;
+      }
+
       const sugestao = await suggestCategoria(form.desc, categoriaOptions.map(c => c.nome));
       if (sugestao && sugestao !== form.category) setCategoriaSugerida(sugestao);
     } finally {
@@ -386,13 +413,17 @@ export default function LancamentoForm({
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Categoria</label>
               <select
                 value={categoriaPaiAtual?.nome || ''}
-                onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); }}
+                onChange={(e) => { setForm(f => ({ ...f, category: e.target.value })); setCategoriaSugerida(null); setCategoriaMemoria(null); }}
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
                 disabled={saving}
               >
                 {categoriaPaiOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
               </select>
-              {categoriaSugerida && (
+              {categoriaMemoria ? (
+                <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <History size={12} /> Categorizado como da última vez ({categoriaMemoria})
+                </p>
+              ) : categoriaSugerida && (
                 <button type="button" onClick={applySugestao} className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-violet-600 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 px-2.5 py-1.5 rounded-lg transition-colors">
                   <Sparkles size={12} /> Sugestão: {categoriaSugerida}
                 </button>
