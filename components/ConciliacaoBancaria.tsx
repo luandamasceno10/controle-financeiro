@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase';
 import type { ContaBancaria, Lancamento, Categoria, ContaReceber, ContaPagar } from '@/lib/supabase';
 import { parseStatementCSV, type StatementLine } from '@/lib/statement';
 import { parseOFX } from '@/lib/ofx';
+import { suggestCategoria } from '@/lib/categorize';
 import MoneyInput from './MoneyInput';
-import { X, Upload, CheckCircle2, PlusCircle, FileUp, Wallet } from 'lucide-react';
+import { X, Upload, CheckCircle2, PlusCircle, FileUp, Wallet, Sparkles } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -21,6 +22,8 @@ interface MatchedLine extends StatementLine {
   creating: boolean;
   created: boolean;
   failed?: string | null;
+  categoriaSugerida?: string | null;
+  categorizando?: boolean;
 }
 
 export default function ConciliacaoBancaria({
@@ -76,7 +79,11 @@ export default function ConciliacaoBancaria({
         setLines(null);
         return;
       }
-      setLines(parsed.map((l) => ({ ...l, matched: matchLine(l), creating: false, created: false })));
+      const matchedLines = parsed.map((l) => ({ ...l, matched: matchLine(l), creating: false, created: false }));
+      setLines(matchedLines);
+      matchedLines.forEach((l, idx) => {
+        if (!l.matched) categorizarLinha(l, idx);
+      });
     } catch (err: any) {
       setError('Erro ao ler o arquivo: ' + err.message);
     }
@@ -85,12 +92,36 @@ export default function ConciliacaoBancaria({
   const categoriaPadrao = (tipo: 'entrada' | 'saida') => categorias.find((c) => c.tipo === tipo && !c.parent_id)?.nome || 'Diversos';
   const categoriaIdPadrao = (tipo: 'entrada' | 'saida') => categorias.find((c) => c.tipo === tipo && !c.parent_id)?.id ?? null;
 
+  const categorizarLinha = async (line: MatchedLine, idx: number) => {
+    const tipo = line.valor >= 0 ? 'entrada' : 'saida';
+    const opcoes = categorias.filter((c) => c.tipo === tipo && !c.parent_id).map((c) => c.nome);
+    if (opcoes.length === 0) return;
+    setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, categorizando: true } : l)));
+    const sugestao = await suggestCategoria(line.descricao, opcoes);
+    setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, categorizando: false, categoriaSugerida: sugestao } : l)));
+  };
+
+  const categoriaEIdParaLinha = (line: MatchedLine, tipo: 'entrada' | 'saida') => {
+    const cat = line.categoriaSugerida ? categorias.find((c) => c.tipo === tipo && c.nome === line.categoriaSugerida) : null;
+    return cat ? { categoria: cat.nome, categoria_id: cat.id } : { categoria: categoriaPadrao(tipo), categoria_id: categoriaIdPadrao(tipo) };
+  };
+
   const criarLancamento = async (line: MatchedLine, idx: number): Promise<boolean> => {
     if (!lines) return false;
     setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: true, failed: null } : l)));
 
     try {
       const tipo = line.valor >= 0 ? 'entrada' : 'saida';
+      // Se a sugestão da IA ainda não chegou (linha criada rápido demais após o upload),
+      // busca na hora em vez de cair direto na categoria padrão.
+      let linhaAtual = line;
+      if (linhaAtual.categoriaSugerida === undefined) {
+        const opcoes = categorias.filter((c) => c.tipo === tipo && !c.parent_id).map((c) => c.nome);
+        const sugestao = opcoes.length > 0 ? await suggestCategoria(linhaAtual.descricao, opcoes) : null;
+        linhaAtual = { ...linhaAtual, categoriaSugerida: sugestao };
+        setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, categoriaSugerida: sugestao } : l)));
+      }
+      const { categoria, categoria_id } = categoriaEIdParaLinha(linhaAtual, tipo);
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
@@ -98,8 +129,8 @@ export default function ConciliacaoBancaria({
         hora: line.hora,
         descricao: line.descricao,
         tipo,
-        categoria: categoriaPadrao(tipo),
-        categoria_id: categoriaIdPadrao(tipo),
+        categoria,
+        categoria_id,
         forma_pagamento: 'pix',
         valor: Math.abs(line.valor),
       }]);
@@ -271,7 +302,16 @@ export default function ConciliacaoBancaria({
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{line.descricao}</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {fmtDate(line.data)}{line.hora ? ` · ${line.hora}` : ''}
+                        {!line.matched && !line.created && (
+                          line.categorizando ? (
+                            <span className="inline-flex items-center gap-1 ml-1.5"><Sparkles size={10} className="animate-pulse" /> categorizando...</span>
+                          ) : line.categoriaSugerida ? (
+                            <span className="inline-flex items-center gap-1 ml-1.5 text-slate-500 dark:text-slate-400"><Sparkles size={10} /> {line.categoriaSugerida}</span>
+                          ) : null
+                        )}
+                      </p>
                     </div>
                     <span className={`text-sm font-semibold tabular-nums shrink-0 ${line.valor >= 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
                       {line.valor >= 0 ? '+' : '-'}{currency(Math.abs(line.valor))}
