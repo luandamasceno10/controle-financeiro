@@ -11,10 +11,11 @@ import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import LancamentoForm from './LancamentoForm';
-import CategoryRing from './CategoryRing';
+import CategoriaDonutChart from './CategoriaDonutChart';
+import { toDonutSlices } from '@/lib/categoriaPalette';
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line
+  ResponsiveContainer, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ComposedChart
 } from 'recharts';
 import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
@@ -315,8 +316,8 @@ export default function Dashboard({ userId }: { userId: string }) {
   const cardByCategory = useMemo(() => {
     const map: Record<string, number> = {};
     cardEntries.forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
-    return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B' })).sort((a, b) => b.value - a.value);
-  }, [cardEntries]);
+    return Object.entries(map).map(([name, value]) => ({ name, value, icone: categoriaByName[`saida|${name}`]?.icone })).sort((a, b) => b.value - a.value);
+  }, [cardEntries, categoriaByName]);
 
   const cardTotal = useMemo(() => cardEntries.reduce((s, e) => s + Number(e.valor), 0), [cardEntries]);
 
@@ -619,36 +620,27 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </span>
               </p>
               {categoryData.length > 0 ? (
-                <>
-                  <div className="py-3">
-                    <CategoryRing data={categoryData} size={220} thickness={24} />
-                  </div>
-                  <div className="space-y-1.5 mt-2 max-h-44 overflow-y-auto pr-1">
-                    {categoryData.map((c, i) => {
-                      const prevValue = categoryDataPrevMonth?.[c.name];
-                      const variacao = prevValue !== undefined && prevValue > 0 ? Math.round(((c.value - prevValue) / prevValue) * 100) : null;
-                      return (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
-                            <span className="text-slate-600 dark:text-slate-300 truncate">{c.name}</span>
-                            {limiteExcedido(c.name, c.value) && (
-                              <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">Estourou</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                            {variacao !== null && (
-                              <span className={`text-[10px] font-semibold ${variacao > 0 ? 'text-rose-500' : variacao < 0 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`}>
-                                {variacao > 0 ? '+' : ''}{variacao}%
-                              </span>
-                            )}
-                            <span className="font-semibold tabular-nums">{currency(c.value)}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
+                <CategoriaDonutChart
+                  data={toDonutSlices(categoryData)}
+                  totalLabel="Gasto total"
+                  height={220}
+                  renderRowExtra={(c) => {
+                    const prevValue = categoryDataPrevMonth?.[c.name];
+                    const variacao = prevValue !== undefined && prevValue > 0 ? Math.round(((c.value - prevValue) / prevValue) * 100) : null;
+                    return (
+                      <>
+                        {limiteExcedido(c.name, c.value) && (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">Estourou</span>
+                        )}
+                        {variacao !== null && (
+                          <span className={`text-[10px] font-semibold shrink-0 ${variacao > 0 ? 'text-rose-500' : variacao < 0 ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                            {variacao > 0 ? '+' : ''}{variacao}%
+                          </span>
+                        )}
+                      </>
+                    );
+                  }}
+                />
               ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem despesas neste mês ainda.</p>}
             </div>
 
@@ -799,16 +791,8 @@ export default function Dashboard({ userId }: { userId: string }) {
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Total no cartão em {monthIdx >= 0 ? MONTH_NAMES_FULL[monthIdx] : 'mês'}: <span className="font-semibold text-slate-600 dark:text-slate-300">{currency(cardTotal)}</span></p>
             {cardByCategory.length > 0 ? (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart><Pie data={cardByCategory} dataKey="value" nameKey="name" innerRadius={50} outerRadius={85} paddingAngle={2}>{cardByCategory.map((entry, i) => <Cell key={i} fill={entry.color} stroke="var(--card-bg)" strokeWidth={2} />)}</Pie><Tooltip formatter={(v: any) => currency(v)} /></PieChart>
-                  </ResponsiveContainer>
-                  <div className="space-y-2">
-                    {cardByCategory.map((c, i) => {
-                      const pct = cardTotal > 0 ? Math.round((c.value / cardTotal) * 100) : 0;
-                      return (<div key={i}><div className="flex items-center justify-between text-xs mb-1"><span className="text-slate-600 dark:text-slate-300 font-medium">{c.name}</span><span className="font-semibold tabular-nums">{currency(c.value)}</span></div><div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} /></div></div>);
-                    })}
-                  </div>
+                <div className="mb-6">
+                  <CategoriaDonutChart data={toDonutSlices(cardByCategory)} totalLabel="No cartão" height={220} sideBySide />
                 </div>
                 <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
@@ -854,25 +838,13 @@ export default function Dashboard({ userId }: { userId: string }) {
 }
 
 function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao, forecast, currentYear, setCurrentYear, onGoToMonth }: any) {
-  const [activeCat, setActiveCat] = useState<number | null>(null);
   const patrimonioData = MONTH_NAMES.map((label, i) => ({
     label,
     saldo: patrimonioEvolucao.find((p: any) => p.mes === i + 1)?.saldo ?? null,
   }));
   const totalForecast = Object.values(forecast).reduce((s: number, v: any) => s + v, 0);
 
-  const totalGasto = useMemo(() => yearCategoryData.reduce((s: number, c: any) => s + c.value, 0), [yearCategoryData]);
-  // Mais de 7 fatias vira ilegível — agrupa o rabicho em "Outras" e mantém o resto ordenado por valor.
-  // A cor cadastrada na categoria não é confiável (muitas categorias antigas do
-  // usuário compartilham a mesma cor padrão) — usa a paleta categórica fixa
-  // (--series-1..8) por posição no ranking, que garante fatias sempre distinguíveis.
-  const pieData = useMemo(() => {
-    const comCorDaPaleta = (arr: any[]) => arr.map((c, i) => ({ ...c, color: `var(--series-${i + 1})` }));
-    if (yearCategoryData.length <= 7) return comCorDaPaleta(yearCategoryData);
-    const top = comCorDaPaleta(yearCategoryData.slice(0, 6));
-    const outrasValue = yearCategoryData.slice(6).reduce((s: number, c: any) => s + c.value, 0);
-    return [...top, { name: 'Outras', value: outrasValue, color: 'var(--chart-text)' }];
-  }, [yearCategoryData]);
+  const pieData = useMemo(() => toDonutSlices(yearCategoryData), [yearCategoryData]);
   return (
     <main className="max-w-6xl mx-auto px-5 py-6 space-y-6">
       <div className="flex items-center justify-center gap-4 mb-4">
@@ -888,9 +860,10 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
         <SummaryCard label="Previsão total" value={totalForecast} icon={Target} tone="violet" />
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Entradas x Saídas por mês</h2>
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Entradas x Saídas por mês</h2>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">A linha mostra o resultado (entradas − saídas) de cada mês</p>
         <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={yearData}>
+          <ComposedChart data={yearData}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
             <XAxis dataKey="label" fontSize={11} stroke="var(--chart-text)" />
             <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
@@ -898,7 +871,8 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="entrada" name="Entradas" fill="#10B981" radius={[4, 4, 0, 0]} />
             <Bar dataKey="saida" name="Saídas" fill="#F43F5E" radius={[4, 4, 0, 0]} />
-          </BarChart>
+            <Line type="monotone" dataKey="saldo" name="Resultado" stroke="var(--series-7)" strokeWidth={2.5} dot={{ r: 3 }} />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
@@ -915,83 +889,9 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
         </ResponsiveContainer>
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Resultado mensal (entradas − saídas)</h2>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={yearData}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
-            <XAxis dataKey="label" fontSize={11} stroke="var(--chart-text)" />
-            <YAxis tickFormatter={(v: any) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
-            <Tooltip formatter={(v: any) => currency(v)} />
-            <Line type="monotone" dataKey="saldo" name="Saldo" stroke="#7C3AED" strokeWidth={2.5} dot={{ r: 3 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Despesas por categoria — ano todo</h2>
         {pieData.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <div className="relative h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={68}
-                    outerRadius={104}
-                    paddingAngle={3}
-                    cornerRadius={6}
-                    stroke="none"
-                    onMouseEnter={(_: any, i: number) => setActiveCat(i)}
-                    onMouseLeave={() => setActiveCat(null)}
-                  >
-                    {pieData.map((entry: any, i: number) => (
-                      <Cell
-                        key={i}
-                        fill={entry.color}
-                        opacity={activeCat === null || activeCat === i ? 1 : 0.35}
-                        style={{ transition: 'opacity 150ms ease' }}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CategoriaPieTooltip total={totalGasto} />} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">{activeCat !== null ? pieData[activeCat].name : 'Total gasto'}</p>
-                <p className="text-lg font-bold tabular-nums text-slate-800 dark:text-slate-100">
-                  {currency(activeCat !== null ? pieData[activeCat].value : totalGasto)}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-1">
-              {pieData.map((c: any, i: number) => {
-                const pct = totalGasto > 0 ? (c.value / totalGasto) * 100 : 0;
-                return (
-                  <div
-                    key={i}
-                    onMouseEnter={() => setActiveCat(i)}
-                    onMouseLeave={() => setActiveCat(null)}
-                    className={`flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-default transition-colors ${activeCat === i ? 'bg-slate-50 dark:bg-slate-700/60' : ''}`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">{c.name}</span>
-                        <span className="text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200 shrink-0">{currency(c.value)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} />
-                        </div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums w-9 text-right">{pct.toFixed(0)}%</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <CategoriaDonutChart data={pieData} totalLabel="Total gasto" height={260} sideBySide />
         ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem dados no ano ainda.</p>}
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -1013,21 +913,6 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
         </div>
       </div>
     </main>
-  );
-}
-
-function CategoriaPieTooltip({ active, payload, total }: any) {
-  if (!active || !payload || !payload.length) return null;
-  const item = payload[0].payload;
-  const pct = total > 0 ? (item.value / total) * 100 : 0;
-  return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 shadow-lg text-xs">
-      <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 mb-0.5">
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
-        {item.name}
-      </div>
-      <p className="text-slate-500 dark:text-slate-400">{currency(item.value)} · {pct.toFixed(1)}%</p>
-    </div>
   );
 }
 
