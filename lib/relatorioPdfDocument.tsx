@@ -62,7 +62,7 @@ function Kpi({ label, value, cor }: { label: string; value: string; cor?: string
 }
 
 export function RelatorioPdfDocument({ mesLabel, geradoEm, data }: { mesLabel: string; geradoEm: string; data: RelatorioMensalData }) {
-  const { entrada, saida, saldo, taxaPoupanca, custoVidaReal, variaveis, categoriaPixCartao, orcamentoRows, assinaturasAtivas, proximasDespesas } = data;
+  const { entrada, saida, saldo, taxaPoupanca, custoVidaReal, entradasPorCategoria, variaveis, categoriaPixCartao, orcamentoRows, assinaturasAtivas, proximasDespesas } = data;
   const top3 = [...variaveis].sort((a, b) => b.value - a.value).slice(0, 3);
   const estourados = orcamentoRows.filter((o) => o.realizado > o.orcado);
 
@@ -87,7 +87,25 @@ export function RelatorioPdfDocument({ mesLabel, geradoEm, data }: { mesLabel: s
           <Text style={styles.note}>Custo de vida real: {currency(custoVidaReal)} — o valor mínimo que sua rotina de compromissos fixos exigiu neste mês.</Text>
         </Secao>
 
-        <Secao numero="2" titulo="Gastos por categoria — Pix x Cartão" cor="#1baf7a">
+        <Secao numero="2" titulo="Entradas por categoria" cor="#059669">
+          <View style={styles.tableHeader}>
+            <Text style={[styles.th, { flex: 3 }]}>Categoria</Text>
+            <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Lançamentos</Text>
+            <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Total</Text>
+          </View>
+          {entradasPorCategoria.length > 0 ? entradasPorCategoria.map((c, i) => (
+            <View key={i} style={styles.row}>
+              <View style={styles.cellName}>
+                <View style={[styles.dot, { backgroundColor: corPorIndice(i) }]} />
+                <Text>{c.name}</Text>
+              </View>
+              <Text style={[styles.cellNum, { color: '#94a3b8' }]}>{c.count}x</Text>
+              <Text style={[styles.cellNum, { fontWeight: 700, color: '#047857' }]}>{currency(c.value)}</Text>
+            </View>
+          )) : <Text style={{ fontSize: 9, color: '#94a3b8' }}>Sem entradas neste mês.</Text>}
+        </Secao>
+
+        <Secao numero="3" titulo="Gastos por categoria — Pix x Cartão" cor="#1baf7a">
           <View style={styles.tableHeader}>
             <Text style={[styles.th, { flex: 3 }]}>Categoria</Text>
             <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Pix</Text>
@@ -107,7 +125,7 @@ export function RelatorioPdfDocument({ mesLabel, geradoEm, data }: { mesLabel: s
           ))}
         </Secao>
 
-        <Secao numero="3" titulo="Indicadores abre olhos" cor="#eb6834">
+        <Secao numero="4" titulo="Indicadores abre olhos" cor="#eb6834">
           <Text style={{ fontSize: 9, fontWeight: 700, marginBottom: 5 }}>Top 3 vilões (fora dos fixos)</Text>
           {top3.map((c, i) => (
             <View key={i} style={styles.vilaoRow}>
@@ -126,7 +144,7 @@ export function RelatorioPdfDocument({ mesLabel, geradoEm, data }: { mesLabel: s
           )) : <Text style={{ fontSize: 9, color: '#94a3b8' }}>Nenhuma assinatura recorrente cadastrada no cartão.</Text>}
         </Secao>
 
-        <Secao numero="4" titulo="Orçado x realizado" cor="#4a3aa7">
+        <Secao numero="5" titulo="Orçado x realizado" cor="#4a3aa7">
           <View style={styles.tableHeader}>
             <Text style={[styles.th, { flex: 3 }]}>Categoria</Text>
             <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Orçado</Text>
@@ -147,7 +165,7 @@ export function RelatorioPdfDocument({ mesLabel, geradoEm, data }: { mesLabel: s
           })}
         </Secao>
 
-        <Secao numero="5" titulo="Plano de ação" cor="#e34948">
+        <Secao numero="6" titulo="Plano de ação" cor="#e34948">
           {estourados.map((o, i) => (
             <View key={`t${i}`} style={[styles.planoItem, { backgroundColor: '#fef2f2' }]}>
               <Text>🎯 Teto para {o.categoria}: mantenha o orçado de {currency(o.orcado)} no próximo mês — este mês passou {currency(o.realizado - o.orcado)} do combinado.</Text>

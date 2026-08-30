@@ -35,6 +35,7 @@ export interface RelatorioMensalData {
   saldo: number;
   taxaPoupanca: number;
   custoVidaReal: number;
+  entradasPorCategoria: RelatorioCategoriaItem[];
   fixos: RelatorioCategoriaItem[];
   variaveis: RelatorioCategoriaItem[];
   categoriaPixCartao: RelatorioPixCartaoRow[];
@@ -68,6 +69,15 @@ export function computeRelatorioMensal(params: {
   const saida = monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
   const saldo = entrada - saida;
   const taxaPoupanca = entrada > 0 ? (saldo / entrada) * 100 : 0;
+
+  const mapEntrada: Record<string, { value: number; count: number; icone?: string }> = {};
+  monthEntries.filter((e) => e.tipo === 'entrada').forEach((e) => {
+    const nome = rollupNome(categorias, e.categoria, e.tipo);
+    if (!mapEntrada[nome]) mapEntrada[nome] = { value: 0, count: 0, icone: categorias.find((c) => c.tipo === 'entrada' && c.nome === nome)?.icone };
+    mapEntrada[nome].value += Number(e.valor);
+    mapEntrada[nome].count += 1;
+  });
+  const entradasPorCategoria = Object.entries(mapEntrada).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.value - a.value);
 
   const map: Record<string, { value: number; count: number; icone?: string }> = {};
   monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
@@ -110,5 +120,5 @@ export function computeRelatorioMensal(params: {
     .slice(0, 6)
     .map((p) => ({ descricao: p.descricao, valor: Number(p.valor), vencimento: p.vencimento }));
 
-  return { entrada, saida, saldo, taxaPoupanca, custoVidaReal, fixos, variaveis, categoriaPixCartao, orcamentoRows, assinaturasAtivas, proximasDespesas };
+  return { entrada, saida, saldo, taxaPoupanca, custoVidaReal, entradasPorCategoria, fixos, variaveis, categoriaPixCartao, orcamentoRows, assinaturasAtivas, proximasDespesas };
 }

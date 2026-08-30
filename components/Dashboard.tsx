@@ -365,6 +365,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   );
 
   const custoVidaReal = relatorioCalculado.custoVidaReal;
+  const entradasRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.entradasPorCategoria), [relatorioCalculado]);
   const fixosRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.fixos), [relatorioCalculado]);
   const variaveisRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.variaveis), [relatorioCalculado]);
   const orcamentoRowsRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.orcamentoRows), [relatorioCalculado]);
@@ -930,6 +931,7 @@ export default function Dashboard({ userId }: { userId: string }) {
             saldo={relatorioCalculado.saldo}
             taxaPoupanca={relatorioCalculado.taxaPoupanca}
             custoVidaReal={custoVidaReal}
+            entradasPorCategoria={entradasRelatorio}
             fixos={fixosRelatorio}
             variaveis={variaveisRelatorio}
             categoriaPixCartao={categoriaPixCartaoRelatorio}

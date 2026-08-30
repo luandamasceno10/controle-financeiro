@@ -41,6 +41,7 @@ export interface RelatorioPDFProps {
   saldo: number;
   taxaPoupanca: number;
   custoVidaReal: number;
+  entradasPorCategoria: RelatorioCategoriaItem[];
   fixos: RelatorioCategoriaItem[];
   variaveis: RelatorioCategoriaItem[];
   categoriaPixCartao: RelatorioPixCartaoRow[];
@@ -63,7 +64,7 @@ function CategoriaBadge({ icone, color }: { icone?: string; color?: string }) {
 // seguem a mesma paleta categórica do resto do app (lib/categoriaPalette.ts).
 export default function RelatorioPDF({
   mesLabel, geradoEm, entrada, saida, saldo, taxaPoupanca, custoVidaReal,
-  fixos, variaveis, categoriaPixCartao, assinaturasAtivas, orcamentoRows, proximasDespesas,
+  entradasPorCategoria, fixos, variaveis, categoriaPixCartao, assinaturasAtivas, orcamentoRows, proximasDespesas,
 }: RelatorioPDFProps) {
   const top3 = [...variaveis].sort((a, b) => b.value - a.value).slice(0, 3);
 
@@ -89,7 +90,30 @@ export default function RelatorioPDF({
         </p>
       </Secao>
 
-      <Secao numero="2" titulo="Gastos por categoria — Pix x Cartão" cor="#1baf7a">
+      <Secao numero="2" titulo="Entradas por categoria" cor="#059669">
+        {entradasPorCategoria.length > 0 ? (
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="text-left text-slate-400 border-b border-slate-200">
+                <th className="font-medium py-1">Categoria</th>
+                <th className="font-medium py-1 text-right">Lançamentos</th>
+                <th className="font-medium py-1 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entradasPorCategoria.map((c, i) => (
+                <tr key={i} className="border-b border-slate-100">
+                  <td className="py-1.5 flex items-center gap-1.5"><CategoriaBadge icone={c.icone} color={c.color} />{c.name}</td>
+                  <td className="py-1.5 text-right text-slate-400">{c.count}x</td>
+                  <td className="py-1.5 text-right font-semibold text-emerald-700">{currency(c.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : <p className="text-[12px] text-slate-400">Sem entradas neste mês.</p>}
+      </Secao>
+
+      <Secao numero="3" titulo="Gastos por categoria — Pix x Cartão" cor="#1baf7a">
         {categoriaPixCartao.length > 0 ? (
           <table className="w-full text-[12px]">
             <thead>
@@ -114,7 +138,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Sem despesas neste mês.</p>}
       </Secao>
 
-      <Secao numero="3" titulo='Indicadores "abre olhos"' cor="#eb6834">
+      <Secao numero="4" titulo='Indicadores "abre olhos"' cor="#eb6834">
         <p className="text-[12px] font-semibold text-slate-700 mb-1.5">Top 3 vilões (fora dos fixos)</p>
         {top3.length > 0 ? (
           <div className="space-y-1 mb-3">
@@ -144,7 +168,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Nenhuma assinatura recorrente cadastrada no cartão.</p>}
       </Secao>
 
-      <Secao numero="4" titulo="Orçado x realizado" cor="#4a3aa7">
+      <Secao numero="5" titulo="Orçado x realizado" cor="#4a3aa7">
         {orcamentoRows.length > 0 ? (
           <table className="w-full text-[12px]">
             <thead>
@@ -178,7 +202,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Nenhum orçamento definido por categoria ainda.</p>}
       </Secao>
 
-      <Secao numero="5" titulo="Plano de ação" cor="#e34948" ultima>
+      <Secao numero="6" titulo="Plano de ação" cor="#e34948" ultima>
         <ul className="space-y-1.5 text-[12px]">
           {orcamentoRows.filter((o) => o.realizado > o.orcado).map((o, i) => (
             <li key={`t${i}`} className="rounded-lg bg-rose-50 px-2.5 py-1.5">🎯 <strong>Teto para {o.categoria}:</strong> mantenha o orçado de {currency(o.orcado)} no próximo mês — este mês passou {currency(o.realizado - o.orcado)} do combinado.</li>
