@@ -8,7 +8,7 @@ const nextConfig = {
   // local porque lê direto do node_modules do disco).
   experimental: {
     outputFileTracingIncludes: {
-      '/api/cron/relatorio-mensal': ['./node_modules/pdfkit/js/standard-fonts/*'],
+      '/api/cron/relatorio-mensal': ['./node_modules/pdfkit/js/standard-fonts/**/*'],
     },
   },
 }
