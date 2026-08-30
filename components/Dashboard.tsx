@@ -854,11 +854,25 @@ export default function Dashboard({ userId }: { userId: string }) {
 }
 
 function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao, forecast, currentYear, setCurrentYear, onGoToMonth }: any) {
+  const [activeCat, setActiveCat] = useState<number | null>(null);
   const patrimonioData = MONTH_NAMES.map((label, i) => ({
     label,
     saldo: patrimonioEvolucao.find((p: any) => p.mes === i + 1)?.saldo ?? null,
   }));
   const totalForecast = Object.values(forecast).reduce((s: number, v: any) => s + v, 0);
+
+  const totalGasto = useMemo(() => yearCategoryData.reduce((s: number, c: any) => s + c.value, 0), [yearCategoryData]);
+  // Mais de 7 fatias vira ilegível — agrupa o rabicho em "Outras" e mantém o resto ordenado por valor.
+  // A cor cadastrada na categoria não é confiável (muitas categorias antigas do
+  // usuário compartilham a mesma cor padrão) — usa a paleta categórica fixa
+  // (--series-1..8) por posição no ranking, que garante fatias sempre distinguíveis.
+  const pieData = useMemo(() => {
+    const comCorDaPaleta = (arr: any[]) => arr.map((c, i) => ({ ...c, color: `var(--series-${i + 1})` }));
+    if (yearCategoryData.length <= 7) return comCorDaPaleta(yearCategoryData);
+    const top = comCorDaPaleta(yearCategoryData.slice(0, 6));
+    const outrasValue = yearCategoryData.slice(6).reduce((s: number, c: any) => s + c.value, 0);
+    return [...top, { name: 'Outras', value: outrasValue, color: 'var(--chart-text)' }];
+  }, [yearCategoryData]);
   return (
     <main className="max-w-6xl mx-auto px-5 py-6 space-y-6">
       <div className="flex items-center justify-center gap-4 mb-4">
@@ -914,19 +928,67 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4">Despesas por categoria — ano todo</h2>
-        {yearCategoryData.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={yearCategoryData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={2}>
-                  {yearCategoryData.map((entry: any, i: number) => <Cell key={i} fill={entry.color} stroke="var(--card-bg)" strokeWidth={2} />)}
-                </Pie>
-                <Tooltip formatter={(v: any) => currency(v)} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-2 self-center">
-              {yearCategoryData.map((c: any, i: number) => {
-                return (<div key={i} className="flex items-center justify-between text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} /><span className="text-slate-600 dark:text-slate-300">{c.name}</span></div><span className="font-semibold tabular-nums">{currency(c.value)}</span></div>);
+        {pieData.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            <div className="relative h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={68}
+                    outerRadius={104}
+                    paddingAngle={3}
+                    cornerRadius={6}
+                    stroke="none"
+                    onMouseEnter={(_: any, i: number) => setActiveCat(i)}
+                    onMouseLeave={() => setActiveCat(null)}
+                  >
+                    {pieData.map((entry: any, i: number) => (
+                      <Cell
+                        key={i}
+                        fill={entry.color}
+                        opacity={activeCat === null || activeCat === i ? 1 : 0.35}
+                        style={{ transition: 'opacity 150ms ease' }}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CategoriaPieTooltip total={totalGasto} />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">{activeCat !== null ? pieData[activeCat].name : 'Total gasto'}</p>
+                <p className="text-lg font-bold tabular-nums text-slate-800 dark:text-slate-100">
+                  {currency(activeCat !== null ? pieData[activeCat].value : totalGasto)}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {pieData.map((c: any, i: number) => {
+                const pct = totalGasto > 0 ? (c.value / totalGasto) * 100 : 0;
+                return (
+                  <div
+                    key={i}
+                    onMouseEnter={() => setActiveCat(i)}
+                    onMouseLeave={() => setActiveCat(null)}
+                    className={`flex items-center gap-3 px-2 py-1.5 rounded-lg cursor-default transition-colors ${activeCat === i ? 'bg-slate-50 dark:bg-slate-700/60' : ''}`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c.color }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">{c.name}</span>
+                        <span className="text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200 shrink-0">{currency(c.value)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, background: c.color }} />
+                        </div>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums w-9 text-right">{pct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
               })}
             </div>
           </div>
@@ -951,6 +1013,21 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
         </div>
       </div>
     </main>
+  );
+}
+
+function CategoriaPieTooltip({ active, payload, total }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const item = payload[0].payload;
+  const pct = total > 0 ? (item.value / total) * 100 : 0;
+  return (
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 shadow-lg text-xs">
+      <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 mb-0.5">
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
+        {item.name}
+      </div>
+      <p className="text-slate-500 dark:text-slate-400">{currency(item.value)} · {pct.toFixed(1)}%</p>
+    </div>
   );
 }
 
