@@ -453,7 +453,7 @@ export default function LancamentoForm({
           {form.type === 'saida' && form.category && (
             <div>
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">
-                Tipo de gasto {!form.tipoGastoOverride && <span className="font-normal text-slate-400 dark:text-slate-500">· automático: {resolverTipoGasto(form.category, categoriaAtual, null) === 'fixo' ? 'Fixo' : 'Variável'}</span>}
+                Tipo de gasto {!form.tipoGastoOverride && <span className="font-normal text-slate-400 dark:text-slate-500">· automático: {resolverTipoGasto(form.category) === 'fixo' ? 'Fixo' : 'Variável'}</span>}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {([

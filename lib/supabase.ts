@@ -85,7 +85,6 @@ export interface Categoria {
   ativa: boolean;
   ordem: number;
   parent_id: number | null;
-  tipo_gasto: 'fixo' | 'variavel' | null;
   created_at: string;
 }
 

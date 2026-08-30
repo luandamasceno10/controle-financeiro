@@ -79,16 +79,15 @@ export function computeRelatorioMensal(params: {
   });
   const entradasPorCategoria = Object.entries(mapEntrada).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.value - a.value);
 
-  // Classificação por lançamento (não por categoria como um todo): exceção
-  // pontual no lançamento > padrão da categoria > heurística por nome — ver
-  // lib/gastoFixoVariavel.ts. Isso permite, por exemplo, "Transporte" ser fixo
-  // na maioria das vezes mas um Uber avulso específico contar como variável.
+  // Classificação por lançamento, não por categoria: cada saída marca a sua
+  // própria exceção (ver lib/gastoFixoVariavel.ts); sem exceção, cai na
+  // heurística por nome da categoria. Isso permite, por exemplo, "Transporte"
+  // ser fixo na maioria das vezes mas um Uber avulso específico ser variável.
   const mapFixo: Record<string, { value: number; count: number; icone?: string }> = {};
   const mapVariavel: Record<string, { value: number; count: number; icone?: string }> = {};
   monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
     const nome = rollupNome(categorias, e.categoria, e.tipo);
-    const cat = categorias.find((c) => c.tipo === 'saida' && c.nome === e.categoria);
-    const classificacao = resolverTipoGasto(e.categoria, cat, e.tipo_gasto_override);
+    const classificacao = resolverTipoGasto(e.categoria, e.tipo_gasto_override);
     const map = classificacao === 'fixo' ? mapFixo : mapVariavel;
     if (!map[nome]) map[nome] = { value: 0, count: 0, icone: categorias.find((c) => c.tipo === 'saida' && c.nome === nome)?.icone };
     map[nome].value += Number(e.valor);
