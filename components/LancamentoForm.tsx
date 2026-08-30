@@ -6,6 +6,7 @@ import type { Lancamento, Categoria, ContaBancaria, CartaoCredito, Meta } from '
 import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
+import { resolverTipoGasto } from '@/lib/gastoFixoVariavel';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import { uploadAnexo, removeAnexo, getAnexoUrl } from '@/lib/anexos';
 import MoneyInput from './MoneyInput';
@@ -70,6 +71,7 @@ export default function LancamentoForm({
         splitEnabled: false,
         splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
         meta_id: null as number | null,
+        tipoGastoOverride: editingEntry.tipo_gasto_override,
       };
     }
     return {
@@ -82,6 +84,7 @@ export default function LancamentoForm({
       splitEnabled: false,
       splits: [{ category: '', amount: '' }, { category: '', amount: '' }] as { category: string; amount: string }[],
       meta_id: null as number | null,
+      tipoGastoOverride: null as 'fixo' | 'variavel' | null,
     };
   });
 
@@ -146,6 +149,7 @@ export default function LancamentoForm({
           fatura_id: faturaIdSplit,
           valor: parseFloat(s.amount),
           split_id: splitId,
+          tipo_gasto_override: form.tipoGastoOverride,
         }));
         const { error } = await supabase.from('lancamentos').insert(rows);
         if (error) throw error;
@@ -181,6 +185,7 @@ export default function LancamentoForm({
             parcela_atual: i,
             parcela_total: totalParcelas,
             parcelamento_id: parcelamentoId,
+            tipo_gasto_override: form.tipoGastoOverride,
           });
         }
         const { error } = await supabase.from('lancamentos').insert(rows);
@@ -215,6 +220,7 @@ export default function LancamentoForm({
         cartao_id: cartaoId,
         fatura_id: faturaId,
         valor: parseFloat(form.amount),
+        tipo_gasto_override: form.type === 'saida' ? form.tipoGastoOverride : null,
       };
 
       let anexoPath = editingEntry?.anexo_path ?? null;
@@ -442,6 +448,24 @@ export default function LancamentoForm({
               >
                 {subcategoriaOptions.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
               </select>
+            </div>
+          )}
+          {form.type === 'saida' && form.category && (
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">
+                Tipo de gasto {!form.tipoGastoOverride && <span className="font-normal text-slate-400 dark:text-slate-500">· automático: {resolverTipoGasto(form.category, categoriaAtual, null) === 'fixo' ? 'Fixo' : 'Variável'}</span>}
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: null, label: 'Automático' },
+                  { v: 'fixo' as const, label: 'Fixo' },
+                  { v: 'variavel' as const, label: 'Variável' },
+                ]).map((opt) => (
+                  <button key={opt.label} type="button" onClick={() => setForm(f => ({ ...f, tipoGastoOverride: opt.v }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.tipoGastoOverride === opt.v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`} disabled={saving}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {!editingEntry && form.type === 'saida' && !form.parcelado && !form.recorrente && (

@@ -18,7 +18,7 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Categoria | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nome: '', tipo: 'saida' as 'entrada' | 'saida', cor: COLOR_SWATCHES[0], icone: ICON_NAMES[0], parent_id: null as number | null });
+  const [form, setForm] = useState({ nome: '', tipo: 'saida' as 'entrada' | 'saida', cor: COLOR_SWATCHES[0], icone: ICON_NAMES[0], parent_id: null as number | null, tipo_gasto: null as 'fixo' | 'variavel' | null });
 
   const [deleteConfirm, setDeleteConfirm] = useState<Categoria | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -49,13 +49,13 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
 
   const openNew = (parentId: number | null = null) => {
     setEditing(null);
-    setForm({ nome: '', tipo: tab, cor: COLOR_SWATCHES[0], icone: ICON_NAMES[0], parent_id: parentId });
+    setForm({ nome: '', tipo: tab, cor: COLOR_SWATCHES[0], icone: ICON_NAMES[0], parent_id: parentId, tipo_gasto: null });
     setShowForm(true);
   };
 
   const openEdit = (cat: Categoria) => {
     setEditing(cat);
-    setForm({ nome: cat.nome, tipo: cat.tipo, cor: cat.cor, icone: cat.icone, parent_id: cat.parent_id });
+    setForm({ nome: cat.nome, tipo: cat.tipo, cor: cat.cor, icone: cat.icone, parent_id: cat.parent_id, tipo_gasto: cat.tipo_gasto });
     setShowForm(true);
   };
 
@@ -65,9 +65,10 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
 
     setSaving(true);
     try {
+      const tipoGasto = form.tipo === 'saida' ? form.tipo_gasto : null;
       if (editing) {
         const { error } = await supabase.from('categorias').update({
-          nome: form.nome, tipo: form.tipo, cor: form.cor, icone: form.icone, parent_id: form.parent_id,
+          nome: form.nome, tipo: form.tipo, cor: form.cor, icone: form.icone, parent_id: form.parent_id, tipo_gasto: tipoGasto,
         }).eq('id', editing.id);
         if (error) throw error;
         addToast('Categoria atualizada!', 'success');
@@ -75,7 +76,7 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
         const maxOrdem = Math.max(0, ...categorias.filter(c => c.tipo === form.tipo).map(c => c.ordem));
         const { error } = await supabase.from('categorias').insert([{
           user_id: userId, nome: form.nome, tipo: form.tipo, cor: form.cor,
-          icone: form.icone, parent_id: form.parent_id, ordem: maxOrdem + 1,
+          icone: form.icone, parent_id: form.parent_id, ordem: maxOrdem + 1, tipo_gasto: tipoGasto,
         }]);
         if (error) throw error;
         addToast('Categoria criada!', 'success');
@@ -158,6 +159,9 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
                       <Icon size={15} />
                     </div>
                     <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{cat.nome}</span>
+                    {cat.tipo_gasto && (
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${cat.tipo_gasto === 'fixo' ? 'text-blue-700 bg-blue-50 dark:bg-blue-500/10' : 'text-orange-700 bg-orange-50 dark:bg-orange-500/10'}`}>{cat.tipo_gasto === 'fixo' ? 'Fixo' : 'Variável'}</span>
+                    )}
                     {subs.length > 0 && <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{subs.length}</span>}
                   </div>
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -176,6 +180,9 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
                           <SubIcon size={13} />
                         </div>
                         <span className="text-sm text-slate-600 dark:text-slate-300">{sub.nome}</span>
+                        {sub.tipo_gasto && (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${sub.tipo_gasto === 'fixo' ? 'text-blue-700 bg-blue-50 dark:bg-blue-500/10' : 'text-orange-700 bg-orange-50 dark:bg-orange-500/10'}`}>{sub.tipo_gasto === 'fixo' ? 'Fixo' : 'Variável'}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <button onClick={() => openEdit(sub)} className="p-2 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"><Pencil size={14} /></button>
@@ -214,6 +221,23 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
                 </select>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Escolha para criar como subcategoria de outra já existente.</p>
               </div>
+              {form.tipo === 'saida' && (
+                <div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Tipo de gasto</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { v: null, label: 'Automático' },
+                      { v: 'fixo', label: 'Fixo' },
+                      { v: 'variavel', label: 'Variável' },
+                    ] as const).map((opt) => (
+                      <button key={opt.label} type="button" onClick={() => setForm(f => ({ ...f, tipo_gasto: opt.v }))} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${form.tipo_gasto === opt.v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`} disabled={saving}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Usado no relatório mensal (fixos x variáveis). "Automático" classifica pelo nome da categoria.</p>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cor</label>
                 <div className="flex flex-wrap gap-2">

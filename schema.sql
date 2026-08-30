@@ -423,3 +423,9 @@ CREATE POLICY "Users can only see their own compras_recorrentes" ON compras_reco
   FOR ALL USING (auth.uid() = user_id);
 
 ALTER TABLE lancamentos ADD COLUMN compra_recorrente_id BIGINT REFERENCES compras_recorrentes(id) ON DELETE SET NULL;
+
+-- Classificação fixo x variável usada no relatório mensal (lib/relatorioCalculos.ts).
+-- Prioridade: tipo_gasto_override do lançamento > tipo_gasto da categoria >
+-- heurística por nome (lib/gastoFixoVariavel.ts). Ambos nulos por padrão = automático.
+ALTER TABLE categorias ADD COLUMN tipo_gasto TEXT CHECK (tipo_gasto IN ('fixo', 'variavel'));
+ALTER TABLE lancamentos ADD COLUMN tipo_gasto_override TEXT CHECK (tipo_gasto_override IN ('fixo', 'variavel'));

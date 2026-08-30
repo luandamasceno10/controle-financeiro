@@ -26,6 +26,7 @@ export interface Lancamento {
   split_id: string | null;
   anexo_path: string | null;
   compra_recorrente_id: number | null;
+  tipo_gasto_override: 'fixo' | 'variavel' | null;
   valor: number;
   created_at: string;
 }
@@ -84,6 +85,7 @@ export interface Categoria {
   ativa: boolean;
   ordem: number;
   parent_id: number | null;
+  tipo_gasto: 'fixo' | 'variavel' | null;
   created_at: string;
 }
 
