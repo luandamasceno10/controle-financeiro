@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { ContaBancaria, Lancamento, Categoria, ContaReceber } from '@/lib/supabase';
+import type { ContaBancaria, Lancamento, Categoria, ContaReceber, ContaPagar } from '@/lib/supabase';
 import { parseStatementCSV, type StatementLine } from '@/lib/statement';
 import { parseOFX } from '@/lib/ofx';
 import MoneyInput from './MoneyInput';
@@ -24,13 +24,14 @@ interface MatchedLine extends StatementLine {
 }
 
 export default function ConciliacaoBancaria({
-  userId, conta, entries, categorias, receivable = [], onClose, onCreated,
+  userId, conta, entries, categorias, receivable = [], payable = [], onClose, onCreated,
 }: {
   userId: string;
   conta: ContaBancaria;
   entries: Lancamento[];
   categorias: Categoria[];
   receivable?: ContaReceber[];
+  payable?: ContaPagar[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -43,6 +44,10 @@ export default function ConciliacaoBancaria({
   const [abaterContaId, setAbaterContaId] = useState<number | null>(null);
   const [abaterValor, setAbaterValor] = useState('');
   const [abatendo, setAbatendo] = useState(false);
+  const [abatendoPagarIdx, setAbatendoPagarIdx] = useState<number | null>(null);
+  const [abaterPagarContaId, setAbaterPagarContaId] = useState<number | null>(null);
+  const [abaterPagarValor, setAbaterPagarValor] = useState('');
+  const [abatendoPagar, setAbatendoPagar] = useState(false);
 
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
 
@@ -156,6 +161,51 @@ export default function ConciliacaoBancaria({
     }
   };
 
+  const openAbaterPagar = (idx: number, line: MatchedLine) => {
+    setAbatendoPagarIdx(idx);
+    setAbaterPagarContaId(payable[0]?.id ?? null);
+    setAbaterPagarValor(String(Math.min(Math.abs(line.valor), Number(payable[0]?.valor ?? Math.abs(line.valor)))));
+  };
+
+  const confirmarAbatimentoPagar = async (line: MatchedLine, idx: number) => {
+    const contaPagar = payable.find((p) => p.id === abaterPagarContaId);
+    const valor = parseFloat(abaterPagarValor);
+    if (!contaPagar || !valor || valor <= 0) return;
+
+    setAbatendoPagar(true);
+    try {
+      const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
+        user_id: userId,
+        conta_id: conta.id,
+        data: line.data,
+        hora: line.hora,
+        descricao: `${contaPagar.descricao} (abatimento)`,
+        tipo: 'saida',
+        categoria: contaPagar.categoria || categoriaPadrao('saida'),
+        categoria_id: contaPagar.categoria_id ?? categoriaIdPadrao('saida'),
+        forma_pagamento: 'pix',
+        valor,
+      }]).select().single();
+      if (lancError) throw lancError;
+
+      const restante = Number(contaPagar.valor) - valor;
+      if (restante <= 0.01) {
+        await supabase.from('contas_pagar').update({ status: 'pago', lancamento_id: lanc.id }).eq('id', contaPagar.id);
+      } else {
+        // Abatimento parcial: reduz o valor em aberto e mantém pendente, mesmo padrão do abatimento de contas a receber.
+        await supabase.from('contas_pagar').update({ valor: restante }).eq('id', contaPagar.id);
+      }
+
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
+      setAbatendoPagarIdx(null);
+      onCreated();
+    } catch (err: any) {
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
+    } finally {
+      setAbatendoPagar(false);
+    }
+  };
+
   const pendentes = lines?.filter((l) => !l.matched && !l.created) || [];
 
   const criarTodosPendentes = async () => {
@@ -237,6 +287,11 @@ export default function ConciliacaoBancaria({
                             <Wallet size={12} /> Abater
                           </button>
                         )}
+                        {line.valor < 0 && payable.length > 0 && (
+                          <button onClick={() => openAbaterPagar(idx, line)} title="Abater conta a pagar" className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 px-2.5 py-1.5 rounded-md">
+                            <Wallet size={12} /> Abater
+                          </button>
+                        )}
                         <button onClick={() => criarLancamento(line, idx)} disabled={line.creating} className={`inline-flex items-center gap-1 text-xs font-medium text-white disabled:opacity-50 px-2.5 py-1.5 rounded-md ${line.failed ? 'bg-rose-600 hover:bg-rose-500' : 'bg-slate-800 hover:bg-slate-700'}`}>
                           <PlusCircle size={12} /> {line.creating ? '...' : line.failed ? 'Tentar de novo' : 'Criar'}
                         </button>
@@ -266,6 +321,30 @@ export default function ConciliacaoBancaria({
                           {abatendo ? 'Abatendo...' : 'Confirmar'}
                         </button>
                         <button onClick={() => setAbatendoIdx(null)} className="text-xs text-slate-400 hover:text-slate-600 px-2">Cancelar</button>
+                      </div>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Se o valor for menor que o total da conta, o restante fica pendente.</p>
+                    </div>
+                  )}
+                  {abatendoPagarIdx === idx && (
+                    <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg space-y-2">
+                      <select
+                        value={abaterPagarContaId ?? ''}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setAbaterPagarContaId(id);
+                          const cp = payable.find(p => p.id === id);
+                          setAbaterPagarValor(String(Math.min(Math.abs(line.valor), Number(cp?.valor ?? 0))));
+                        }}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                      >
+                        {payable.map(p => <option key={p.id} value={p.id}>{p.descricao} — {currency(Number(p.valor))}</option>)}
+                      </select>
+                      <div className="flex items-center gap-2">
+                        <MoneyInput value={abaterPagarValor} onChange={setAbaterPagarValor} className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" />
+                        <button onClick={() => confirmarAbatimentoPagar(line, idx)} disabled={abatendoPagar} className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 px-3 py-2 rounded-lg">
+                          {abatendoPagar ? 'Abatendo...' : 'Confirmar'}
+                        </button>
+                        <button onClick={() => setAbatendoPagarIdx(null)} className="text-xs text-slate-400 hover:text-slate-600 px-2">Cancelar</button>
                       </div>
                       <p className="text-xs text-slate-400 dark:text-slate-500">Se o valor for menor que o total da conta, o restante fica pendente.</p>
                     </div>
