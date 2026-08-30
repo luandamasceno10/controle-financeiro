@@ -15,7 +15,7 @@ import CategoriaDonutChart from './CategoriaDonutChart';
 import { toDonutSlices } from '@/lib/categoriaPalette';
 import {
   ResponsiveContainer, Tooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ComposedChart
+  Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ComposedChart
 } from 'recharts';
 import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
@@ -302,11 +302,13 @@ export default function Dashboard({ userId }: { userId: string }) {
     const grouped: Record<string, any> = {};
     monthEntries.filter(e => e.tipo === 'saida').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
-      if (!grouped[nome]) grouped[nome] = { category: nome, pix: 0, cartao: 0 };
+      if (!grouped[nome]) grouped[nome] = { category: nome, pix: 0, cartao: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
       grouped[nome][e.forma_pagamento] += Number(e.valor);
     });
     return Object.values(grouped).sort((a, b) => (b.pix + b.cartao) - (a.pix + a.cartao));
   }, [monthEntries, categoriaByName, categoriaById]);
+
+  const paymentBarMax = useMemo(() => Math.max(1, ...paymentBarData.map((d: any) => d.pix + d.cartao)), [paymentBarData]);
 
   const cardEntries = useMemo(
     () => monthEntries.filter(e => e.tipo === 'saida' && !!e.cartao_id).sort(sortByDataHora),
@@ -645,20 +647,43 @@ export default function Dashboard({ userId }: { userId: string }) {
             </div>
 
             <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Categoria × Forma de pagamento</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Pix vs Cartão por categoria</p>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Categoria × Forma de pagamento</h2>
+                <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 shrink-0">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-600" /> Pix</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-600" /> Cartão</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Quanto de cada categoria foi pago no cartão — útil pra enxergar onde o crédito está pesando mais</p>
               {paymentBarData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={paymentBarData} layout="vertical" margin={{ left: 10, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--chart-grid)" />
-                    <XAxis type="number" tickFormatter={(v) => `R$${v}`} fontSize={11} stroke="var(--chart-text)" />
-                    <YAxis type="category" dataKey="category" width={140} fontSize={10.5} stroke="var(--chart-text)" />
-                    <Tooltip formatter={(v: any) => currency(v)} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="pix" name="Pix" fill="#0891B2" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="cartao" name="Cartão" fill="#D97706" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                  {paymentBarData.map((c: any, i: number) => {
+                    const totalCat = c.pix + c.cartao;
+                    const pctCartao = totalCat > 0 ? Math.round((c.cartao / totalCat) * 100) : 0;
+                    const barWidth = (totalCat / paymentBarMax) * 100;
+                    const Icon = c.icone ? ICONS[c.icone] : null;
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {Icon ? (
+                            <Icon size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                          ) : (
+                            <CircleEllipsis size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                          )}
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">{c.category}</span>
+                          {pctCartao > 0 && (
+                            <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">{pctCartao}% cartão</span>
+                          )}
+                          <span className="ml-auto text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200 shrink-0">{currency(totalCat)}</span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex" style={{ width: `${barWidth}%` }}>
+                          {c.pix > 0 && <div className="h-full bg-cyan-600" style={{ width: `${(c.pix / totalCat) * 100}%` }} />}
+                          {c.cartao > 0 && <div className="h-full bg-amber-600" style={{ width: `${(c.cartao / totalCat) * 100}%` }} />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem despesas neste mês ainda.</p>}
             </div>
           </div>
