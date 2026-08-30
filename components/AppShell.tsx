@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon, Search } from 'lucide-react';
+import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon, Search, FileBarChart } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/cartoes', label: 'Cartões de Crédito', icon: CreditCard },
   { href: '/pagar-receber', label: 'Contas a Pagar/Receber', icon: WalletCards },
   { href: '/orcamentos', label: 'Orçamentos', icon: Wallet },
+  { href: '/relatorio', label: 'Relatórios', icon: FileBarChart },
   { href: '/metas', label: 'Metas', icon: Target },
   { href: '/categorias', label: 'Categorias', icon: Tag },
   { href: '/perfil', label: 'Perfil', icon: UserCircle },
@@ -66,9 +67,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 lg:flex">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 lg:flex print:bg-white">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-60 lg:flex-col bg-slate-900 text-white shrink-0">
+      <aside className="hidden lg:flex lg:w-60 lg:flex-col bg-slate-900 text-white shrink-0 print:hidden">
         <div className="flex items-center gap-3 px-5 py-5">
           <div className="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-slate-900">R$</div>
           <h1 className="text-sm font-semibold leading-tight">Controle Financeiro</h1>
@@ -86,7 +87,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="lg:hidden sticky top-0 z-40 bg-slate-900 text-white">
+      <div className="lg:hidden sticky top-0 z-40 bg-slate-900 text-white print:hidden">
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-slate-900 text-sm">R$</div>

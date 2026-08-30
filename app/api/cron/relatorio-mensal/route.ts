@@ -8,6 +8,85 @@ function currency(v: number) {
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
+function appUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+}
+
+async function enviarEmailRelatorio(params: {
+  destinatario: string;
+  mesLabel: string;
+  mesRef: string;
+  entrada: number;
+  saida: number;
+  saldo: number;
+  topCategorias: [string, number][];
+  orcamentosEstourados: { nome: string; gasto: number; limite: number }[];
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return false;
+
+  const { destinatario, mesLabel, mesRef, entrada, saida, saldo, topCategorias, orcamentosEstourados } = params;
+  const linkRelatorio = `${appUrl()}/relatorio?mes=${mesRef}`;
+
+  const linhasCategorias = topCategorias.map(([nome, valor]) =>
+    `<tr><td style="padding:6px 0;color:#334155;font-size:13px;">${nome}</td><td style="padding:6px 0;text-align:right;font-weight:600;color:#334155;font-size:13px;">${currency(valor)}</td></tr>`
+  ).join('');
+
+  const blocoEstourados = orcamentosEstourados.length > 0 ? `
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 18px;margin:20px 0;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#b91c1c;">⚠️ Orçamentos estourados</p>
+      ${orcamentosEstourados.map((o) => `<p style="margin:2px 0;font-size:13px;color:#7f1d1d;">${o.nome} — ${currency(o.gasto)} de ${currency(o.limite)}</p>`).join('')}
+    </div>` : '';
+
+  const html = `
+    <div style="font-family:-apple-system,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b;">
+      <div style="background:#0f172a;color:#fff;border-radius:12px 12px 0 0;padding:20px 24px;">
+        <p style="margin:0;font-size:12px;color:#94a3b8;">Controle Financeiro Pessoal</p>
+        <h1 style="margin:4px 0 0;font-size:18px;">Relatório de ${mesLabel}</h1>
+      </div>
+      <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
+        <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+          <tr>
+            <td style="padding:8px 0;font-size:12px;color:#64748b;">Entradas</td>
+            <td style="padding:8px 0;text-align:right;font-size:14px;font-weight:700;color:#059669;">${currency(entrada)}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;font-size:12px;color:#64748b;">Saídas</td>
+            <td style="padding:8px 0;text-align:right;font-size:14px;font-weight:700;color:#e11d48;">${currency(saida)}</td>
+          </tr>
+          <tr style="border-top:1px solid #e2e8f0;">
+            <td style="padding:8px 0;font-size:12px;color:#64748b;">Saldo do mês</td>
+            <td style="padding:8px 0;text-align:right;font-size:15px;font-weight:800;color:${saldo >= 0 ? '#0f172a' : '#e11d48'};">${saldo >= 0 ? '+' : ''}${currency(saldo)}</td>
+          </tr>
+        </table>
+        ${blocoEstourados}
+        ${topCategorias.length > 0 ? `
+        <p style="margin:20px 0 6px;font-size:13px;font-weight:700;color:#334155;">Maiores gastos por categoria</p>
+        <table style="width:100%;border-collapse:collapse;">${linhasCategorias}</table>
+        ` : ''}
+        <a href="${linkRelatorio}" style="display:block;text-align:center;margin-top:24px;background:#10b981;color:#0f172a;font-weight:700;font-size:14px;text-decoration:none;padding:12px;border-radius:8px;">Ver relatório completo e baixar PDF</a>
+      </div>
+      <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">Você recebeu este e-mail porque tem uma conta no Controle Financeiro Pessoal.</p>
+    </div>
+  `;
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM || 'Controle Financeiro <onboarding@resend.dev>',
+        to: destinatario,
+        subject: `📊 Seu relatório de ${mesLabel} está pronto`,
+        html,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -30,18 +109,26 @@ export async function GET(request: Request) {
   const mesRef = `${ano}-${String(mesIdx + 1).padStart(2, '0')}`;
 
   const { data: subs } = await supabase.from('push_subscriptions').select('*');
-  if (!subs || subs.length === 0) return NextResponse.json({ sent: 0 });
 
-  const userIds = Array.from(new Set(subs.map((s) => s.user_id)));
+  // E-mail não depende de push subscription — pega todos os usuários da conta.
+  let allUsers: { id: string; email?: string }[] = [];
+  if (process.env.RESEND_API_KEY) {
+    const { data: usersPage } = await supabase.auth.admin.listUsers({ perPage: 200 });
+    allUsers = usersPage?.users || [];
+  }
+
+  const userIds = Array.from(new Set([...(subs || []).map((s) => s.user_id), ...allUsers.map((u) => u.id)]));
+  if (userIds.length === 0) return NextResponse.json({ sent: 0 });
+
   let sent = 0;
+  let emailsSent = 0;
 
   for (const userId of userIds) {
-    const { data: lancamentos } = await supabase
-      .from('lancamentos')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('data', `${mesRef}-01`)
-      .lte('data', `${mesRef}-31`);
+    const [{ data: lancamentos }, { data: categorias }, { data: orcamentos }] = await Promise.all([
+      supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', `${mesRef}-01`).lte('data', `${mesRef}-31`),
+      supabase.from('categorias').select('*').eq('user_id', userId),
+      supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
+    ]);
 
     const entries = lancamentos || [];
     const entrada = entries.filter((e) => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
@@ -50,10 +137,22 @@ export async function GET(request: Request) {
     if (entrada === 0 && saida === 0) continue;
 
     const porCategoria: Record<string, number> = {};
+    const porCategoriaId: Record<number, number> = {};
     entries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
       porCategoria[e.categoria] = (porCategoria[e.categoria] || 0) + Number(e.valor);
+      if (e.categoria_id) porCategoriaId[e.categoria_id] = (porCategoriaId[e.categoria_id] || 0) + Number(e.valor);
     });
     const topCategorias = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+    const categoriasList = categorias || [];
+    const orcamentosEstourados = (orcamentos || [])
+      .map((o) => {
+        const filhas = categoriasList.filter((c) => c.parent_id === o.categoria_id).map((c) => c.id);
+        const gasto = [o.categoria_id, ...filhas].reduce((s, id) => s + (porCategoriaId[id] || 0), 0);
+        const cat = categoriasList.find((c) => c.id === o.categoria_id);
+        return { nome: cat?.nome || 'categoria', gasto, limite: Number(o.valor_limite) };
+      })
+      .filter((o) => o.gasto > o.limite);
 
     const saldo = entrada - saida;
     const title = `📊 Resumo de ${MESES[mesIdx]}`;
@@ -62,17 +161,34 @@ export async function GET(request: Request) {
       `Saídas ${currency(saida)}`,
       `Saldo ${saldo >= 0 ? '+' : ''}${currency(saldo)}`,
     ];
-    if (topCategorias.length > 0) {
+    if (orcamentosEstourados.length > 0) {
+      partes.push(`${orcamentosEstourados.length} orçamento${orcamentosEstourados.length > 1 ? 's' : ''} estourado${orcamentosEstourados.length > 1 ? 's' : ''}`);
+    } else if (topCategorias.length > 0) {
       partes.push(`Maior gasto: ${topCategorias[0][0]} (${currency(topCategorias[0][1])})`);
     }
     const body = partes.join(' · ');
 
-    const userSubs = subs.filter((s) => s.user_id === userId && s.last_report_month !== mesRef);
+    const usuario = allUsers.find((u) => u.id === userId);
+    if (usuario?.email) {
+      const ok = await enviarEmailRelatorio({
+        destinatario: usuario.email,
+        mesLabel: `${MESES[mesIdx]} de ${ano}`,
+        mesRef,
+        entrada,
+        saida,
+        saldo,
+        topCategorias,
+        orcamentosEstourados,
+      });
+      if (ok) emailsSent++;
+    }
+
+    const userSubs = (subs || []).filter((s) => s.user_id === userId && s.last_report_month !== mesRef);
     for (const sub of userSubs) {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title, body, url: '/' })
+          JSON.stringify({ title, body, url: `/relatorio?mes=${mesRef}` })
         );
         sent++;
         await supabase.from('push_subscriptions').update({ last_report_month: mesRef }).eq('id', sub.id);
@@ -84,5 +200,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ sent, users: userIds.length, mesRef });
+  return NextResponse.json({ sent, emailsSent, users: userIds.length, mesRef });
 }
