@@ -94,7 +94,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   // ainda). Qualquer outra fatura com status 'aberta' já passou do dia de
   // fechamento e está, de fato, aguardando pagamento — por isso são tratadas
   // separadamente, em vez de a mais recente esconder a mais antiga pendente.
-  const competenciaAtualDoCartao = (cartao: CartaoCredito) => competenciaForPurchase(todayISO(), cartao.dia_fechamento);
+  const competenciaAtualDoCartao = (cartao: CartaoCredito) => competenciaForPurchase(todayISO(), cartao.dia_fechamento, cartao.dia_vencimento);
 
   const faturaAtualDoCartao = (cartao: CartaoCredito): Fatura | null => {
     const competenciaAtual = competenciaAtualDoCartao(cartao);

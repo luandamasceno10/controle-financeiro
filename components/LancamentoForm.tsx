@@ -127,7 +127,7 @@ export default function LancamentoForm({
         if (isCartao) {
           const cartao = cartoes.find(c => c.id === form.cartao_id);
           if (!cartao) throw new Error('Selecione um cartão de crédito');
-          const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento);
+          const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento, cartao.dia_vencimento);
           const fatura = await ensureFatura(cartao, competencia, userId);
           cartaoIdSplit = cartao.id;
           faturaIdSplit = fatura.id;
@@ -166,7 +166,7 @@ export default function LancamentoForm({
         const rows = [];
         for (let i = 1; i <= totalParcelas; i++) {
           const dataParcela = shiftPurchaseDate(form.date, i - 1);
-          const competencia = competenciaForPurchase(dataParcela, cartao.dia_fechamento);
+          const competencia = competenciaForPurchase(dataParcela, cartao.dia_fechamento, cartao.dia_vencimento);
           const fatura = await ensureFatura(cartao, competencia, userId);
           const valor = i === totalParcelas ? Number((valorTotal - valorParcela * (totalParcelas - 1)).toFixed(2)) : valorParcela;
           rows.push({
@@ -201,7 +201,7 @@ export default function LancamentoForm({
       if (isCartao) {
         const cartao = cartoes.find(c => c.id === form.cartao_id);
         if (!cartao) throw new Error('Selecione um cartão de crédito');
-        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento);
+        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento, cartao.dia_vencimento);
         const fatura = await ensureFatura(cartao, competencia, userId);
         cartaoId = cartao.id;
         faturaId = fatura.id;
@@ -238,7 +238,7 @@ export default function LancamentoForm({
         if (error) throw error;
       } else if (isCartao && form.recorrente) {
         const cartao = cartoes.find(c => c.id === form.cartao_id)!;
-        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento);
+        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento, cartao.dia_vencimento);
         const { data: compra, error: compraError } = await supabase.from('compras_recorrentes').insert([{
           user_id: userId, cartao_id: cartao.id, descricao: form.desc, categoria: form.category,
           categoria_id: categoriaId, valor: payload.valor, ultima_competencia: competencia,

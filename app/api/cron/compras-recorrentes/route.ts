@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     const cartao = compra.cartoes_credito;
     if (!cartao || !cartao.ativo) continue;
 
-    const competenciaAtual = competenciaForPurchase(hojeISO, cartao.dia_fechamento);
+    const competenciaAtual = competenciaForPurchase(hojeISO, cartao.dia_fechamento, cartao.dia_vencimento);
     if (compra.ultima_competencia === competenciaAtual) continue;
 
     try {

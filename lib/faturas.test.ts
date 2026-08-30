@@ -3,36 +3,52 @@ import { competenciaForPurchase, shiftPurchaseDate, shiftCompetencia, estimatedV
 import type { CartaoCredito } from './supabase';
 
 describe('competenciaForPurchase', () => {
-  // Convenção real do banco (corrigida após bug em produção — ver git log):
-  // uma fatura é nomeada pelo mês em que VENCE, não pelo mês em que a compra
-  // caiu. Um cartão que fecha dia 30 cobra compras de 01–30/jul na fatura de
-  // agosto (mês seguinte ao fechamento), nunca na fatura de julho.
-  it('compra até o dia de fechamento cai na fatura do mês seguinte', () => {
-    expect(competenciaForPurchase('2026-07-15', 30)).toBe('2026-08');
-    expect(competenciaForPurchase('2026-07-30', 30)).toBe('2026-08');
+  // Caso mais comum: fechamento perto do fim do mês, vencimento no começo do
+  // mês seguinte (dia_vencimento < dia_fechamento) — a fatura sempre vence no
+  // mês seguinte ao fechamento.
+  describe('quando o vencimento cai no mês seguinte ao fechamento', () => {
+    it('compra até o dia de fechamento cai na fatura do mês seguinte', () => {
+      expect(competenciaForPurchase('2026-07-15', 30, 6)).toBe('2026-08');
+      expect(competenciaForPurchase('2026-07-30', 30, 6)).toBe('2026-08');
+    });
+
+    it('compra depois do fechamento cai na fatura de dois meses à frente', () => {
+      expect(competenciaForPurchase('2026-07-31', 30, 6)).toBe('2026-09');
+    });
+
+    it('fechamento cai no fim de fevereiro (clamp de mês curto)', () => {
+      // dia_fechamento=30 num fevereiro de 28 dias vira dia 28 efetivo
+      expect(competenciaForPurchase('2026-02-28', 30, 6)).toBe('2026-03');
+      expect(competenciaForPurchase('2026-02-27', 30, 6)).toBe('2026-03');
+    });
+
+    it('nunca retorna o mesmo mês da compra', () => {
+      for (let dia = 1; dia <= 28; dia++) {
+        const dataISO = `2026-05-${String(dia).padStart(2, '0')}`;
+        expect(competenciaForPurchase(dataISO, 15, 6)).not.toBe('2026-05');
+      }
+    });
   });
 
-  it('compra depois do fechamento cai na fatura de dois meses à frente', () => {
-    expect(competenciaForPurchase('2026-07-31', 30)).toBe('2026-09');
-  });
+  // Bug relatado em produção: cartão que fecha e vence dentro do mesmo mês
+  // (dia_vencimento >= dia_fechamento) — antes da correção, o offset mínimo
+  // de 1 mês jogava a compra sempre pro mês errado.
+  describe('quando o vencimento cai no mesmo mês do fechamento', () => {
+    it('compra até o dia de fechamento cai na fatura do próprio mês', () => {
+      // Cartão Santander: fecha dia 13, vence dia 20 — compra do dia 02/08
+      // tem que cair na fatura de agosto (fecha 13/08, vence 20/08).
+      expect(competenciaForPurchase('2026-08-02', 13, 20)).toBe('2026-08');
+      expect(competenciaForPurchase('2026-08-13', 13, 20)).toBe('2026-08');
+    });
 
-  it('cartão que fecha dia 1: qualquer compra do mês cai 2 meses à frente, exceto no dia 1', () => {
-    expect(competenciaForPurchase('2026-07-01', 1)).toBe('2026-08');
-    expect(competenciaForPurchase('2026-07-02', 1)).toBe('2026-09');
-  });
+    it('compra depois do fechamento cai na fatura do mês seguinte', () => {
+      expect(competenciaForPurchase('2026-08-14', 13, 20)).toBe('2026-09');
+    });
 
-  it('fechamento cai no fim de fevereiro (clamp de mês curto)', () => {
-    // dia_fechamento=30 num fevereiro de 28 dias vira dia 28 efetivo
-    expect(competenciaForPurchase('2026-02-28', 30)).toBe('2026-03');
-    expect(competenciaForPurchase('2026-02-27', 30)).toBe('2026-03');
-  });
-
-  it('nunca retorna o mesmo mês da compra (offset mínimo é sempre 1)', () => {
-    for (let dia = 1; dia <= 28; dia++) {
-      const dataISO = `2026-05-${String(dia).padStart(2, '0')}`;
-      const competencia = competenciaForPurchase(dataISO, 15);
-      expect(competencia).not.toBe('2026-05');
-    }
+    it('cartão que fecha dia 1: só a compra do próprio dia 1 cai no mesmo mês', () => {
+      expect(competenciaForPurchase('2026-07-01', 1, 8)).toBe('2026-07');
+      expect(competenciaForPurchase('2026-07-02', 1, 8)).toBe('2026-08');
+    });
   });
 });
 
@@ -53,8 +69,9 @@ describe('shiftPurchaseDate', () => {
 
   it('parcela a parcela em compra parcelada gera faturas em meses consecutivos', () => {
     const cartaoFechamento = 13;
+    const cartaoVencimento = 6;
     const datas = [0, 1, 2, 3].map((i) => shiftPurchaseDate('2026-08-08', i));
-    const competencias = datas.map((d) => competenciaForPurchase(d, cartaoFechamento));
+    const competencias = datas.map((d) => competenciaForPurchase(d, cartaoFechamento, cartaoVencimento));
     expect(competencias).toEqual(['2026-09', '2026-10', '2026-11', '2026-12']);
   });
 });

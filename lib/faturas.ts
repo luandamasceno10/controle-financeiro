@@ -12,14 +12,20 @@ function clampDayToMonth(year: number, monthIndex: number, day: number): number 
 }
 
 // A fatura é nomeada pelo mês em que fica devendo (vencimento), não pelo mês da
-// compra: um cartão que fecha dia 30 cobra as compras de 01 a 30 de um mês na
-// fatura do mês SEGUINTE (que é quando ela vence). Por isso o offset mínimo é 1
-// mês (nunca 0) — só passa para 2 meses se a compra cair depois do dia de
-// fechamento (aí ela entra no próximo ciclo de fechamento).
-export function competenciaForPurchase(dataCompraISO: string, diaFechamento: number): string {
+// compra. Isso tem duas etapas: (1) em qual ciclo de fechamento a compra cai —
+// no ciclo que fecha neste mês (compra até o dia de fechamento) ou no que fecha
+// no mês seguinte; e (2) esse ciclo vence no mesmo mês em que fechou ou no
+// seguinte, dependendo se dia_vencimento vem antes ou depois de dia_fechamento
+// no calendário (ex: fecha dia 13 e vence dia 20 → mesmo mês; fecha dia 30 e
+// vence dia 6 → mês seguinte, já que o dia 6 já "passou" dentro do mês).
+// Bug corrigido: antes disso, o offset mínimo era sempre 1 mês, o que jogava
+// pro mês errado qualquer cartão cujo vencimento cai no mesmo mês do fechamento.
+export function competenciaForPurchase(dataCompraISO: string, diaFechamento: number, diaVencimento: number): string {
   const d = new Date(dataCompraISO + 'T00:00:00');
   const fechamentoEfetivo = clampDayToMonth(d.getFullYear(), d.getMonth(), diaFechamento);
-  const offset = d.getDate() <= fechamentoEfetivo ? 1 : 2;
+  const cicloFechaNoMesSeguinte = d.getDate() > fechamentoEfetivo;
+  const venceNoMesSeguinteAoFechamento = diaVencimento < diaFechamento;
+  const offset = (cicloFechaNoMesSeguinte ? 1 : 0) + (venceNoMesSeguinteAoFechamento ? 1 : 0);
   d.setDate(1);
   d.setMonth(d.getMonth() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
