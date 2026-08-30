@@ -290,6 +290,36 @@ export default function Dashboard({ userId }: { userId: string }) {
     return map;
   }, [entries, currentMonth, categoriaByName, categoriaById]);
 
+  // Mesma ideia da despesa por categoria, mas pro lado das entradas — hoje o
+  // app só detalha pra onde o dinheiro vai, nunca de onde ele vem.
+  const categoryDataEntrada = useMemo(() => {
+    const map: Record<string, number> = {};
+    monthEntries.filter(e => e.tipo === 'entrada').forEach(e => {
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      map[nome] = (map[nome] || 0) + Number(e.valor);
+    });
+    return Object.entries(map).map(([name, value]) => ({
+      name, value, icone: categoriaByName[`entrada|${name}`]?.icone,
+    })).sort((a, b) => b.value - a.value);
+  }, [monthEntries, categoriaByName, categoriaById]);
+
+  const maioresRecebimentos = useMemo(
+    () => monthEntries.filter(e => e.tipo === 'entrada').sort((a, b) => Number(b.valor) - Number(a.valor)).slice(0, 8),
+    [monthEntries]
+  );
+
+  const categoryDataEntradaPrevMonth = useMemo(() => {
+    const [y, m] = currentMonth.split('-').map(Number);
+    const prevKey = m === 1 ? null : `${y}-${String(m - 1).padStart(2, '0')}`;
+    if (!prevKey) return null;
+    const map: Record<string, number> = {};
+    entries.filter(e => monthKey(e.data) === prevKey && e.tipo === 'entrada').forEach(e => {
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      map[nome] = (map[nome] || 0) + Number(e.valor);
+    });
+    return map;
+  }, [entries, currentMonth, categoriaByName, categoriaById]);
+
   const orcamentoPorCategoriaId = useMemo(() => {
     const map: Record<number, number> = {};
     orcamentos.forEach((o) => { map[o.categoria_id] = Number(o.valor_limite); });
@@ -736,6 +766,53 @@ export default function Dashboard({ userId }: { userId: string }) {
                   })}
                 </div>
               ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem despesas neste mês ainda.</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Entradas por categoria</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">De onde seu dinheiro está vindo</p>
+              {categoryDataEntrada.length > 0 ? (
+                <CategoriaDonutChart
+                  data={toDonutSlices(categoryDataEntrada)}
+                  totalLabel="Total recebido"
+                  height={220}
+                  renderRowExtra={(c) => {
+                    const prevValue = categoryDataEntradaPrevMonth?.[c.name];
+                    const variacao = prevValue !== undefined && prevValue > 0 ? Math.round(((c.value - prevValue) / prevValue) * 100) : null;
+                    if (variacao === null) return null;
+                    return (
+                      <span className={`text-[10px] font-semibold shrink-0 ${variacao > 0 ? 'text-emerald-500' : variacao < 0 ? 'text-rose-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {variacao > 0 ? '+' : ''}{variacao}%
+                      </span>
+                    );
+                  }}
+                />
+              ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem entradas neste mês ainda.</p>}
+            </div>
+
+            <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Maiores recebimentos do mês</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Os lançamentos de entrada mais relevantes deste mês</p>
+              {maioresRecebimentos.length > 0 ? (
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  {maioresRecebimentos.map((e) => {
+                    const catObj = categoriaByName[`entrada|${e.categoria}`];
+                    const Icon = catObj?.icone ? ICONS[catObj.icone] : null;
+                    return (
+                      <div key={e.id} className="flex items-center gap-3 py-1">
+                        {Icon ? <Icon size={14} className="text-emerald-500 shrink-0" /> : <CircleEllipsis size={14} className="text-emerald-500 shrink-0" />}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500">{fmtDate(e.data)} · {e.categoria}</p>
+                        </div>
+                        <span className="text-xs font-semibold tabular-nums text-emerald-600 shrink-0">+{currency(Number(e.valor))}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem entradas neste mês ainda.</p>}
             </div>
           </div>
 
