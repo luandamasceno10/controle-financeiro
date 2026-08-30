@@ -16,57 +16,34 @@ async function enviarEmailRelatorio(params: {
   destinatario: string;
   mesLabel: string;
   mesRef: string;
-  entrada: number;
-  saida: number;
   saldo: number;
-  topCategorias: [string, number][];
-  orcamentosEstourados: { nome: string; gasto: number; limite: number }[];
+  taxaPoupanca: number;
+  qtdOrcamentosEstourados: number;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return false;
 
-  const { destinatario, mesLabel, mesRef, entrada, saida, saldo, topCategorias, orcamentosEstourados } = params;
-  const linkRelatorio = `${appUrl()}/relatorio?mes=${mesRef}`;
+  const { destinatario, mesLabel, mesRef, saldo, taxaPoupanca, qtdOrcamentosEstourados } = params;
+  const linkDashboard = `${appUrl()}/dashboard?mes=${mesRef}`;
 
-  const linhasCategorias = topCategorias.map(([nome, valor]) =>
-    `<tr><td style="padding:6px 0;color:#334155;font-size:13px;">${nome}</td><td style="padding:6px 0;text-align:right;font-weight:600;color:#334155;font-size:13px;">${currency(valor)}</td></tr>`
-  ).join('');
-
-  const blocoEstourados = orcamentosEstourados.length > 0 ? `
-    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 18px;margin:20px 0;">
-      <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#b91c1c;">⚠️ Orçamentos estourados</p>
-      ${orcamentosEstourados.map((o) => `<p style="margin:2px 0;font-size:13px;color:#7f1d1d;">${o.nome} — ${currency(o.gasto)} de ${currency(o.limite)}</p>`).join('')}
-    </div>` : '';
-
+  // De propósito bem enxuto — o detalhamento (fixo x variável, orçado x
+  // realizado, plano de ação) mora só no PDF, pra não duplicar o dashboard.
   const html = `
-    <div style="font-family:-apple-system,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1e293b;">
+    <div style="font-family:-apple-system,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1e293b;">
       <div style="background:#0f172a;color:#fff;border-radius:12px 12px 0 0;padding:20px 24px;">
         <p style="margin:0;font-size:12px;color:#94a3b8;">Controle Financeiro Pessoal</p>
-        <h1 style="margin:4px 0 0;font-size:18px;">Relatório de ${mesLabel}</h1>
+        <h1 style="margin:4px 0 0;font-size:18px;">O raio-X de ${mesLabel}</h1>
       </div>
       <div style="border:1px solid #e2e8f0;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
-        <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
-          <tr>
-            <td style="padding:8px 0;font-size:12px;color:#64748b;">Entradas</td>
-            <td style="padding:8px 0;text-align:right;font-size:14px;font-weight:700;color:#059669;">${currency(entrada)}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;font-size:12px;color:#64748b;">Saídas</td>
-            <td style="padding:8px 0;text-align:right;font-size:14px;font-weight:700;color:#e11d48;">${currency(saida)}</td>
-          </tr>
-          <tr style="border-top:1px solid #e2e8f0;">
-            <td style="padding:8px 0;font-size:12px;color:#64748b;">Saldo do mês</td>
-            <td style="padding:8px 0;text-align:right;font-size:15px;font-weight:800;color:${saldo >= 0 ? '#0f172a' : '#e11d48'};">${saldo >= 0 ? '+' : ''}${currency(saldo)}</td>
-          </tr>
-        </table>
-        ${blocoEstourados}
-        ${topCategorias.length > 0 ? `
-        <p style="margin:20px 0 6px;font-size:13px;font-weight:700;color:#334155;">Maiores gastos por categoria</p>
-        <table style="width:100%;border-collapse:collapse;">${linhasCategorias}</table>
+        <p style="margin:0 0 4px;font-size:12px;color:#64748b;">Resultado líquido do mês</p>
+        <p style="margin:0 0 20px;font-size:26px;font-weight:800;color:${saldo >= 0 ? '#059669' : '#e11d48'};">${saldo >= 0 ? '+' : ''}${currency(saldo)}</p>
+        <p style="margin:0;font-size:13px;color:#334155;">Você guardou <strong>${taxaPoupanca.toFixed(0)}%</strong> do que recebeu antes mesmo dos gastos do dia a dia.</p>
+        ${qtdOrcamentosEstourados > 0 ? `
+        <p style="margin:16px 0 0;font-size:13px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">⚠️ ${qtdOrcamentosEstourados} categoria${qtdOrcamentosEstourados > 1 ? 's' : ''} passou${qtdOrcamentosEstourados > 1 ? 'ram' : ''} do orçamento — os detalhes e o plano de ação estão no PDF.</p>
         ` : ''}
-        <a href="${linkRelatorio}" style="display:block;text-align:center;margin-top:24px;background:#10b981;color:#0f172a;font-weight:700;font-size:14px;text-decoration:none;padding:12px;border-radius:8px;">Ver relatório completo e baixar PDF</a>
+        <a href="${linkDashboard}" style="display:block;text-align:center;margin-top:22px;background:#10b981;color:#0f172a;font-weight:700;font-size:14px;text-decoration:none;padding:12px;border-radius:8px;">Abrir o mês no app e baixar o PDF completo</a>
+        <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:10px;">O relatório completo — fixos x variáveis, top gastos, orçado x realizado e plano de ação — fica disponível como PDF direto na aba Mensal do Dashboard.</p>
       </div>
-      <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;">Você recebeu este e-mail porque tem uma conta no Controle Financeiro Pessoal.</p>
     </div>
   `;
 
@@ -168,17 +145,17 @@ export async function GET(request: Request) {
     }
     const body = partes.join(' · ');
 
+    const taxaPoupanca = entrada > 0 ? (saldo / entrada) * 100 : 0;
+
     const usuario = allUsers.find((u) => u.id === userId);
     if (usuario?.email) {
       const ok = await enviarEmailRelatorio({
         destinatario: usuario.email,
         mesLabel: `${MESES[mesIdx]} de ${ano}`,
         mesRef,
-        entrada,
-        saida,
         saldo,
-        topCategorias,
-        orcamentosEstourados,
+        taxaPoupanca,
+        qtdOrcamentosEstourados: orcamentosEstourados.length,
       });
       if (ok) emailsSent++;
     }
@@ -188,7 +165,7 @@ export async function GET(request: Request) {
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title, body, url: `/relatorio?mes=${mesRef}` })
+          JSON.stringify({ title, body, url: `/dashboard?mes=${mesRef}` })
         );
         sent++;
         await supabase.from('push_subscriptions').update({ last_report_month: mesRef }).eq('id', sub.id);

@@ -4,7 +4,9 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta, CompraRecorrente } from '@/lib/supabase';
+import { isGastoFixo } from '@/lib/gastoFixoVariavel';
+import RelatorioPDF from './RelatorioPDF';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
@@ -58,6 +60,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
+  const [comprasRecorrentes, setComprasRecorrentes] = useState<CompraRecorrente[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('mensal');
   const [saldoPorConta, setSaldoPorConta] = useState<Record<number, number>>({});
@@ -111,7 +114,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       // exibição, pra não crescer sem limite conforme o histórico do usuário aumenta.
       const anoInicio = `${currentYear}-01-01`;
       const anoFim = `${currentYear}-12-31`;
-      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult, metasResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult, metasResult, recorrentesResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', anoInicio).lte('data', anoFim),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
@@ -121,6 +124,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
         supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
         supabase.from('metas').select('*').eq('user_id', userId).eq('status', 'ativa'),
+        supabase.from('compras_recorrentes').select('*').eq('user_id', userId).eq('ativa', true),
       ]);
 
       if (lancResult.data) setEntries(lancResult.data);
@@ -138,6 +142,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       if (categoriasResult.data) setCategorias(categoriasResult.data);
       if (orcamentosResult.data) setOrcamentos(orcamentosResult.data);
       if (metasResult.data) setMetas(metasResult.data);
+      if (recorrentesResult.data) setComprasRecorrentes(recorrentesResult.data);
 
       if (!hasAnyEntry) {
         const { count } = await supabase.from('lancamentos').select('id', { count: 'exact', head: true }).eq('user_id', userId);
@@ -297,6 +302,69 @@ export default function Dashboard({ userId }: { userId: string }) {
     const limite = orcamentoPorCategoriaId[cat.id];
     return limite !== undefined && valorGasto > limite;
   };
+
+  // --- Relatório do mês (PDF) ---
+
+  const categoryDataComContagem = useMemo(() => {
+    const map: Record<string, { value: number; count: number; icone?: string }> = {};
+    monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      if (!map[nome]) map[nome] = { value: 0, count: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
+      map[nome].value += Number(e.valor);
+      map[nome].count += 1;
+    });
+    return Object.entries(map).map(([name, v]) => ({ name, ...v }));
+  }, [monthEntries, categoriaByName, categoriaById]);
+
+  const fixosRelatorio = useMemo(
+    () => categoryDataComContagem.filter((c) => isGastoFixo(c.name)).sort((a, b) => b.value - a.value),
+    [categoryDataComContagem]
+  );
+  const variaveisRelatorio = useMemo(
+    () => categoryDataComContagem.filter((c) => !isGastoFixo(c.name)).sort((a, b) => b.value - a.value),
+    [categoryDataComContagem]
+  );
+  const custoVidaReal = useMemo(() => fixosRelatorio.reduce((s, c) => s + c.value, 0), [fixosRelatorio]);
+
+  const gastoPorCategoriaIdMes = useMemo(() => {
+    const map: Record<number, number> = {};
+    monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id && !e.cartao_id).forEach((e) => {
+      map[e.categoria_id!] = (map[e.categoria_id!] || 0) + Number(e.valor);
+    });
+    return map;
+  }, [monthEntries]);
+
+  const orcamentoRowsRelatorio = useMemo(() => {
+    return orcamentos
+      .map((o) => {
+        const filhas = categorias.filter((c) => c.parent_id === o.categoria_id).map((c) => c.id);
+        const realizado = [o.categoria_id, ...filhas].reduce((s, id) => s + (gastoPorCategoriaIdMes[id] || 0), 0);
+        const cat = categoriaById[o.categoria_id];
+        return { categoria: cat?.nome || '—', orcado: Number(o.valor_limite), realizado, icone: cat?.icone };
+      })
+      .sort((a, b) => (b.realizado - b.orcado) - (a.realizado - a.orcado));
+  }, [orcamentos, categorias, categoriaById, gastoPorCategoriaIdMes]);
+
+  const assinaturasAtivasRelatorio = useMemo(
+    () => comprasRecorrentes.map((c) => ({ descricao: c.descricao, valor: Number(c.valor) })),
+    [comprasRecorrentes]
+  );
+
+  const proximoMesRelatorio = useMemo(() => {
+    const [y, m] = currentMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, [currentMonth]);
+
+  const proximasDespesasRelatorio = useMemo(() => {
+    return payable
+      .filter((p) => p.status === 'pendente' && p.vencimento.startsWith(proximoMesRelatorio))
+      .sort((a, b) => Number(b.valor) - Number(a.valor))
+      .slice(0, 6)
+      .map((p) => ({ descricao: p.descricao, valor: Number(p.valor), vencimento: p.vencimento }));
+  }, [payable, proximoMesRelatorio]);
+
+  const baixarRelatorioPDF = () => window.print();
 
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
@@ -464,8 +532,8 @@ export default function Dashboard({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900">
-      <header className="bg-slate-900 text-white sticky top-0 z-40">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 print:bg-white">
+      <header className="bg-slate-900 text-white sticky top-0 z-40 print:hidden">
         <div className="max-w-6xl mx-auto px-5 py-5 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-lg font-semibold leading-tight">Dashboard</h1>
@@ -477,15 +545,20 @@ export default function Dashboard({ userId }: { userId: string }) {
               <button onClick={() => setView('anual')} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${view === 'anual' ? 'bg-white dark:bg-slate-800 text-slate-900' : 'text-slate-300 hover:text-white'}`}>Anual</button>
             </div>
             {view === 'mensal' && (
-              contas.length === 0 ? (
-                <Link href="/contas" className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
-                  <Plus size={16} strokeWidth={2.5} /> Cadastrar conta
-                </Link>
-              ) : (
-                <button onClick={openNewEntry} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
-                  <Plus size={16} strokeWidth={2.5} /> Novo
+              <>
+                <button onClick={baixarRelatorioPDF} title="Baixar relatório do mês em PDF" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm px-3 py-2.5 rounded-lg transition-colors">
+                  <FileDown size={16} /> Relatório
                 </button>
-              )
+                {contas.length === 0 ? (
+                  <Link href="/contas" className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+                    <Plus size={16} strokeWidth={2.5} /> Cadastrar conta
+                  </Link>
+                ) : (
+                  <button onClick={openNewEntry} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+                    <Plus size={16} strokeWidth={2.5} /> Novo
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -506,7 +579,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       </header>
 
       {view === 'mensal' ? (
-        <main className="max-w-6xl mx-auto px-5 py-6 space-y-6">
+        <main className="max-w-6xl mx-auto px-5 py-6 space-y-6 print:hidden">
           {contas.length === 0 ? (
             <Link href="/contas" className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 rounded-xl p-4 flex items-start gap-3 hover:bg-emerald-100/60 transition-colors">
               <Wallet size={18} className="text-emerald-600 shrink-0 mt-0.5" />
@@ -791,6 +864,24 @@ export default function Dashboard({ userId }: { userId: string }) {
         </main>
       ) : (
         <AnnualView yearData={yearData} yearTotals={yearTotals} yearCategoryData={yearCategoryData} patrimonioEvolucao={patrimonioEvolucao} forecast={forecast} currentYear={currentYear} setCurrentYear={setCurrentYear} onGoToMonth={(k) => { setCurrentMonth(k); setView('mensal'); }} />
+      )}
+      {view === 'mensal' && (
+        <div className="hidden print:block max-w-3xl mx-auto px-6 py-6 bg-white">
+          <RelatorioPDF
+            mesLabel={`${MONTH_NAMES_FULL[monthIdx]} ${currentYear}`}
+            geradoEm={new Date().toLocaleDateString('pt-BR')}
+            entrada={totals.entrada}
+            saida={totals.saida}
+            saldo={totals.saldo}
+            taxaPoupanca={totals.entrada > 0 ? (totals.saldo / totals.entrada) * 100 : 0}
+            custoVidaReal={custoVidaReal}
+            fixos={fixosRelatorio}
+            variaveis={variaveisRelatorio}
+            assinaturasAtivas={assinaturasAtivasRelatorio}
+            orcamentoRows={orcamentoRowsRelatorio}
+            proximasDespesas={proximasDespesasRelatorio}
+          />
+        </div>
       )}
       {showForm && (
         <LancamentoForm
