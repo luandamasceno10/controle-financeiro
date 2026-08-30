@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import { renderToBuffer } from '@react-pdf/renderer';
+import { computeRelatorioMensal } from '@/lib/relatorioCalculos';
+import { RelatorioPdfDocument } from '@/lib/relatorioPdfDocument';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -19,15 +22,17 @@ async function enviarEmailRelatorio(params: {
   saldo: number;
   taxaPoupanca: number;
   qtdOrcamentosEstourados: number;
+  pdfBuffer: Buffer;
 }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return false;
 
-  const { destinatario, mesLabel, mesRef, saldo, taxaPoupanca, qtdOrcamentosEstourados } = params;
+  const { destinatario, mesLabel, mesRef, saldo, taxaPoupanca, qtdOrcamentosEstourados, pdfBuffer } = params;
   const linkDashboard = `${appUrl()}/dashboard?mes=${mesRef}`;
 
-  // De propósito bem enxuto — o detalhamento (fixo x variável, orçado x
-  // realizado, plano de ação) mora só no PDF, pra não duplicar o dashboard.
+  // De propósito bem enxuto — o detalhamento (Pix x Cartão por categoria,
+  // top gastos, orçado x realizado, plano de ação) mora só no PDF anexo,
+  // pra não duplicar o dashboard nem exigir login pra ver o resumo completo.
   const html = `
     <div style="font-family:-apple-system,Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1e293b;">
       <div style="background:#0f172a;color:#fff;border-radius:12px 12px 0 0;padding:20px 24px;">
@@ -39,10 +44,10 @@ async function enviarEmailRelatorio(params: {
         <p style="margin:0 0 20px;font-size:26px;font-weight:800;color:${saldo >= 0 ? '#059669' : '#e11d48'};">${saldo >= 0 ? '+' : ''}${currency(saldo)}</p>
         <p style="margin:0;font-size:13px;color:#334155;">Você guardou <strong>${taxaPoupanca.toFixed(0)}%</strong> do que recebeu antes mesmo dos gastos do dia a dia.</p>
         ${qtdOrcamentosEstourados > 0 ? `
-        <p style="margin:16px 0 0;font-size:13px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">⚠️ ${qtdOrcamentosEstourados} categoria${qtdOrcamentosEstourados > 1 ? 's' : ''} passou${qtdOrcamentosEstourados > 1 ? 'ram' : ''} do orçamento — os detalhes e o plano de ação estão no PDF.</p>
+        <p style="margin:16px 0 0;font-size:13px;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">⚠️ ${qtdOrcamentosEstourados} categoria${qtdOrcamentosEstourados > 1 ? 's' : ''} passou${qtdOrcamentosEstourados > 1 ? 'ram' : ''} do orçamento — os detalhes e o plano de ação estão no PDF em anexo.</p>
         ` : ''}
-        <a href="${linkDashboard}" style="display:block;text-align:center;margin-top:22px;background:#10b981;color:#0f172a;font-weight:700;font-size:14px;text-decoration:none;padding:12px;border-radius:8px;">Abrir o mês no app e baixar o PDF completo</a>
-        <p style="text-align:center;font-size:11px;color:#94a3b8;margin-top:10px;">O relatório completo — fixos x variáveis, top gastos, orçado x realizado e plano de ação — fica disponível como PDF direto na aba Mensal do Dashboard.</p>
+        <p style="margin:18px 0 0;font-size:13px;color:#334155;">📎 O relatório completo está em <strong>PDF anexo a este e-mail</strong> — não precisa abrir o app pra ver.</p>
+        <a href="${linkDashboard}" style="display:block;text-align:center;margin-top:14px;background:#10b981;color:#0f172a;font-weight:700;font-size:14px;text-decoration:none;padding:12px;border-radius:8px;">Abrir o mês no app</a>
       </div>
     </div>
   `;
@@ -56,6 +61,10 @@ async function enviarEmailRelatorio(params: {
         to: destinatario,
         subject: `📊 Seu relatório de ${mesLabel} está pronto`,
         html,
+        attachments: [{
+          filename: `relatorio-${mesRef}.pdf`,
+          content: pdfBuffer.toString('base64'),
+        }],
       }),
     });
     return res.ok;
@@ -84,6 +93,7 @@ export async function GET(request: Request) {
   const ano = mesAnteriorDate.getFullYear();
   const mesIdx = mesAnteriorDate.getMonth();
   const mesRef = `${ano}-${String(mesIdx + 1).padStart(2, '0')}`;
+  const proximoMesRef = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
   const { data: subs } = await supabase.from('push_subscriptions').select('*');
 
@@ -101,61 +111,61 @@ export async function GET(request: Request) {
   let emailsSent = 0;
 
   for (const userId of userIds) {
-    const [{ data: lancamentos }, { data: categorias }, { data: orcamentos }] = await Promise.all([
+    const [{ data: lancamentos }, { data: categorias }, { data: orcamentos }, { data: comprasRecorrentes }, { data: contasPagar }] = await Promise.all([
       supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', `${mesRef}-01`).lte('data', `${mesRef}-31`),
       supabase.from('categorias').select('*').eq('user_id', userId),
       supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
+      supabase.from('compras_recorrentes').select('*').eq('user_id', userId).eq('ativa', true),
+      supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente'),
     ]);
 
-    const entries = lancamentos || [];
-    const entrada = entries.filter((e) => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-    const saida = entries.filter((e) => e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
+    const monthEntries = lancamentos || [];
+    if (monthEntries.length === 0) continue;
 
-    if (entrada === 0 && saida === 0) continue;
+    const proximasContasPagar = (contasPagar || []).filter((p) => p.vencimento.startsWith(proximoMesRef));
 
-    const porCategoria: Record<string, number> = {};
-    const porCategoriaId: Record<number, number> = {};
-    entries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
-      porCategoria[e.categoria] = (porCategoria[e.categoria] || 0) + Number(e.valor);
-      if (e.categoria_id) porCategoriaId[e.categoria_id] = (porCategoriaId[e.categoria_id] || 0) + Number(e.valor);
+    const relatorio = computeRelatorioMensal({
+      monthEntries,
+      categorias: categorias || [],
+      orcamentos: orcamentos || [],
+      comprasRecorrentes: comprasRecorrentes || [],
+      proximasContasPagar,
     });
-    const topCategorias = Object.entries(porCategoria).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-    const categoriasList = categorias || [];
-    const orcamentosEstourados = (orcamentos || [])
-      .map((o) => {
-        const filhas = categoriasList.filter((c) => c.parent_id === o.categoria_id).map((c) => c.id);
-        const gasto = [o.categoria_id, ...filhas].reduce((s, id) => s + (porCategoriaId[id] || 0), 0);
-        const cat = categoriasList.find((c) => c.id === o.categoria_id);
-        return { nome: cat?.nome || 'categoria', gasto, limite: Number(o.valor_limite) };
-      })
-      .filter((o) => o.gasto > o.limite);
+    if (relatorio.entrada === 0 && relatorio.saida === 0) continue;
 
-    const saldo = entrada - saida;
+    const orcamentosEstourados = relatorio.orcamentoRows.filter((o) => o.realizado > o.orcado);
+    const topCategorias = [...relatorio.variaveis].sort((a, b) => b.value - a.value).slice(0, 3);
+
     const title = `📊 Resumo de ${MESES[mesIdx]}`;
     const partes = [
-      `Entradas ${currency(entrada)}`,
-      `Saídas ${currency(saida)}`,
-      `Saldo ${saldo >= 0 ? '+' : ''}${currency(saldo)}`,
+      `Entradas ${currency(relatorio.entrada)}`,
+      `Saídas ${currency(relatorio.saida)}`,
+      `Saldo ${relatorio.saldo >= 0 ? '+' : ''}${currency(relatorio.saldo)}`,
     ];
     if (orcamentosEstourados.length > 0) {
       partes.push(`${orcamentosEstourados.length} orçamento${orcamentosEstourados.length > 1 ? 's' : ''} estourado${orcamentosEstourados.length > 1 ? 's' : ''}`);
     } else if (topCategorias.length > 0) {
-      partes.push(`Maior gasto: ${topCategorias[0][0]} (${currency(topCategorias[0][1])})`);
+      partes.push(`Maior gasto: ${topCategorias[0].name} (${currency(topCategorias[0].value)})`);
     }
     const body = partes.join(' · ');
 
-    const taxaPoupanca = entrada > 0 ? (saldo / entrada) * 100 : 0;
-
     const usuario = allUsers.find((u) => u.id === userId);
     if (usuario?.email) {
+      const mesLabel = `${MESES[mesIdx]} de ${ano}`;
+      const pdfBuffer = await renderToBuffer(RelatorioPdfDocument({
+        mesLabel,
+        geradoEm: new Date().toLocaleDateString('pt-BR'),
+        data: relatorio,
+      }));
       const ok = await enviarEmailRelatorio({
         destinatario: usuario.email,
-        mesLabel: `${MESES[mesIdx]} de ${ano}`,
+        mesLabel,
         mesRef,
-        saldo,
-        taxaPoupanca,
+        saldo: relatorio.saldo,
+        taxaPoupanca: relatorio.taxaPoupanca,
         qtdOrcamentosEstourados: orcamentosEstourados.length,
+        pdfBuffer,
       });
       if (ok) emailsSent++;
     }

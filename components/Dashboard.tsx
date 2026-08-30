@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta, CompraRecorrente } from '@/lib/supabase';
-import { isGastoFixo } from '@/lib/gastoFixoVariavel';
+import { computeRelatorioMensal } from '@/lib/relatorioCalculos';
 import RelatorioPDF from './RelatorioPDF';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
@@ -304,70 +304,13 @@ export default function Dashboard({ userId }: { userId: string }) {
   };
 
   // --- Relatório do mês (PDF) ---
+  // Cálculo centralizado em lib/relatorioCalculos.ts — é a mesma função usada
+  // pelo e-mail automático do dia 1, pra garantir que os números batem.
 
   // Mesma paleta categórica fixa do resto do app (lib/categoriaPalette.ts),
   // atribuída por posição no ranking já ordenado de cada lista do relatório.
   const comCorPorIndice = <T,>(arr: T[]): (T & { color: string })[] =>
     arr.map((item, i) => ({ ...item, color: `var(--series-${(i % 8) + 1})` }));
-
-  const categoryDataComContagem = useMemo(() => {
-    const map: Record<string, { value: number; count: number; icone?: string }> = {};
-    monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
-      const nome = rollupCategoriaNome(e.categoria, e.tipo);
-      if (!map[nome]) map[nome] = { value: 0, count: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
-      map[nome].value += Number(e.valor);
-      map[nome].count += 1;
-    });
-    return Object.entries(map).map(([name, v]) => ({ name, ...v }));
-  }, [monthEntries, categoriaByName, categoriaById]);
-
-  const fixosRelatorio = useMemo(
-    () => comCorPorIndice(categoryDataComContagem.filter((c) => isGastoFixo(c.name)).sort((a, b) => b.value - a.value)),
-    [categoryDataComContagem]
-  );
-  const variaveisRelatorio = useMemo(
-    () => comCorPorIndice(categoryDataComContagem.filter((c) => !isGastoFixo(c.name)).sort((a, b) => b.value - a.value)),
-    [categoryDataComContagem]
-  );
-  const custoVidaReal = useMemo(() => fixosRelatorio.reduce((s, c) => s + c.value, 0), [fixosRelatorio]);
-
-  const gastoPorCategoriaIdMes = useMemo(() => {
-    const map: Record<number, number> = {};
-    monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id && !e.cartao_id).forEach((e) => {
-      map[e.categoria_id!] = (map[e.categoria_id!] || 0) + Number(e.valor);
-    });
-    return map;
-  }, [monthEntries]);
-
-  const orcamentoRowsRelatorio = useMemo(() => {
-    const rows = orcamentos
-      .map((o) => {
-        const filhas = categorias.filter((c) => c.parent_id === o.categoria_id).map((c) => c.id);
-        const realizado = [o.categoria_id, ...filhas].reduce((s, id) => s + (gastoPorCategoriaIdMes[id] || 0), 0);
-        const cat = categoriaById[o.categoria_id];
-        return { categoria: cat?.nome || '—', orcado: Number(o.valor_limite), realizado, icone: cat?.icone };
-      })
-      .sort((a, b) => (b.realizado - b.orcado) - (a.realizado - a.orcado));
-    return comCorPorIndice(rows);
-  }, [orcamentos, categorias, categoriaById, gastoPorCategoriaIdMes]);
-
-  const categoriaPixCartaoRelatorio = useMemo(() => {
-    const map: Record<string, { pix: number; cartao: number; icone?: string }> = {};
-    monthEntries.filter((e) => e.tipo === 'saida').forEach((e) => {
-      const nome = rollupCategoriaNome(e.categoria, e.tipo);
-      if (!map[nome]) map[nome] = { pix: 0, cartao: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
-      map[nome][e.forma_pagamento] += Number(e.valor);
-    });
-    const rows = Object.entries(map)
-      .map(([name, v]) => ({ name, ...v, total: v.pix + v.cartao }))
-      .sort((a, b) => b.total - a.total);
-    return comCorPorIndice(rows);
-  }, [monthEntries, categoriaByName, categoriaById]);
-
-  const assinaturasAtivasRelatorio = useMemo(
-    () => comprasRecorrentes.map((c) => ({ descricao: c.descricao, valor: Number(c.valor) })),
-    [comprasRecorrentes]
-  );
 
   const proximoMesRelatorio = useMemo(() => {
     const [y, m] = currentMonth.split('-').map(Number);
@@ -375,13 +318,29 @@ export default function Dashboard({ userId }: { userId: string }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }, [currentMonth]);
 
-  const proximasDespesasRelatorio = useMemo(() => {
-    return payable
-      .filter((p) => p.status === 'pendente' && p.vencimento.startsWith(proximoMesRelatorio))
-      .sort((a, b) => Number(b.valor) - Number(a.valor))
-      .slice(0, 6)
-      .map((p) => ({ descricao: p.descricao, valor: Number(p.valor), vencimento: p.vencimento }));
-  }, [payable, proximoMesRelatorio]);
+  const proximasContasPagarRelatorio = useMemo(
+    () => payable.filter((p) => p.status === 'pendente' && p.vencimento.startsWith(proximoMesRelatorio)),
+    [payable, proximoMesRelatorio]
+  );
+
+  const relatorioCalculado = useMemo(
+    () => computeRelatorioMensal({
+      monthEntries,
+      categorias,
+      orcamentos,
+      comprasRecorrentes,
+      proximasContasPagar: proximasContasPagarRelatorio,
+    }),
+    [monthEntries, categorias, orcamentos, comprasRecorrentes, proximasContasPagarRelatorio]
+  );
+
+  const custoVidaReal = relatorioCalculado.custoVidaReal;
+  const fixosRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.fixos), [relatorioCalculado]);
+  const variaveisRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.variaveis), [relatorioCalculado]);
+  const orcamentoRowsRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.orcamentoRows), [relatorioCalculado]);
+  const categoriaPixCartaoRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.categoriaPixCartao), [relatorioCalculado]);
+  const assinaturasAtivasRelatorio = relatorioCalculado.assinaturasAtivas;
+  const proximasDespesasRelatorio = relatorioCalculado.proximasDespesas;
 
   const baixarRelatorioPDF = () => window.print();
 
@@ -889,10 +848,10 @@ export default function Dashboard({ userId }: { userId: string }) {
           <RelatorioPDF
             mesLabel={`${MONTH_NAMES_FULL[monthIdx]} ${currentYear}`}
             geradoEm={new Date().toLocaleDateString('pt-BR')}
-            entrada={totals.entrada}
-            saida={totals.saida}
-            saldo={totals.saldo}
-            taxaPoupanca={totals.entrada > 0 ? (totals.saldo / totals.entrada) * 100 : 0}
+            entrada={relatorioCalculado.entrada}
+            saida={relatorioCalculado.saida}
+            saldo={relatorioCalculado.saldo}
+            taxaPoupanca={relatorioCalculado.taxaPoupanca}
             custoVidaReal={custoVidaReal}
             fixos={fixosRelatorio}
             variaveis={variaveisRelatorio}
