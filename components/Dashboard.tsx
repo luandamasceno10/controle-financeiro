@@ -305,6 +305,11 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   // --- Relatório do mês (PDF) ---
 
+  // Mesma paleta categórica fixa do resto do app (lib/categoriaPalette.ts),
+  // atribuída por posição no ranking já ordenado de cada lista do relatório.
+  const comCorPorIndice = <T,>(arr: T[]): (T & { color: string })[] =>
+    arr.map((item, i) => ({ ...item, color: `var(--series-${(i % 8) + 1})` }));
+
   const categoryDataComContagem = useMemo(() => {
     const map: Record<string, { value: number; count: number; icone?: string }> = {};
     monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
@@ -317,11 +322,11 @@ export default function Dashboard({ userId }: { userId: string }) {
   }, [monthEntries, categoriaByName, categoriaById]);
 
   const fixosRelatorio = useMemo(
-    () => categoryDataComContagem.filter((c) => isGastoFixo(c.name)).sort((a, b) => b.value - a.value),
+    () => comCorPorIndice(categoryDataComContagem.filter((c) => isGastoFixo(c.name)).sort((a, b) => b.value - a.value)),
     [categoryDataComContagem]
   );
   const variaveisRelatorio = useMemo(
-    () => categoryDataComContagem.filter((c) => !isGastoFixo(c.name)).sort((a, b) => b.value - a.value),
+    () => comCorPorIndice(categoryDataComContagem.filter((c) => !isGastoFixo(c.name)).sort((a, b) => b.value - a.value)),
     [categoryDataComContagem]
   );
   const custoVidaReal = useMemo(() => fixosRelatorio.reduce((s, c) => s + c.value, 0), [fixosRelatorio]);
@@ -335,7 +340,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   }, [monthEntries]);
 
   const orcamentoRowsRelatorio = useMemo(() => {
-    return orcamentos
+    const rows = orcamentos
       .map((o) => {
         const filhas = categorias.filter((c) => c.parent_id === o.categoria_id).map((c) => c.id);
         const realizado = [o.categoria_id, ...filhas].reduce((s, id) => s + (gastoPorCategoriaIdMes[id] || 0), 0);
@@ -343,7 +348,21 @@ export default function Dashboard({ userId }: { userId: string }) {
         return { categoria: cat?.nome || '—', orcado: Number(o.valor_limite), realizado, icone: cat?.icone };
       })
       .sort((a, b) => (b.realizado - b.orcado) - (a.realizado - a.orcado));
+    return comCorPorIndice(rows);
   }, [orcamentos, categorias, categoriaById, gastoPorCategoriaIdMes]);
+
+  const categoriaPixCartaoRelatorio = useMemo(() => {
+    const map: Record<string, { pix: number; cartao: number; icone?: string }> = {};
+    monthEntries.filter((e) => e.tipo === 'saida').forEach((e) => {
+      const nome = rollupCategoriaNome(e.categoria, e.tipo);
+      if (!map[nome]) map[nome] = { pix: 0, cartao: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
+      map[nome][e.forma_pagamento] += Number(e.valor);
+    });
+    const rows = Object.entries(map)
+      .map(([name, v]) => ({ name, ...v, total: v.pix + v.cartao }))
+      .sort((a, b) => b.total - a.total);
+    return comCorPorIndice(rows);
+  }, [monthEntries, categoriaByName, categoriaById]);
 
   const assinaturasAtivasRelatorio = useMemo(
     () => comprasRecorrentes.map((c) => ({ descricao: c.descricao, valor: Number(c.valor) })),
@@ -877,6 +896,7 @@ export default function Dashboard({ userId }: { userId: string }) {
             custoVidaReal={custoVidaReal}
             fixos={fixosRelatorio}
             variaveis={variaveisRelatorio}
+            categoriaPixCartao={categoriaPixCartaoRelatorio}
             assinaturasAtivas={assinaturasAtivasRelatorio}
             orcamentoRows={orcamentoRowsRelatorio}
             proximasDespesas={proximasDespesasRelatorio}
