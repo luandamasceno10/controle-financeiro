@@ -1,18 +1,8 @@
 import type { StatementLine } from '@/lib/statement';
 import { parseBRNumber, parseDate, normalizeDescricao } from '@/lib/statement';
 
-// Roda o pdf.js inteiro na thread principal, sem Web Worker. Tentativas
-// anteriores (polyfill de Promise.withResolvers, depois a build "legacy",
-// depois versionar a URL do worker contra cache) não resolveram o erro em
-// produção num iPhone com iOS 17.4+ rodando o app instalado como PWA — o que
-// aponta pra algum bug do próprio WebKit com Web Worker de módulo ES dentro
-// desse modo "standalone" specific, e não pra falta de alguma API do JS.
-// Importar o módulo do worker direto (em vez de apontar GlobalWorkerOptions.
-// workerSrc pra um arquivo em public/) faz ele se auto-registrar em
-// `globalThis.pdfjsWorker` como efeito colateral — e o pdf.js, ao detectar
-// isso, pula a criação de um Worker de verdade e roda tudo inline. Mais lento
-// (bloqueia a thread principal por um instante), mas evita o Worker por
-// completo, então não importa o que estava quebrando ali.
+// Roda o pdf.js inteiro na thread principal, sem Web Worker (ver histórico
+// de tentativas abaixo — essa parte já está resolvida).
 async function extractPdfLines(file: File): Promise<string[]> {
   await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -23,10 +13,23 @@ async function extractPdfLines(file: File): Promise<string[]> {
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
-    const content = await page.getTextContent();
+    // Encontrado a partir da pilha de erro real de um usuário (Safari/iOS):
+    // page.getTextContent() por baixo dos panos faz `for await (const t of e)`
+    // num ReadableStream (streamTextContent()) — e esse WebKit específico não
+    // suporta iteração assíncrona nativa (`for await...of`) sobre ReadableStream,
+    // travando com "undefined is not a function". streamTextContent() em si
+    // funciona; só a forma como a própria lib consome ele quebra. Contorna lendo
+    // o stream manualmente com getReader()/read(), sem depender de for-await-of.
+    const items: any[] = [];
+    const reader = page.streamTextContent().getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value?.items) items.push(...value.items);
+    }
     const rows = new Map<number, { x: number; str: string }[]>();
 
-    for (const item of content.items as any[]) {
+    for (const item of items) {
       if (!item.str || !item.str.trim()) continue;
       // Arredonda o Y pra agrupar itens da mesma linha visual mesmo com
       // pequenas variações de fonte/baseline entre eles.
