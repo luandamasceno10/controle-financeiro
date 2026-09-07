@@ -44,4 +44,21 @@ describe('parseFaturaPdfLines', () => {
     const noventaENove = result.filter((r) => r.descricao === '99*');
     expect(noventaENove).toHaveLength(2);
   });
+
+  it('ignora a seção de prévia "Compras parceladas - próximas faturas" (mostra a parcela seguinte de compras já cobradas nesta fatura)', () => {
+    // Achado com uma fatura real: a seção principal cobra a parcela 2/10 de uma
+    // compra; mais adiante, uma seção só de prévia lista a mesma compra como
+    // 3/10 — mesmo valor, e o parcela-marker "3/10" não bate com "2/10" na
+    // deduplicação por descrição, então sem cortar a seção inteira ela contava
+    // em dobro.
+    const result = parseFaturaPdfLines(
+      [
+        '07/07 BRASTEMP *BRAST02/10 466,98',
+        'Compras parceladas - próximas faturas',
+        '07/07 BRASTEMP *BRAST03/10 466,98',
+      ],
+      '2026-09'
+    );
+    expect(result).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast02/10', valor: 466.98 }]);
+  });
 });

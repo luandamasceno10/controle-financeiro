@@ -67,6 +67,18 @@ const IGNORAR_DESCRICAO = [
   /pagamento (?:recebido|efetuado)/i, /vencimento/i, /fatura anterior/i,
 ];
 
+// Faturas (achado com uma fatura real do Itaú) costumam ter, perto do fim,
+// uma seção só de PRÉVIA — "Compras parceladas - próximas faturas" — que
+// reimprime cada compra parcelada com o número da parcela seguinte (ex.: a
+// parcela 2/10 já é cobrada nesta fatura; a seção de prévia mostra a mesma
+// compra como "3/10", que só vai ser cobrada na fatura do mês que vem). Sem
+// cortar isso, cada compra parcelada dessa fatura conta em dobro: uma vez de
+// verdade na lista principal, outra na prévia — e como o texto do valor é
+// idêntico mas a data às vezes também repete, nem sempre a deduplicação por
+// data+valor+descrição pega isso. Uma vez que uma dessas linhas de cabeçalho
+// aparece, o resto do PDF a partir dali é só prévia/simulação — não conta.
+const CORTE_PREVIA = [/pr[oó]ximas faturas/i, /credi[aá]rio \(pr[oó]ximo per[ií]odo\)/i, /compras parceladas/i];
+
 // Faturas quase sempre mostram a data da compra como "DD/MM", sem ano —
 // diferente de extrato bancário, que costuma trazer o ano. Sem isso, infere
 // o ano a partir da competência da fatura: compras de um mês "maior" que o
@@ -84,7 +96,10 @@ function inferirData(dataRaw: string, competencia?: string): string | null {
   return parseDate(dataRaw);
 }
 
-export function parseFaturaPdfLines(lines: string[], competencia?: string): StatementLine[] {
+export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: string): StatementLine[] {
+  const corteIdx = linhasCompletas.findIndex((l) => CORTE_PREVIA.some((re) => re.test(l)));
+  const lines = corteIdx === -1 ? linhasCompletas : linhasCompletas.slice(0, corteIdx);
+
   const result: StatementLine[] = [];
   const vistos = new Set<string>();
   for (const rawLine of lines) {
