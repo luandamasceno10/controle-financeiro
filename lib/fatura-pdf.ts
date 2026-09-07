@@ -1,29 +1,19 @@
 import type { StatementLine } from '@/lib/statement';
 import { parseBRNumber, parseDate, normalizeDescricao } from '@/lib/statement';
 
-// pdfjs-dist usa Promise.withResolvers() (API de 2024), ausente em iOS/Safari
-// anteriores a 17.4 — sem isso o import quebra com "undefined is not a
-// function" assim que a lib tenta usá-la. O worker roda num escopo global à
-// parte (ver public/pdf.worker.wrapper.mjs), então o polyfill precisa entrar
-// nos dois lugares.
-function polyfillPromiseWithResolvers() {
-  if (typeof Promise.withResolvers !== 'function') {
-    (Promise as any).withResolvers = function <T>() {
-      let resolve!: (value: T | PromiseLike<T>) => void;
-      let reject!: (reason?: any) => void;
-      const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
-      return { promise, resolve, reject };
-    };
-  }
-}
+// Usa a build "legacy" do pdfjs-dist (em vez de 'pdfjs-dist' direto), que traz
+// polyfills embutidos (core-js) para APIs recentes como Promise.withResolvers().
+// A build padrão chama isso sem fallback e quebra com "undefined is not a
+// function" em iOS/Safari mais antigos — a legacy é o próprio pacote resolvendo
+// isso, em vez de um polyfill nosso tentando adivinhar tudo que falta.
+// public/pdf.worker.min.mjs é copiado da legacy também (ver postinstall).
 
 // Extrai o texto do PDF agrupando por linha visual (mesma posição Y na
 // página) em vez de simplesmente concatenar tudo — faturas de cartão são
 // tabelas, e sem isso a ordem das colunas se perde.
 async function extractPdfLines(file: File): Promise<string[]> {
-  polyfillPromiseWithResolvers();
-  const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.wrapper.mjs';
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
