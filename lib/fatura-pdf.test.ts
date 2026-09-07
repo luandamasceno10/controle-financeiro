@@ -4,7 +4,9 @@ import { parseFaturaPdfLines } from './fatura-pdf';
 describe('parseFaturaPdfLines', () => {
   it('reconhece uma linha simples de compra', () => {
     const result = parseFaturaPdfLines(['15/08 UI CREPE 48,00'], '2026-09');
-    expect(result).toEqual([{ data: '2026-08-15', hora: null, descricao: 'Ui Crepe', valor: 48 }]);
+    expect(result.atual).toEqual([{ data: '2026-08-15', hora: null, descricao: 'Ui Crepe', valor: 48 }]);
+    expect(result.proximaFatura).toEqual([]);
+    expect(result.encargos).toBe(0);
   });
 
   it('separa duas compras de colunas lado a lado que a extração juntou numa linha só', () => {
@@ -14,7 +16,7 @@ describe('parseFaturaPdfLines', () => {
       ['30/08 AMAZON PRIME BR 12/12 13,90 23/08 CIA DO PAO LTDA 132,80'],
       '2026-09'
     );
-    expect(result).toEqual([
+    expect(result.atual).toEqual([
       { data: '2026-08-30', hora: null, descricao: 'Amazon Prime Br', valor: 13.9 },
       { data: '2026-08-23', hora: null, descricao: 'Cia Do Pao Ltda', valor: 132.8 },
     ]);
@@ -25,7 +27,7 @@ describe('parseFaturaPdfLines', () => {
       ['62053-745 SOBRAL - CE Pagamento efetuado em 07/08/2026 - 12.497,30'],
       '2026-09'
     );
-    expect(result).toEqual([]);
+    expect(result.atual).toEqual([]);
   });
 
   it('remove compras repetidas (mesma data, valor e descrição) — faturas costumam reimprimir parcelas futuras numa seção à parte', () => {
@@ -33,7 +35,7 @@ describe('parseFaturaPdfLines', () => {
       ['12/08 FARIAS BRITO 01/03 253,34', '12/08 FARIAS BRITO 01/03 253,34'],
       '2026-09'
     );
-    expect(result).toHaveLength(1);
+    expect(result.atual).toHaveLength(1);
   });
 
   it('mantém duas compras distintas com mesma data e valor mas descrições diferentes', () => {
@@ -41,16 +43,15 @@ describe('parseFaturaPdfLines', () => {
       ['14/08 99* 6,88 28/07 BOULEVARD PH-CT 02/02 149,00', '14/08 99* 6,88 28/07 MATEUS SUPRM-CT DO02/02 528,10'],
       '2026-09'
     );
-    const noventaENove = result.filter((r) => r.descricao === '99*');
+    const noventaENove = result.atual.filter((r) => r.descricao === '99*');
     expect(noventaENove).toHaveLength(2);
   });
 
-  it('ignora a seção de prévia "Compras parceladas - próximas faturas" (mostra a parcela seguinte de compras já cobradas nesta fatura)', () => {
+  it('separa a seção "Compras parceladas - próximas faturas" em vez de descartar', () => {
     // Achado com uma fatura real: a seção principal cobra a parcela 2/10 de uma
     // compra; mais adiante, uma seção só de prévia lista a mesma compra como
-    // 3/10 — mesmo valor, e o parcela-marker "3/10" não bate com "2/10" na
-    // deduplicação por descrição, então sem cortar a seção inteira ela contava
-    // em dobro.
+    // 3/10 — mesmo valor. Antes isso era só cortado fora; agora extraímos como
+    // "próxima fatura" pra já lançar no mês certo.
     const result = parseFaturaPdfLines(
       [
         '07/07 BRASTEMP *BRAST02/10 466,98',
@@ -59,6 +60,27 @@ describe('parseFaturaPdfLines', () => {
       ],
       '2026-09'
     );
-    expect(result).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast02/10', valor: 466.98 }]);
+    expect(result.atual).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast02/10', valor: 466.98 }]);
+    expect(result.proximaFatura).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast03/10', valor: 466.98 }]);
+  });
+
+  it('extrai o total de encargos de uma linha única', () => {
+    const result = parseFaturaPdfLines(
+      [
+        'Juros de mora 1,00 % am 4,16',
+        'Multa por atraso 2,00 % 249,93',
+        'IOF de financiamento (0,38 % + 0,00820 % a.d.) 0,00',
+        'E Total de encargos em R$ 322,47',
+      ],
+      '2026-09'
+    );
+    expect(result.encargos).toBe(322.47);
+    // As linhas de encargos individuais não têm data — não viram "compra".
+    expect(result.atual).toEqual([]);
+  });
+
+  it('encargos fica 0 quando a fatura não tem essa linha', () => {
+    const result = parseFaturaPdfLines(['15/08 UI CREPE 48,00'], '2026-09');
+    expect(result.encargos).toBe(0);
   });
 });

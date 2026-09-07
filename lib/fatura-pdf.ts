@@ -62,8 +62,13 @@ async function extractPdfLines(file: File): Promise<string[]> {
 // mesma linha em vez de misturar a data de uma com o valor da outra.
 const LINE_PATTERN = /(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?R?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}-?)(?=\s|$)/g;
 
+// "encargos" saiu daqui de propósito: linhas de resumo tipo "Encargos
+// (financiamento + moratório) 322,47" nunca batem no LINE_PATTERN mesmo (não
+// têm uma data DD/MM na frente), mas "30/08 ENCARGOS DE ATRASO 51,91" é uma
+// cobrança de verdade, com data, numa seção separada ("Lançamentos: produtos
+// e serviços") — e barrar pelo nome escondia ela junto.
 const IGNORAR_DESCRICAO = [
-  /total/i, /saldo/i, /limite/i, /encargos/i, /iof/i, /juros rotativo/i,
+  /total/i, /saldo/i, /limite/i, /iof/i, /juros rotativo/i,
   /pagamento (?:recebido|efetuado)/i, /vencimento/i, /fatura anterior/i,
 ];
 
@@ -71,13 +76,19 @@ const IGNORAR_DESCRICAO = [
 // uma seção só de PRÉVIA — "Compras parceladas - próximas faturas" — que
 // reimprime cada compra parcelada com o número da parcela seguinte (ex.: a
 // parcela 2/10 já é cobrada nesta fatura; a seção de prévia mostra a mesma
-// compra como "3/10", que só vai ser cobrada na fatura do mês que vem). Sem
-// cortar isso, cada compra parcelada dessa fatura conta em dobro: uma vez de
-// verdade na lista principal, outra na prévia — e como o texto do valor é
-// idêntico mas a data às vezes também repete, nem sempre a deduplicação por
-// data+valor+descrição pega isso. Uma vez que uma dessas linhas de cabeçalho
-// aparece, o resto do PDF a partir dali é só prévia/simulação — não conta.
+// compra como "3/10", que só vai ser cobrada na fatura do mês que vem). Isso
+// não é lixo pra descartar: é a lista de compras que a fatura SEGUINTE vai
+// cobrar, então extraímos separado (`proximaFatura`) pra já lançar na fatura
+// certa — assim, quando o usuário importar o PDF do mês que vem, essas
+// compras já estarem lançadas evita duplicar (mesma verificação de "já
+// lançado" que a tela de importação já faz, comparando data+valor).
 const CORTE_PREVIA = [/pr[oó]ximas faturas/i, /credi[aá]rio \(pr[oó]ximo per[ií]odo\)/i, /compras parceladas/i];
+
+// A fatura já traz o total de encargos (juros de mora, multa por atraso, IOF
+// de financiamento etc.) pronto numa única linha — mais confiável que somar
+// as linhas individuais (que têm layout inconsistente entre bancos). Cai
+// numa única compra/despesa "Encargos da fatura" em vez de ficar de fora.
+const ENCARGOS_TOTAL_PATTERN = /total de encargos(?: em r\$)?\s*\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i;
 
 // Faturas quase sempre mostram a data da compra como "DD/MM", sem ano —
 // diferente de extrato bancário, que costuma trazer o ano. Sem isso, infere
@@ -96,10 +107,7 @@ function inferirData(dataRaw: string, competencia?: string): string | null {
   return parseDate(dataRaw);
 }
 
-export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: string): StatementLine[] {
-  const corteIdx = linhasCompletas.findIndex((l) => CORTE_PREVIA.some((re) => re.test(l)));
-  const lines = corteIdx === -1 ? linhasCompletas : linhasCompletas.slice(0, corteIdx);
-
+function extrairCompras(lines: string[], competencia?: string): StatementLine[] {
   const result: StatementLine[] = [];
   const vistos = new Set<string>();
   for (const rawLine of lines) {
@@ -143,7 +151,38 @@ export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: str
   return result;
 }
 
-export async function parseFaturaPdf(file: File, competencia?: string): Promise<StatementLine[]> {
+export interface FaturaParseResult {
+  /** Compras já cobradas nesta fatura. */
+  atual: StatementLine[];
+  /** Compras parceladas que a própria fatura já avisa que só serão cobradas
+   * na fatura seguinte (seção "Compras parceladas - próximas faturas"). */
+  proximaFatura: StatementLine[];
+  /** Total de juros/multa/IOF cobrados nesta fatura (0 quando não achado). */
+  encargos: number;
+}
+
+export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: string): FaturaParseResult {
+  const corteIdx = linhasCompletas.findIndex((l) => CORTE_PREVIA.some((re) => re.test(l)));
+  const linhasAtual = corteIdx === -1 ? linhasCompletas : linhasCompletas.slice(0, corteIdx);
+  const linhasFutura = corteIdx === -1 ? [] : linhasCompletas.slice(corteIdx);
+
+  let encargos = 0;
+  for (const l of linhasCompletas) {
+    const m = l.match(ENCARGOS_TOTAL_PATTERN);
+    if (m) {
+      const v = parseBRNumber(m[1]);
+      if (v !== null) encargos = Math.abs(v);
+    }
+  }
+
+  return {
+    atual: extrairCompras(linhasAtual, competencia),
+    proximaFatura: extrairCompras(linhasFutura, competencia),
+    encargos,
+  };
+}
+
+export async function parseFaturaPdf(file: File, competencia?: string): Promise<FaturaParseResult> {
   const lines = await extractPdfLines(file);
   return parseFaturaPdfLines(lines, competencia);
 }
