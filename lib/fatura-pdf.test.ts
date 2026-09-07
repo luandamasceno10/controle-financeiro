@@ -17,8 +17,24 @@ describe('parseFaturaPdfLines', () => {
       '2026-09'
     );
     expect(result.atual).toEqual([
-      { data: '2026-08-30', hora: null, descricao: 'Amazon Prime Br', valor: 13.9 },
+      { data: '2026-08-30', hora: null, descricao: 'Amazon Prime Br (12/12)', valor: 13.9 },
       { data: '2026-08-23', hora: null, descricao: 'Cia Do Pao Ltda', valor: 132.8 },
+    ]);
+  });
+
+  it('padroniza a marca de parcela num formato único, venha ela colada, solta ou entre parênteses', () => {
+    const result = parseFaturaPdfLines(
+      [
+        '10/08 LOJA A 2/12 100,00',
+        '10/08 LOJA B (02/12) 100,00',
+        '10/08 LOJA CTraini03/12 100,00',
+      ],
+      '2026-09'
+    );
+    expect(result.atual.map((r) => r.descricao)).toEqual([
+      'Loja A (2/12)',
+      'Loja B (2/12)',
+      'Loja Ctraini (3/12)',
     ]);
   });
 
@@ -60,8 +76,8 @@ describe('parseFaturaPdfLines', () => {
       ],
       '2026-09'
     );
-    expect(result.atual).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast02/10', valor: 466.98 }]);
-    expect(result.proximaFatura).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast03/10', valor: 466.98 }]);
+    expect(result.atual).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast (2/10)', valor: 466.98 }]);
+    expect(result.proximaFatura).toEqual([{ data: '2026-07-07', hora: null, descricao: 'Brastemp *brast (3/10)', valor: 466.98 }]);
   });
 
   it('extrai o total de encargos de uma linha única', () => {

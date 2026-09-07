@@ -95,6 +95,26 @@ const ENCARGOS_TOTAL_PATTERN = /total de encargos(?: em r\$)?\s*\$?\s*(-?\d{1,3}
 // o ano a partir da competência da fatura: compras de um mês "maior" que o
 // da competência são do ano anterior (ex.: fatura de jan/2027 com compra
 // lançada em 28/12 é de dez/2026, não de dez/2027).
+// Faturas marcam parcela de formas inconsistentes até dentro do mesmo PDF:
+// "2/12" solto, "(02/12)" entre parênteses, ou "Traini02/12" grudado direto
+// no nome do estabelecimento (sem espaço, então o \b do normalizeDescricao
+// não separa). Em vez de tentar prever cada variação, extrai o "N/M" de
+// onde estiver — com ou sem parênteses, colado ou não — e recoloca sempre
+// no mesmo formato no fim da descrição: "Nome (N/M)".
+const PARCELA_PATTERN = /\(?(\d{1,2})\/(\d{1,2})\)?(?!\d)/;
+
+function extrairParcela(descRaw: string): { texto: string; parcela: string | null } {
+  const m = descRaw.match(PARCELA_PATTERN);
+  if (!m || m.index === undefined) return { texto: descRaw, parcela: null };
+  const atual = parseInt(m[1], 10);
+  const total = parseInt(m[2], 10);
+  // Faixa plausível de parcelamento — evita casar algo que por acaso pareça
+  // "N/M" mas não seja parcela (ex. um código do estabelecimento).
+  if (total < 1 || total > 60 || atual < 1 || atual > total) return { texto: descRaw, parcela: null };
+  const texto = (descRaw.slice(0, m.index) + descRaw.slice(m.index + m[0].length)).replace(/\s{2,}/g, ' ').trim();
+  return { texto, parcela: `${atual}/${total}` };
+}
+
 function inferirData(dataRaw: string, competencia?: string): string | null {
   const semAno = dataRaw.match(/^(\d{1,2})\/(\d{1,2})$/);
   if (semAno && competencia) {
@@ -121,7 +141,9 @@ function extrairCompras(lines: string[], competencia?: string): StatementLine[] 
       const valorNum = parseBRNumber(valorRaw.replace(/-\s*$/, ''));
       if (valorNum === null || valorNum === 0) continue;
 
-      const descricao = normalizeDescricao(descRaw);
+      const { texto: descSemParcela, parcela } = extrairParcela(descRaw);
+      const descricaoBase = normalizeDescricao(descSemParcela);
+      const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
       if (
         IGNORAR_DESCRICAO.some((re) => re.test(descricao)) ||
         IGNORAR_DESCRICAO.some((re) => re.test(descRaw)) ||
@@ -139,7 +161,10 @@ function extrairCompras(lines: string[], competencia?: string): StatementLine[] 
       // compras avulsas (ex. duas corridas de "99*" no mesmo valor no mesmo dia)
       // não têm essa marca e são mantidas — não há como diferenciar "reimpresso"
       // de "coincidência" sem ela, e apagar a segunda seria perder uma compra real.
-      if (/\b\d{1,2}\/\d{1,2}\b/.test(descRaw)) {
+      // Como a descrição agora sempre inclui a parcela no mesmo formato, duas
+      // parcelas diferentes da mesma compra (ex. "(2/10)" e "(3/10)") não batem
+      // mais nessa chave — só uma reimpressão de verdade da MESMA parcela bate.
+      if (parcela) {
         const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
         if (vistos.has(chave)) continue;
         vistos.add(chave);

@@ -161,11 +161,21 @@ export default function LancamentoForm({
       if (isCartao) {
         const cartao = cartoes.find(c => c.id === form.cartao_id);
         if (!cartao) throw new Error('Selecione um cartão de crédito');
-        const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento, cartao.dia_vencimento);
-        const fatura = await ensureFatura(cartao, competencia, userId);
-        cartaoId = cartao.id;
-        faturaId = fatura.id;
         contaId = null;
+        cartaoId = cartao.id;
+        if (editingEntry && editingEntry.cartao_id === cartao.id && editingEntry.fatura_id) {
+          // Ao editar (ex.: só corrigindo o nome), preserva a fatura original em
+          // vez de recalcular pela data — senão uma parcela que foi lançada de
+          // propósito numa fatura futura (compra parcelada, ou importação de PDF
+          // que já sabia que essa parcela só entra no mês seguinte) pula pra
+          // fatura "errada" que bateria pela data de compra + fechamento de hoje,
+          // só porque o usuário editou outro campo qualquer do lançamento.
+          faturaId = editingEntry.fatura_id;
+        } else {
+          const competencia = competenciaForPurchase(form.date, cartao.dia_fechamento, cartao.dia_vencimento);
+          const fatura = await ensureFatura(cartao, competencia, userId);
+          faturaId = fatura.id;
+        }
       }
 
       const payload = {
