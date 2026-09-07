@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { CartaoCredito, Fatura, Lancamento, Categoria } from '@/lib/supabase';
 import { parseFaturaPdf } from '@/lib/fatura-pdf';
 import type { StatementLine } from '@/lib/statement';
-import { X, Upload, CheckCircle2, PlusCircle, FileUp } from 'lucide-react';
+import { X, Upload, CheckCircle2, PlusCircle, FileUp, Copy, Check } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -37,6 +37,8 @@ export default function ImportarFaturaPdf({
   const [lines, setLines] = useState<MatchedLine[] | null>(null);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
+  const [errorDetails, setErrorDetails] = useState('');
+  const [copied, setCopied] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [bulkCreating, setBulkCreating] = useState(false);
 
@@ -53,6 +55,7 @@ export default function ImportarFaturaPdf({
 
   const handleFile = async (file: File) => {
     setError('');
+    setErrorDetails('');
     setFileName(file.name);
     setParsing(true);
     setLines(null);
@@ -65,8 +68,27 @@ export default function ImportarFaturaPdf({
       setLines(parsed.map((l) => ({ ...l, matched: matchLine(l), creating: false, created: false })));
     } catch (err: any) {
       setError('Erro ao ler o PDF: ' + err.message);
+      // Detalhe técnico pra diagnosticar erros que só acontecem em aparelhos
+      // específicos (o normal "err.message" sozinho não diz em que ponto do
+      // código quebrou) — o botão de copiar existe porque digitar/print de
+      // pilha de erro no celular é inviável.
+      setErrorDetails(
+        `Navegador: ${typeof navigator !== 'undefined' ? navigator.userAgent : '?'}\n` +
+        `Erro: ${err?.name || '?'}: ${err?.message || '?'}\n` +
+        `Pilha:\n${err?.stack || '(sem stack trace)'}`
+      );
     } finally {
       setParsing(false);
+    }
+  };
+
+  const copiarDetalhesErro = async () => {
+    try {
+      await navigator.clipboard.writeText(errorDetails);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API pode não estar disponível (ex. contexto não seguro) — sem fallback, só não copia.
     }
   };
 
@@ -147,7 +169,16 @@ export default function ImportarFaturaPdf({
           <div className="p-10 text-center text-sm text-slate-400 dark:text-slate-500">Lendo o PDF...</div>
         )}
 
-        {error && <p className="text-sm text-rose-600 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 rounded-lg px-3 py-2.5 mb-4">{error}</p>}
+        {error && (
+          <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 rounded-lg px-3 py-2.5 mb-4">
+            <p className="text-sm text-rose-600">{error}</p>
+            {errorDetails && (
+              <button onClick={copiarDetalhesErro} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-rose-700 hover:text-rose-800">
+                {copied ? <><Check size={12} /> Copiado!</> : <><Copy size={12} /> Copiar detalhes do erro</>}
+              </button>
+            )}
+          </div>
+        )}
 
         {lines && (
           <>
