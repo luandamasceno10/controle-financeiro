@@ -52,6 +52,9 @@ export default function ImportarFaturaPdf({
   const [bulkCreating, setBulkCreating] = useState(false);
   const [editingIdx, setEditingIdx] = useState<{ destino: 'atual' | 'futura'; idx: number } | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [sobrandoAtual, setSobrandoAtual] = useState<Lancamento[]>([]);
+  const [sobrandoFutura, setSobrandoFutura] = useState<Lancamento[]>([]);
+  const [removendoSobra, setRemovendoSobra] = useState<number | null>(null);
 
   const categoriasSaida = useMemo(() => categorias.filter((c) => !c.parent_id), [categorias]);
   const categoriaPadrao = () => categoriasSaida[0]?.nome || 'Diversos';
@@ -59,13 +62,20 @@ export default function ImportarFaturaPdf({
 
   const faturaEntries = useMemo(() => entries.filter((e) => e.fatura_id === fatura.id), [entries, fatura.id]);
 
+  const proximoAos5Dias = (dataA: string, dataB: string) =>
+    Math.abs((new Date(dataA + 'T00:00:00').getTime() - new Date(dataB + 'T00:00:00').getTime()) / 86400000) <= 5;
+
   const matchLine = (line: StatementLine, contraEntries: Lancamento[]): boolean => {
-    return contraEntries.some((e) => {
-      const mesmoValor = Math.abs(Number(e.valor) - line.valor) < 0.01;
-      if (!mesmoValor) return false;
-      const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
-      return dias <= 5;
-    });
+    return contraEntries.some((e) => Math.abs(Number(e.valor) - line.valor) < 0.01 && proximoAos5Dias(e.data, line.data));
+  };
+
+  // Sentido inverso: um lançamento que já está na fatura mas não aparece em
+  // nenhuma linha deste PDF — pode ser um duplicado de uma importação
+  // anterior, um lançamento manual com valor errado, ou uma compra que essa
+  // fatura não cobra de verdade. É exatamente esse tipo de coisa que fazia o
+  // total da fatura não bater sem dar pra saber onde estava o problema.
+  const matchEntry = (e: Lancamento, contraLines: StatementLine[]): boolean => {
+    return contraLines.some((l) => Math.abs(Number(e.valor) - l.valor) < 0.01 && proximoAos5Dias(e.data, l.data));
   };
 
   const encargoJaLancado = useMemo(
@@ -103,6 +113,8 @@ export default function ImportarFaturaPdf({
     setFaturaFutura(null);
     setEncargos(0);
     setEncargoCriado(false);
+    setSobrandoAtual([]);
+    setSobrandoFutura([]);
     try {
       const parsed = await parseFaturaPdf(file, fatura.competencia);
       if (parsed.atual.length === 0 && parsed.proximaFatura.length === 0 && parsed.encargos === 0) {
@@ -116,8 +128,13 @@ export default function ImportarFaturaPdf({
         const categoriaNome = paraCategoria(l.descricao);
         return { ...l, matched: matchLine(l, contraEntries), creating: false, created: false, categoria: categoriaNome, categoria_id: categoriaIdPorNome(categoriaNome) };
       };
+      // Pendentes primeiro: senão, numa fatura com 100 compras já lançadas e
+      // só 2 pendentes, essas 2 ficam perdidas no meio da lista — o motivo de
+      // "aparece 2 pendentes mas não dá pra ver quais são".
+      const pendentesPrimeiro = (a: MatchedLine, b: MatchedLine) => Number(a.matched || a.created) - Number(b.matched || b.created);
 
-      setLinesAtual(parsed.atual.map((l) => toMatched(l, faturaEntries)));
+      setLinesAtual(parsed.atual.map((l) => toMatched(l, faturaEntries)).sort(pendentesPrimeiro));
+      setSobrandoAtual(faturaEntries.filter((e) => !matchEntry(e, parsed.atual)));
       setEncargos(parsed.encargos);
       setEncargoCategoria(categoriaPadrao());
 
@@ -126,7 +143,8 @@ export default function ImportarFaturaPdf({
         const futura = await ensureFatura(cartao, competenciaFutura, userId);
         setFaturaFutura(futura);
         const futuraEntriesAgora = entries.filter((e) => e.fatura_id === futura.id);
-        setLinesFutura(parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)));
+        setLinesFutura(parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro));
+        setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura)));
       } else {
         setLinesFutura([]);
       }
@@ -248,6 +266,21 @@ export default function ImportarFaturaPdf({
     }
   };
 
+  const removerSobra = async (destino: 'atual' | 'futura', entry: Lancamento) => {
+    setRemovendoSobra(entry.id);
+    try {
+      const { error: delError } = await supabase.from('lancamentos').delete().eq('id', entry.id);
+      if (delError) throw delError;
+      if (destino === 'atual') setSobrandoAtual((prev) => prev.filter((e) => e.id !== entry.id));
+      else setSobrandoFutura((prev) => prev.filter((e) => e.id !== entry.id));
+      onImported();
+    } catch (err: any) {
+      setError('Erro ao excluir: ' + err.message);
+    } finally {
+      setRemovendoSobra(null);
+    }
+  };
+
   const startEdit = (destino: 'atual' | 'futura', idx: number, atual: string) => {
     setEditingIdx({ destino, idx });
     setEditValue(atual);
@@ -324,6 +357,42 @@ export default function ImportarFaturaPdf({
     );
   };
 
+  const renderSobrando = (destino: 'atual' | 'futura', label: string, lista: Lancamento[]) => {
+    if (lista.length === 0) return null;
+    return (
+      <div className="mt-3 border border-rose-200 bg-rose-50 dark:bg-rose-500/10 rounded-lg px-4 py-3">
+        <p className="text-sm font-medium text-rose-700 dark:text-rose-300 mb-2">
+          {lista.length} lançamento{lista.length > 1 ? 's' : ''} {label} não {lista.length > 1 ? 'aparecem' : 'aparece'} nesse PDF
+        </p>
+        <p className="text-xs text-rose-600/80 dark:text-rose-300/70 mb-2">Pode ser um duplicado de uma importação anterior, um valor digitado errado, ou uma compra que essa fatura não cobra de verdade — provavelmente é aqui que o total está desbatendo.</p>
+        <div className="space-y-1.5">
+          {lista.map((e) => (
+            <div key={e.id} className="flex items-center justify-between gap-2 bg-white dark:bg-slate-800 rounded px-2.5 py-1.5">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">{fmtDate(e.data)}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{currency(Number(e.valor))}</span>
+                <button
+                  onClick={() => removerSobra(destino, e)}
+                  disabled={removendoSobra === e.id}
+                  className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 disabled:opacity-50"
+                >
+                  {removendoSobra === e.id ? '...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const pdfTotalAtual = linesAtual?.reduce((s, l) => s + l.valor, 0) || 0;
+  const appTotalAtual = faturaEntries.reduce((s, e) => s + Number(e.valor), 0);
+  const diffAtual = appTotalAtual - pdfTotalAtual;
+
   return (
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -331,7 +400,7 @@ export default function ImportarFaturaPdf({
           <h3 className="font-semibold text-slate-800 dark:text-slate-100">Importar fatura em PDF — {cartao.nome}</h3>
           <button onClick={onClose}><X size={18} /></button>
         </div>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Envie o PDF da fatura de {fatura.competencia}. Comparamos com as compras já lançadas e você cria o que faltar em um clique.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Envie o PDF da fatura de {fatura.competencia}. Comparamos nos dois sentidos com o que já está lançado: o que falta, você cria em um clique; o que sobra (duplicado ou errado), aparece pra você revisar.</p>
 
         {!linesAtual && !parsing && (
           <div
@@ -390,6 +459,21 @@ export default function ImportarFaturaPdf({
               </div>
             )}
 
+            <div className="mb-3 grid grid-cols-3 gap-2 text-center">
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-lg py-2">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">No PDF</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{currency(pdfTotalAtual)}</p>
+              </div>
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-lg py-2">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">Já lançado no app</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{currency(appTotalAtual)}</p>
+              </div>
+              <div className={`rounded-lg py-2 ${Math.abs(diffAtual) < 0.02 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">Diferença</p>
+                <p className={`text-sm font-semibold ${Math.abs(diffAtual) < 0.02 ? 'text-emerald-600' : 'text-rose-600'}`}>{diffAtual > 0 ? '+' : ''}{currency(diffAtual)}</p>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 <Upload size={12} className="inline mr-1" />{fileName} · {(linesAtual.length + (linesFutura?.length || 0))} compras reconhecidas · {totalPendentes} pendentes
@@ -403,6 +487,7 @@ export default function ImportarFaturaPdf({
             <div className="border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
               {linesAtual.map((line, idx) => renderLinha('atual', line, idx))}
             </div>
+            {renderSobrando('atual', 'desta fatura', sobrandoAtual)}
 
             {linesFutura && linesFutura.length > 0 && faturaFutura && (
               <div className="mt-5">
@@ -413,6 +498,7 @@ export default function ImportarFaturaPdf({
                 <div className="border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
                   {linesFutura.map((line, idx) => renderLinha('futura', line, idx))}
                 </div>
+                {renderSobrando('futura', `da fatura de ${faturaFutura.competencia}`, sobrandoFutura)}
               </div>
             )}
 
