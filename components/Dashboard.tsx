@@ -4,8 +4,9 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta, CompraRecorrente } from '@/lib/supabase';
+import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta, CompraRecorrente, Fatura } from '@/lib/supabase';
 import { computeRelatorioMensal } from '@/lib/relatorioCalculos';
+import { competenciaForPurchase } from '@/lib/faturas';
 import RelatorioPDF from './RelatorioPDF';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
@@ -57,6 +58,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [forecast, setForecast] = useState<Record<string, number>>({});
   const [contas, setContas] = useState<ContaBancaria[]>([]);
   const [cartoes, setCartoes] = useState<CartaoCredito[]>([]);
+  const [faturas, setFaturas] = useState<Fatura[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
   const [metas, setMetas] = useState<Meta[]>([]);
@@ -114,13 +116,14 @@ export default function Dashboard({ userId }: { userId: string }) {
       // exibição, pra não crescer sem limite conforme o histórico do usuário aumenta.
       const anoInicio = `${currentYear}-01-01`;
       const anoFim = `${currentYear}-12-31`;
-      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, categoriasResult, orcamentosResult, metasResult, recorrentesResult] = await Promise.all([
+      const [lancResult, pagarResult, receberResult, previsaoResult, contasResult, cartoesResult, faturasResult, categoriasResult, orcamentosResult, metasResult, recorrentesResult] = await Promise.all([
         supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', anoInicio).lte('data', anoFim),
         supabase.from('contas_pagar').select('*').eq('user_id', userId),
         supabase.from('contas_receber').select('*').eq('user_id', userId),
         supabase.from('previsoes').select('*').eq('user_id', userId),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
         supabase.from('cartoes_credito').select('*').eq('user_id', userId).eq('ativo', true),
+        supabase.from('faturas').select('*').eq('user_id', userId).eq('status', 'aberta'),
         supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
         supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
         supabase.from('metas').select('*').eq('user_id', userId).eq('status', 'ativa'),
@@ -130,6 +133,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       if (lancResult.data) setEntries(lancResult.data);
       if (pagarResult.data) setPayable(pagarResult.data);
       if (receberResult.data) setReceivable(receberResult.data);
+      if (faturasResult.data) setFaturas(faturasResult.data);
       if (previsaoResult.data) {
         const f: Record<string, number> = {};
         previsaoResult.data.forEach((p: Previsao) => {
@@ -207,6 +211,24 @@ export default function Dashboard({ userId }: { userId: string }) {
     categorias.forEach(c => { map[c.id] = c; });
     return map;
   }, [categorias]);
+
+  // Faturas fechadas aguardando pagamento — pra oferecer "vincular a esse
+  // pagamento" ao criar um lançamento manual de saída (mesmo padrão usado na
+  // conciliação bancária). A fatura ainda acumulando compras do mês corrente
+  // não entra: ela não fechou, não faz sentido "pagar" ela ainda.
+  const faturasPendentes = useMemo(() => {
+    return faturas
+      .map((f) => {
+        const cartao = cartoes.find((c) => c.id === f.cartao_id);
+        if (!cartao) return null;
+        const competenciaAtual = competenciaForPurchase(todayISO(), cartao.dia_fechamento, cartao.dia_vencimento);
+        if (f.competencia >= competenciaAtual) return null;
+        const total = entries.filter((e) => e.fatura_id === f.id).reduce((s, e) => s + Number(e.valor), 0);
+        return { fatura: f, cartao, total };
+      })
+      .filter((x): x is { fatura: Fatura; cartao: CartaoCredito; total: number } => x !== null)
+      .sort((a, b) => a.fatura.competencia.localeCompare(b.fatura.competencia));
+  }, [faturas, cartoes, entries]);
 
   // Para agrupamentos por categoria (gráficos), o gasto de uma subcategoria
   // deve somar na categoria-pai, não aparecer como uma fatia própria.
@@ -949,6 +971,8 @@ export default function Dashboard({ userId }: { userId: string }) {
           contas={contas}
           cartoes={cartoes}
           metas={metas}
+          payable={payable}
+          faturasPendentes={faturasPendentes}
           editingEntry={editingEntry}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); refreshEntries(); addToast(editingEntry ? 'Lançamento atualizado!' : 'Lançamento salvo!', 'success'); }}

@@ -2,14 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, Categoria, ContaBancaria, CartaoCredito, Meta } from '@/lib/supabase';
+import type { Lancamento, Categoria, ContaBancaria, CartaoCredito, Meta, ContaPagar, Fatura } from '@/lib/supabase';
 import { PAYMENTS } from '@/lib/payments';
 import { competenciaForPurchase, ensureFatura, shiftPurchaseDate } from '@/lib/faturas';
 import { suggestCategoria } from '@/lib/categorize';
 import { resolverTipoGasto } from '@/lib/gastoFixoVariavel';
 import { sortCategoriasNatural } from '@/lib/categorias';
 import MoneyInput from './MoneyInput';
-import { X, Trash2, Sparkles, Target, History } from 'lucide-react';
+import { X, Trash2, Sparkles, Target, History, Link2 } from 'lucide-react';
+
+interface FaturaPendente {
+  fatura: Fatura;
+  cartao: CartaoCredito;
+  total: number;
+}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -26,6 +32,8 @@ export default function LancamentoForm({
   contas,
   cartoes,
   metas = [],
+  payable = [],
+  faturasPendentes = [],
   editingEntry,
   onClose,
   onSaved,
@@ -38,6 +46,8 @@ export default function LancamentoForm({
   contas: ContaBancaria[];
   cartoes: CartaoCredito[];
   metas?: Meta[];
+  payable?: ContaPagar[];
+  faturasPendentes?: FaturaPendente[];
   editingEntry: Lancamento | null;
   onClose: () => void;
   onSaved: () => void;
@@ -65,6 +75,9 @@ export default function LancamentoForm({
         recorrente: false,
         meta_id: null as number | null,
         tipoGastoOverride: editingEntry.tipo_gasto_override,
+        vinculo: 'nenhum' as 'nenhum' | 'contapagar' | 'fatura',
+        vinculo_conta_pagar_id: null as number | null,
+        vinculo_fatura_id: null as number | null,
       };
     }
     return {
@@ -76,6 +89,9 @@ export default function LancamentoForm({
       parcelas: '2',
       meta_id: null as number | null,
       tipoGastoOverride: null as 'fixo' | 'variavel' | null,
+      vinculo: 'nenhum' as 'nenhum' | 'contapagar' | 'fatura',
+      vinculo_conta_pagar_id: null as number | null,
+      vinculo_fatura_id: null as number | null,
     };
   });
 
@@ -193,6 +209,25 @@ export default function LancamentoForm({
         if (meta && total >= Number(meta.valor_alvo)) {
           await supabase.from('metas').update({ status: 'concluida' }).eq('id', meta.id);
         }
+      } else if (form.vinculo === 'contapagar' && form.vinculo_conta_pagar_id) {
+        const contaPagar = payable.find((p) => p.id === form.vinculo_conta_pagar_id);
+        if (!contaPagar) throw new Error('Conta a pagar não encontrada');
+        const { data: lanc, error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]).select().single();
+        if (error) throw error;
+        // Mesma regra da conciliação bancária: cobre o total (com folga de 1
+        // centavo pra arredondamento) marca como pago e guarda o vínculo pra dar
+        // pra desfazer depois; senão, é abatimento parcial — reduz o valor em
+        // aberto e mantém pendente, sem vincular (o vínculo é só pra quitação total).
+        const restante = Number(contaPagar.valor) - payload.valor;
+        if (restante <= 0.01) {
+          await supabase.from('contas_pagar').update({ status: 'pago', lancamento_id: lanc.id }).eq('id', contaPagar.id);
+        } else {
+          await supabase.from('contas_pagar').update({ valor: restante }).eq('id', contaPagar.id);
+        }
+      } else if (form.vinculo === 'fatura' && form.vinculo_fatura_id) {
+        const { error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]);
+        if (error) throw error;
+        await supabase.from('faturas').update({ status: 'paga' }).eq('id', form.vinculo_fatura_id);
       } else {
         const { error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]);
         if (error) throw error;
@@ -389,7 +424,7 @@ export default function LancamentoForm({
               </div>
             </div>
           )}
-          {!editingEntry && form.type === 'saida' && !form.parcelado && !form.recorrente && metas.length > 0 && (
+          {!editingEntry && form.type === 'saida' && !form.parcelado && !form.recorrente && form.vinculo === 'nenhum' && metas.length > 0 && (
             <div>
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
                 <Target size={13} /> Vincular a uma meta (opcional)
@@ -404,6 +439,80 @@ export default function LancamentoForm({
                 {metas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
               </select>
               {form.meta_id && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor deste lançamento também conta como aporte para a meta.</p>}
+            </div>
+          )}
+          {!editingEntry && form.type === 'saida' && form.payment === 'pix' && !form.parcelado && !form.recorrente && !form.meta_id && (payable.filter(p => p.status === 'pendente').length > 0 || faturasPendentes.length > 0) && (
+            <div>
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
+                <Link2 size={13} /> Vincular a um pagamento (opcional)
+              </label>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {([
+                  { v: 'nenhum' as const, label: 'Nenhum' },
+                  { v: 'contapagar' as const, label: 'Conta a pagar' },
+                  { v: 'fatura' as const, label: 'Fatura' },
+                ]).map((opt) => (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, vinculo: opt.v, vinculo_conta_pagar_id: null, vinculo_fatura_id: null }))}
+                    disabled={saving || (opt.v === 'contapagar' && payable.filter(p => p.status === 'pendente').length === 0) || (opt.v === 'fatura' && faturasPendentes.length === 0)}
+                    className={`py-2 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${form.vinculo === opt.v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {form.vinculo === 'contapagar' && (
+                <>
+                  <select
+                    value={form.vinculo_conta_pagar_id ?? ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      const cp = payable.find(p => p.id === id);
+                      setForm(f => ({
+                        ...f,
+                        vinculo_conta_pagar_id: id,
+                        desc: cp ? cp.descricao : f.desc,
+                        amount: cp ? String(cp.valor) : f.amount,
+                        category: cp && categoriaOptions.some(c => c.nome === cp.categoria) ? cp.categoria : f.category,
+                      }));
+                    }}
+                    className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                    disabled={saving}
+                  >
+                    <option value="">Selecione a conta a pagar</option>
+                    {payable.filter(p => p.status === 'pendente').map(p => <option key={p.id} value={p.id}>{p.descricao} — {p.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</option>)}
+                  </select>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Se o valor deste lançamento for menor que o total da conta, o restante fica pendente.</p>
+                </>
+              )}
+              {form.vinculo === 'fatura' && (
+                <>
+                  <select
+                    value={form.vinculo_fatura_id ?? ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      const alvo = faturasPendentes.find(x => x.fatura.id === id);
+                      setForm(f => ({
+                        ...f,
+                        vinculo_fatura_id: id,
+                        desc: alvo ? `Fatura ${alvo.cartao.nome} — ${alvo.fatura.competencia}` : f.desc,
+                        amount: alvo ? String(alvo.total) : f.amount,
+                        category: categoriaOptions.some(c => c.nome === 'Cartão de crédito') ? 'Cartão de crédito' : f.category,
+                      }));
+                    }}
+                    className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                    disabled={saving}
+                  >
+                    <option value="">Selecione a fatura</option>
+                    {faturasPendentes.map(({ fatura, cartao, total }) => (
+                      <option key={fatura.id} value={fatura.id}>{cartao.nome} — {fatura.competencia} — {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Marca a fatura como paga ao salvar este lançamento.</p>
+                </>
+              )}
             </div>
           )}
           <div className="flex gap-2">

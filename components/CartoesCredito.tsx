@@ -12,6 +12,8 @@ import ImportarFaturaPdf from './ImportarFaturaPdf';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban, FileUp, Download } from 'lucide-react';
 
+type EntryDeleteTarget = { id: number; descricao: string };
+
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function competenciaLabel(competencia: string): string {
@@ -60,6 +62,8 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [detailCompetencia, setDetailCompetencia] = useState('');
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [importFatura, setImportFatura] = useState<Fatura | null>(null);
+  const [deleteEntryConfirm, setDeleteEntryConfirm] = useState<EntryDeleteTarget | null>(null);
+  const [deletingEntry, setDeletingEntry] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -206,6 +210,22 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       addToast('Erro ao remover: ' + err.message, 'error');
     } finally {
       setDeleteConfirm(null);
+    }
+  };
+
+  const confirmDeleteEntry = async () => {
+    if (!deleteEntryConfirm) return;
+    setDeletingEntry(true);
+    try {
+      const { error } = await supabase.from('lancamentos').delete().eq('id', deleteEntryConfirm.id);
+      if (error) throw error;
+      addToast('Lançamento excluído', 'success');
+      await loadData();
+    } catch (err: any) {
+      addToast('Erro ao excluir: ' + err.message, 'error');
+    } finally {
+      setDeletingEntry(false);
+      setDeleteEntryConfirm(null);
     }
   };
 
@@ -467,12 +487,21 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                 <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500">Nenhuma compra nessa fatura.</div>
               ) : (
                 detailEntries.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
+                  <div key={e.id} className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-50 last:border-0">
                     <div className="min-w-0">
                       <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
                       <p className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(e.data)} · {e.categoria}</p>
                     </div>
-                    <span className="text-sm font-semibold text-rose-600 shrink-0">-{currency(Number(e.valor))}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-sm font-semibold text-rose-600">-{currency(Number(e.valor))}</span>
+                      <button
+                        onClick={() => setDeleteEntryConfirm({ id: e.id, descricao: e.descricao })}
+                        className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-rose-600 hover:bg-rose-50"
+                        title="Excluir lançamento"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -532,6 +561,16 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         onConfirm={confirmCancelRecorrente}
         onCancel={() => setCancelConfirm(null)}
         confirmText="Cancelar assinatura"
+        danger
+      />
+
+      <ConfirmDialog
+        open={!!deleteEntryConfirm}
+        title="Excluir lançamento"
+        message={`Tem certeza que deseja excluir "${deleteEntryConfirm?.descricao}"? Se esse lançamento tiver pago uma fatura ou conta a pagar, o status pago não é desfeito automaticamente.`}
+        onConfirm={confirmDeleteEntry}
+        onCancel={() => setDeleteEntryConfirm(null)}
+        confirmText={deletingEntry ? 'Excluindo...' : 'Excluir'}
         danger
       />
     </main>
