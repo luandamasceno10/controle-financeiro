@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta, CompraRecorrente, Fatura } from '@/lib/supabase';
 import { computeRelatorioMensal } from '@/lib/relatorioCalculos';
 import { competenciaForPurchase } from '@/lib/faturas';
+import { sumMoney } from '@/lib/money';
 import RelatorioPDF from './RelatorioPDF';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
@@ -223,7 +224,7 @@ export default function Dashboard({ userId }: { userId: string }) {
         if (!cartao) return null;
         const competenciaAtual = competenciaForPurchase(todayISO(), cartao.dia_fechamento, cartao.dia_vencimento);
         if (f.competencia >= competenciaAtual) return null;
-        const total = entries.filter((e) => e.fatura_id === f.id).reduce((s, e) => s + Number(e.valor), 0);
+        const total = sumMoney(entries.filter((e) => e.fatura_id === f.id).map((e) => Number(e.valor)));
         return { fatura: f, cartao, total };
       })
       .filter((x): x is { fatura: Fatura; cartao: CartaoCredito; total: number } => x !== null)

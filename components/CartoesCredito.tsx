@@ -8,6 +8,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
 import { competenciaForPurchase, shiftCompetencia, estimatedVencimento, ensureFatura } from '@/lib/faturas';
 import { exportLancamentosCSV } from '@/lib/export';
+import { sumMoney } from '@/lib/money';
 import ImportarFaturaPdf from './ImportarFaturaPdf';
 import LancamentoForm from './LancamentoForm';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
@@ -118,7 +119,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   };
 
   const totalDaFatura = (faturaId: number) =>
-    entries.filter((e) => e.fatura_id === faturaId).reduce((s, e) => s + Number(e.valor), 0);
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId).map((e) => Number(e.valor)));
 
   const openDetail = (cartao: CartaoCredito) => {
     setDetailCartao(cartao);

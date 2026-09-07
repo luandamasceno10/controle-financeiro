@@ -183,7 +183,10 @@ function extrairCompras(lines: string[], competencia?: string): { compras: State
       result.push({ data, hora: null, descricao, valor: Math.abs(valorNum) });
     }
   }
-  return { compras: result, abatimentos };
+  // Arredonda em centavos: `abatimentos +=` ao longo do loop soma em ponto
+  // flutuante puro, que pode acumular erro binário (ex. 0.01 + 0.02 + 0.81
+  // vira 0.8400000000000001 em vez de 0.84).
+  return { compras: result, abatimentos: Math.round(abatimentos * 100) / 100 };
 }
 
 export interface FaturaParseResult {

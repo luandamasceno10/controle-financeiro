@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { CartaoCredito, Fatura, Lancamento, Categoria } from '@/lib/supabase';
 import { parseFaturaPdf } from '@/lib/fatura-pdf';
 import { shiftCompetencia, ensureFatura } from '@/lib/faturas';
+import { sumMoney } from '@/lib/money';
 import type { StatementLine } from '@/lib/statement';
 import { X, Upload, CheckCircle2, PlusCircle, FileUp, Copy, Check, Pencil, Receipt, CalendarClock } from 'lucide-react';
 
@@ -488,8 +489,8 @@ export default function ImportarFaturaPdf({
   // assim que o usuário lança os encargos (uma soma à parte, não uma compra),
   // "já lançado no app" passa a incluir esse valor mas "no PDF" não, e a
   // diferença mostrada nunca fecha mesmo com tudo certo.
-  const pdfTotalAtual = (linesAtual?.reduce((s, l) => s + l.valor, 0) || 0) + encargos - abatimentoAtual;
-  const appTotalAtual = faturaEntries.reduce((s, e) => s + Number(e.valor), 0);
+  const pdfTotalAtual = sumMoney([...(linesAtual?.map((l) => l.valor) || []), encargos, -abatimentoAtual]);
+  const appTotalAtual = sumMoney(faturaEntries.map((e) => Number(e.valor)));
   const diffAtual = appTotalAtual - pdfTotalAtual;
 
   return (
