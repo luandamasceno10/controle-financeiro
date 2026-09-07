@@ -1,23 +1,21 @@
 import type { StatementLine } from '@/lib/statement';
 import { parseBRNumber, parseDate, normalizeDescricao } from '@/lib/statement';
 
-// Usa a build "legacy" do pdfjs-dist (em vez de 'pdfjs-dist' direto), que traz
-// polyfills embutidos (core-js) para APIs recentes como Promise.withResolvers().
-// A build padrão chama isso sem fallback e quebra com "undefined is not a
-// function" em iOS/Safari mais antigos — a legacy é o próprio pacote resolvendo
-// isso, em vez de um polyfill nosso tentando adivinhar tudo que falta.
-// public/pdf.worker.min.mjs é copiado da legacy também (ver postinstall).
-
-// Extrai o texto do PDF agrupando por linha visual (mesma posição Y na
-// página) em vez de simplesmente concatenar tudo — faturas de cartão são
-// tabelas, e sem isso a ordem das colunas se perde.
+// Roda o pdf.js inteiro na thread principal, sem Web Worker. Tentativas
+// anteriores (polyfill de Promise.withResolvers, depois a build "legacy",
+// depois versionar a URL do worker contra cache) não resolveram o erro em
+// produção num iPhone com iOS 17.4+ rodando o app instalado como PWA — o que
+// aponta pra algum bug do próprio WebKit com Web Worker de módulo ES dentro
+// desse modo "standalone" specific, e não pra falta de alguma API do JS.
+// Importar o módulo do worker direto (em vez de apontar GlobalWorkerOptions.
+// workerSrc pra um arquivo em public/) faz ele se auto-registrar em
+// `globalThis.pdfjsWorker` como efeito colateral — e o pdf.js, ao detectar
+// isso, pula a criação de um Worker de verdade e roda tudo inline. Mais lento
+// (bloqueia a thread principal por um instante), mas evita o Worker por
+// completo, então não importa o que estava quebrando ali.
 async function extractPdfLines(file: File): Promise<string[]> {
+  await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  // Query string com a versão do pacote: /pdf.worker.min.mjs é um arquivo
-  // estático de nome fixo em public/, então uma versão em cache (do navegador
-  // ou da CDN) sobreviveria a um deploy que só trocou o conteúdo do arquivo,
-  // sem trocar a URL — cada troca de versão do pdfjs-dist força um fetch novo.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs?v=${pdfjsLib.version}-legacy1`;
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
