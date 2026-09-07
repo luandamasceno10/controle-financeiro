@@ -45,10 +45,17 @@ async function extractPdfLines(file: File): Promise<string[]> {
 }
 
 // Faturas de cartão não têm um layout padrão entre bancos — o que costuma se
-// repetir é "data + descrição + valor" na mesma linha da tabela de compras.
-// Casa (DD/MM ou DD/MM/AAAA) ... (valor em R$, com ou sem sinal) no fim da
-// linha, ignorando linhas de cabeçalho/resumo que não têm esse formato.
-const LINE_PATTERN = /^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?R?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}-?)\s*$/;
+// repetir é "data + descrição + valor" em algum trecho da linha da tabela de
+// compras. Casa (DD/MM ou DD/MM/AAAA) ... (valor em R$, com ou sem sinal),
+// ignorando linhas de cabeçalho/resumo que não têm esse formato.
+//
+// Sem âncora de início/fim (^...$) e com busca global: várias faturas (ex.
+// Itaú) imprimem duas colunas de lançamentos lado a lado na mesma altura da
+// página, e a extração por linha visual junta as duas em uma string só, tipo
+// "30/08 AMAZON PRIME BR 12/12 13,90 23/08 CIA DO PAO LTDA 132,80". A busca
+// global com descrição "preguiçosa" (.+?) encontra as duas compras nessa
+// mesma linha em vez de misturar a data de uma com o valor da outra.
+const LINE_PATTERN = /(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?R?\$?\s?\d{1,3}(?:\.\d{3})*,\d{2}-?)(?=\s|$)/g;
 
 const IGNORAR_DESCRICAO = [
   /total/i, /saldo/i, /limite/i, /encargos/i, /iof/i, /juros rotativo/i,
@@ -74,26 +81,44 @@ function inferirData(dataRaw: string, competencia?: string): string | null {
 
 export function parseFaturaPdfLines(lines: string[], competencia?: string): StatementLine[] {
   const result: StatementLine[] = [];
+  const vistos = new Set<string>();
   for (const rawLine of lines) {
-    const match = rawLine.match(LINE_PATTERN);
-    if (!match) continue;
-    const [, dataRaw, descRaw, valorRaw] = match;
+    for (const match of Array.from(rawLine.matchAll(LINE_PATTERN))) {
+      const [, dataRaw, descRaw, valorRaw] = match;
 
-    const data = inferirData(dataRaw, competencia);
-    if (!data) continue;
+      const data = inferirData(dataRaw, competencia);
+      if (!data) continue;
 
-    const negativo = valorRaw.trim().endsWith('-');
-    const valorNum = parseBRNumber(valorRaw.replace(/-\s*$/, ''));
-    if (valorNum === null || valorNum === 0) continue;
+      const negativo = valorRaw.trim().endsWith('-');
+      const valorNum = parseBRNumber(valorRaw.replace(/-\s*$/, ''));
+      if (valorNum === null || valorNum === 0) continue;
 
-    const descricao = normalizeDescricao(descRaw);
-    if (IGNORAR_DESCRICAO.some((re) => re.test(descricao)) || IGNORAR_DESCRICAO.some((re) => re.test(descRaw))) continue;
+      const descricao = normalizeDescricao(descRaw);
+      if (
+        IGNORAR_DESCRICAO.some((re) => re.test(descricao)) ||
+        IGNORAR_DESCRICAO.some((re) => re.test(descRaw)) ||
+        IGNORAR_DESCRICAO.some((re) => re.test(rawLine))
+      ) continue;
 
-    // Pagamentos/estornos aparecem como valor negativo na fatura — não são
-    // compras novas, então não entram na lista de linhas para conciliar.
-    if (negativo || valorNum < 0) continue;
+      // Pagamentos/estornos aparecem como valor negativo na fatura — não são
+      // compras novas, então não entram na lista de linhas para conciliar.
+      if (negativo || valorNum < 0) continue;
 
-    result.push({ data, hora: null, descricao, valor: Math.abs(valorNum) });
+      // Muitas faturas (ex.: Itaú) reimprimem, numa seção de "próximos encargos",
+      // compras parceladas que já apareceram na lista principal — mesma data,
+      // valor e descrição, com uma marca de parcela (ex. "01/03") no texto bruto
+      // antes do valor. Só faz sentido descartar como repetição nesse caso: duas
+      // compras avulsas (ex. duas corridas de "99*" no mesmo valor no mesmo dia)
+      // não têm essa marca e são mantidas — não há como diferenciar "reimpresso"
+      // de "coincidência" sem ela, e apagar a segunda seria perder uma compra real.
+      if (/\b\d{1,2}\/\d{1,2}\b/.test(descRaw)) {
+        const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
+        if (vistos.has(chave)) continue;
+        vistos.add(chave);
+      }
+
+      result.push({ data, hora: null, descricao, valor: Math.abs(valorNum) });
+    }
   }
   return result;
 }
