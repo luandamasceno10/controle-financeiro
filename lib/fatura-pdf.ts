@@ -13,7 +13,11 @@ import { parseBRNumber, parseDate, normalizeDescricao } from '@/lib/statement';
 // tabelas, e sem isso a ordem das colunas se perde.
 async function extractPdfLines(file: File): Promise<string[]> {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  // Query string com a versão do pacote: /pdf.worker.min.mjs é um arquivo
+  // estático de nome fixo em public/, então uma versão em cache (do navegador
+  // ou da CDN) sobreviveria a um deploy que só trocou o conteúdo do arquivo,
+  // sem trocar a URL — cada troca de versão do pdfjs-dist força um fetch novo.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs?v=${pdfjsLib.version}-legacy1`;
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
