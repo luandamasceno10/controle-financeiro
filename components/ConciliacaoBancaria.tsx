@@ -2,12 +2,17 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { ContaBancaria, Lancamento, Categoria, ContaReceber, ContaPagar } from '@/lib/supabase';
+import type { ContaBancaria, Lancamento, Categoria, ContaReceber, ContaPagar, CartaoCredito, Fatura } from '@/lib/supabase';
 import { parseStatementCSV, type StatementLine } from '@/lib/statement';
 import { parseOFX } from '@/lib/ofx';
 import { suggestCategoria } from '@/lib/categorize';
+import { competenciaForPurchase } from '@/lib/faturas';
 import MoneyInput from './MoneyInput';
-import { X, Upload, CheckCircle2, PlusCircle, FileUp, Wallet, Sparkles } from 'lucide-react';
+import { X, Upload, CheckCircle2, PlusCircle, FileUp, Wallet, Sparkles, CreditCard } from 'lucide-react';
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -27,7 +32,7 @@ interface MatchedLine extends StatementLine {
 }
 
 export default function ConciliacaoBancaria({
-  userId, conta, entries, categorias, receivable = [], payable = [], onClose, onCreated,
+  userId, conta, entries, categorias, receivable = [], payable = [], cartoes = [], faturas = [], onClose, onCreated,
 }: {
   userId: string;
   conta: ContaBancaria;
@@ -35,6 +40,8 @@ export default function ConciliacaoBancaria({
   categorias: Categoria[];
   receivable?: ContaReceber[];
   payable?: ContaPagar[];
+  cartoes?: CartaoCredito[];
+  faturas?: Fatura[];
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -51,8 +58,29 @@ export default function ConciliacaoBancaria({
   const [abaterPagarContaId, setAbaterPagarContaId] = useState<number | null>(null);
   const [abaterPagarValor, setAbaterPagarValor] = useState('');
   const [abatendoPagar, setAbatendoPagar] = useState(false);
+  const [abatendoFaturaIdx, setAbatendoFaturaIdx] = useState<number | null>(null);
+  const [abaterFaturaId, setAbaterFaturaId] = useState<number | null>(null);
+  const [abatendoFatura, setAbatendoFatura] = useState(false);
 
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
+
+  const totalDaFatura = (faturaId: number) =>
+    entries.filter((e) => e.fatura_id === faturaId).reduce((s, e) => s + Number(e.valor), 0);
+
+  // Só oferece faturas que já fecharam (aguardando pagamento) — a fatura ainda
+  // acumulando compras deste mês não deve aparecer aqui como se já pudesse ser paga.
+  const faturasPendentes = useMemo(() => {
+    return faturas
+      .map((f) => {
+        const cartao = cartoes.find((c) => c.id === f.cartao_id);
+        if (!cartao) return null;
+        const competenciaAtual = competenciaForPurchase(todayISO(), cartao.dia_fechamento, cartao.dia_vencimento);
+        if (f.competencia >= competenciaAtual) return null;
+        return { fatura: f, cartao, total: totalDaFatura(f.id) };
+      })
+      .filter((x): x is { fatura: Fatura; cartao: CartaoCredito; total: number } => x !== null)
+      .sort((a, b) => a.fatura.competencia.localeCompare(b.fatura.competencia));
+  }, [faturas, cartoes, entries]);
 
   const matchLine = (line: StatementLine): boolean => {
     const alvo = Math.abs(line.valor);
@@ -237,6 +265,43 @@ export default function ConciliacaoBancaria({
     }
   };
 
+  const openAbaterFatura = (idx: number) => {
+    setAbatendoFaturaIdx(idx);
+    setAbaterFaturaId(faturasPendentes[0]?.fatura.id ?? null);
+  };
+
+  const confirmarAbatimentoFatura = async (line: MatchedLine, idx: number) => {
+    const alvo = faturasPendentes.find((x) => x.fatura.id === abaterFaturaId);
+    if (!alvo) return;
+
+    setAbatendoFatura(true);
+    try {
+      const { error: insertError } = await supabase.from('lancamentos').insert([{
+        user_id: userId,
+        conta_id: conta.id,
+        data: line.data,
+        hora: line.hora,
+        descricao: `Fatura ${alvo.cartao.nome} — ${alvo.fatura.competencia}`,
+        tipo: 'saida',
+        categoria: 'Cartão de crédito',
+        forma_pagamento: 'pix',
+        valor: alvo.total,
+      }]);
+      if (insertError) throw insertError;
+
+      const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
+      if (updateError) throw updateError;
+
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
+      setAbatendoFaturaIdx(null);
+      onCreated();
+    } catch (err: any) {
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
+    } finally {
+      setAbatendoFatura(false);
+    }
+  };
+
   const pendentes = lines?.filter((l) => !l.matched && !l.created) || [];
 
   const criarTodosPendentes = async () => {
@@ -332,6 +397,11 @@ export default function ConciliacaoBancaria({
                             <Wallet size={12} /> Abater
                           </button>
                         )}
+                        {line.valor < 0 && faturasPendentes.length > 0 && (
+                          <button onClick={() => openAbaterFatura(idx)} title="Abater fatura de cartão" className="inline-flex items-center gap-1 text-xs font-medium text-violet-700 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 px-2.5 py-1.5 rounded-md">
+                            <CreditCard size={12} /> Fatura
+                          </button>
+                        )}
                         <button onClick={() => criarLancamento(line, idx)} disabled={line.creating} className={`inline-flex items-center gap-1 text-xs font-medium text-white disabled:opacity-50 px-2.5 py-1.5 rounded-md ${line.failed ? 'bg-rose-600 hover:bg-rose-500' : 'bg-slate-800 hover:bg-slate-700'}`}>
                           <PlusCircle size={12} /> {line.creating ? '...' : line.failed ? 'Tentar de novo' : 'Criar'}
                         </button>
@@ -387,6 +457,26 @@ export default function ConciliacaoBancaria({
                         <button onClick={() => setAbatendoPagarIdx(null)} className="text-xs text-slate-400 hover:text-slate-600 px-2">Cancelar</button>
                       </div>
                       <p className="text-xs text-slate-400 dark:text-slate-500">Se o valor for menor que o total da conta, o restante fica pendente.</p>
+                    </div>
+                  )}
+                  {abatendoFaturaIdx === idx && (
+                    <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg space-y-2">
+                      <select
+                        value={abaterFaturaId ?? ''}
+                        onChange={(e) => setAbaterFaturaId(Number(e.target.value))}
+                        className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                      >
+                        {faturasPendentes.map(({ fatura, cartao, total }) => (
+                          <option key={fatura.id} value={fatura.id}>{cartao.nome} — {fatura.competencia} — {currency(total)}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => confirmarAbatimentoFatura(line, idx)} disabled={abatendoFatura} className="flex-1 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-3 py-2 rounded-lg">
+                          {abatendoFatura ? 'Abatendo...' : 'Confirmar pagamento da fatura'}
+                        </button>
+                        <button onClick={() => setAbatendoFaturaIdx(null)} className="text-xs text-slate-400 hover:text-slate-600 px-2">Cancelar</button>
+                      </div>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Lança o valor total da fatura como saída desta conta e marca a fatura como paga.</p>
                     </div>
                   )}
                 </div>
