@@ -7,9 +7,10 @@ import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
 import { competenciaForPurchase, shiftCompetencia, estimatedVencimento, ensureFatura } from '@/lib/faturas';
+import { exportLancamentosCSV } from '@/lib/export';
 import ImportarFaturaPdf from './ImportarFaturaPdf';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban, FileUp } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban, FileUp, Download } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -450,7 +451,17 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               </ResponsiveContainer>
             </div>
 
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Compras dessa fatura</h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Compras dessa fatura</h4>
+              {detailEntries.length > 0 && (
+                <button
+                  onClick={() => exportLancamentosCSV(detailEntries, `Fatura ${detailCartao.nome} ${detailCompetencia}`)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                >
+                  <Download size={12} /> Exportar CSV
+                </button>
+              )}
+            </div>
             <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
               {detailEntries.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500">Nenhuma compra nessa fatura.</div>
