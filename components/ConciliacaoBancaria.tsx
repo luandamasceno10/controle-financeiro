@@ -83,10 +83,14 @@ export default function ConciliacaoBancaria({
       .sort((a, b) => a.fatura.competencia.localeCompare(b.fatura.competencia));
   }, [faturas, cartoes, entries]);
 
+  // "< 0.01" em ponto flutuante puro é uma armadilha: Math.abs(253.33 - 253.34)
+  // dá 0.009999999999990905 em JS, não 0.01 exato — passa no "< 0.01" e trata
+  // duas transações DIFERENTES (por só 1 centavo) como se fossem a mesma.
+  // Arredondar pra centavos inteiros antes de comparar evita essa armadilha.
   const matchLine = (line: StatementLine): boolean => {
-    const alvo = Math.abs(line.valor);
+    const alvoCentavos = Math.round(Math.abs(line.valor) * 100);
     return contaEntries.some((e) => {
-      const mesmoValor = Math.abs(Number(e.valor) - alvo) < 0.01;
+      const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
       const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);

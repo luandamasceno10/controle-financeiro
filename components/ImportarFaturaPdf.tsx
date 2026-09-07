@@ -72,8 +72,17 @@ export default function ImportarFaturaPdf({
   const proximoAos5Dias = (dataA: string, dataB: string) =>
     Math.abs((new Date(dataA + 'T00:00:00').getTime() - new Date(dataB + 'T00:00:00').getTime()) / 86400000) <= 5;
 
+  // Comparar valor com "< 0.01" direto em ponto flutuante é uma armadilha:
+  // Math.abs(253.33 - 253.34) dá 0.009999999999990905 em JS (não 0.01 exato),
+  // que passa no "< 0.01" e faz duas compras DIFERENTES (por 1 centavo) serem
+  // tratadas como a mesma — foi exatamente isso que escondeu uma compra real
+  // ("Farias Brito" R$253,34) atrás de outra completamente diferente que só
+  // calhou de ter um valor bem próximo ("FB - Balé Mariah" R$253,33). Arredonda
+  // pra centavos inteiros primeiro — sem essa armadilha, e exige o valor exato.
+  const paraCentavos = (v: number) => Math.round(v * 100);
+
   const matchLine = (line: StatementLine, contraEntries: Lancamento[]): boolean => {
-    return contraEntries.some((e) => Math.abs(Number(e.valor) - line.valor) < 0.01 && proximoAos5Dias(e.data, line.data));
+    return contraEntries.some((e) => paraCentavos(Number(e.valor)) === paraCentavos(line.valor) && proximoAos5Dias(e.data, line.data));
   };
 
   // Sentido inverso: um lançamento que já está na fatura mas não aparece em
@@ -82,7 +91,7 @@ export default function ImportarFaturaPdf({
   // fatura não cobra de verdade. É exatamente esse tipo de coisa que fazia o
   // total da fatura não bater sem dar pra saber onde estava o problema.
   const matchEntry = (e: Lancamento, contraLines: StatementLine[]): boolean => {
-    return contraLines.some((l) => Math.abs(Number(e.valor) - l.valor) < 0.01 && proximoAos5Dias(e.data, l.data));
+    return contraLines.some((l) => paraCentavos(Number(e.valor)) === paraCentavos(l.valor) && proximoAos5Dias(e.data, l.data));
   };
 
   // Os lançamentos de "Encargos" e "Abatimentos" que a própria tela cria são
