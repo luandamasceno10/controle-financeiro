@@ -497,7 +497,11 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                       <p className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(e.data)} · {e.categoria}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-semibold text-rose-600">-{currency(Number(e.valor))}</span>
+                      {Number(e.valor) < 0 ? (
+                        <span className="text-sm font-semibold text-emerald-600">+{currency(Math.abs(Number(e.valor)))}</span>
+                      ) : (
+                        <span className="text-sm font-semibold text-rose-600">-{currency(Number(e.valor))}</span>
+                      )}
                       <button
                         onClick={() => setEditingEntry(e)}
                         className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"

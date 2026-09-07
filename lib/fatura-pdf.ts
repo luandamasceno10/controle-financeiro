@@ -127,9 +127,10 @@ function inferirData(dataRaw: string, competencia?: string): string | null {
   return parseDate(dataRaw);
 }
 
-function extrairCompras(lines: string[], competencia?: string): StatementLine[] {
+function extrairCompras(lines: string[], competencia?: string): { compras: StatementLine[]; abatimentos: number } {
   const result: StatementLine[] = [];
   const vistos = new Set<string>();
+  let abatimentos = 0;
   for (const rawLine of lines) {
     for (const match of Array.from(rawLine.matchAll(LINE_PATTERN))) {
       const [, dataRaw, descRaw, valorRaw] = match;
@@ -150,9 +151,18 @@ function extrairCompras(lines: string[], competencia?: string): StatementLine[] 
         IGNORAR_DESCRICAO.some((re) => re.test(rawLine))
       ) continue;
 
-      // Pagamentos/estornos aparecem como valor negativo na fatura — não são
-      // compras novas, então não entram na lista de linhas para conciliar.
-      if (negativo || valorNum < 0) continue;
+      // Linhas de valor negativo na tabela de compras são abatimentos/estornos
+      // pequenos (ex. "RAIA DROGASIL SA - 0,01") — não são compra nova, mas
+      // também não podem simplesmente sumir: são exatamente a diferença que
+      // sobra entre o valor lançado e o valor real da fatura. Sem somar isso
+      // em algum lugar, o total das compras sempre fica um pouco alto — igual
+      // aconteceu antes com os encargos. Pagamentos grandes (ex. "pagamento
+      // efetuado" da fatura anterior) já saíram no filtro do IGNORAR_DESCRICAO
+      // acima, então só sobra aqui abatimento de verdade.
+      if (negativo || valorNum < 0) {
+        abatimentos += Math.abs(valorNum);
+        continue;
+      }
 
       // Muitas faturas (ex.: Itaú) reimprimem, numa seção de "próximos encargos",
       // compras parceladas que já apareceram na lista principal — mesma data,
@@ -173,7 +183,7 @@ function extrairCompras(lines: string[], competencia?: string): StatementLine[] 
       result.push({ data, hora: null, descricao, valor: Math.abs(valorNum) });
     }
   }
-  return result;
+  return { compras: result, abatimentos };
 }
 
 export interface FaturaParseResult {
@@ -184,6 +194,11 @@ export interface FaturaParseResult {
   proximaFatura: StatementLine[];
   /** Total de juros/multa/IOF cobrados nesta fatura (0 quando não achado). */
   encargos: number;
+  /** Soma de pequenos abatimentos/estornos (linhas de valor negativo na
+   * tabela de compras desta fatura) — reduz o total, não é uma compra nova. */
+  abatimentos: number;
+  /** Idem, mas os que aparecem na seção de compras da fatura seguinte. */
+  abatimentosProximaFatura: number;
 }
 
 export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: string): FaturaParseResult {
@@ -200,10 +215,15 @@ export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: str
     }
   }
 
+  const doAtual = extrairCompras(linhasAtual, competencia);
+  const doFutura = extrairCompras(linhasFutura, competencia);
+
   return {
-    atual: extrairCompras(linhasAtual, competencia),
-    proximaFatura: extrairCompras(linhasFutura, competencia),
+    atual: doAtual.compras,
+    proximaFatura: doFutura.compras,
     encargos,
+    abatimentos: doAtual.abatimentos,
+    abatimentosProximaFatura: doFutura.abatimentos,
   };
 }
 

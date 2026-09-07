@@ -44,6 +44,12 @@ export default function ImportarFaturaPdf({
   const [encargoCriando, setEncargoCriando] = useState(false);
   const [encargoCriado, setEncargoCriado] = useState(false);
   const [encargoCategoria, setEncargoCategoria] = useState('');
+  const [abatimentoAtual, setAbatimentoAtual] = useState(0);
+  const [abatimentoFutura, setAbatimentoFutura] = useState(0);
+  const [abatimentoCriando, setAbatimentoCriando] = useState<'atual' | 'futura' | null>(null);
+  const [abatimentoCriadoAtual, setAbatimentoCriadoAtual] = useState(false);
+  const [abatimentoCriadoFutura, setAbatimentoCriadoFutura] = useState(false);
+  const [abatimentoCategoria, setAbatimentoCategoria] = useState('');
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState('');
   const [errorDetails, setErrorDetails] = useState('');
@@ -83,6 +89,16 @@ export default function ImportarFaturaPdf({
     [faturaEntries, encargos]
   );
 
+  const abatimentoJaLancadoAtual = useMemo(
+    () => faturaEntries.some((e) => /abatimento/i.test(e.descricao) && Math.abs(Number(e.valor) + abatimentoAtual) < 0.02),
+    [faturaEntries, abatimentoAtual]
+  );
+  const faturaFuturaEntries = useMemo(() => (faturaFutura ? entries.filter((e) => e.fatura_id === faturaFutura.id) : []), [entries, faturaFutura]);
+  const abatimentoJaLancadoFutura = useMemo(
+    () => faturaFuturaEntries.some((e) => /abatimento/i.test(e.descricao) && Math.abs(Number(e.valor) + abatimentoFutura) < 0.02),
+    [faturaFuturaEntries, abatimentoFutura]
+  );
+
   // Categoriza pela memória: se essa mesma descrição (ignorando maiúsculas/
   // espaços) já apareceu antes num lançamento de saída, usa a categoria de
   // da última vez — mesma lógica de "última categoria usada" do formulário
@@ -113,6 +129,10 @@ export default function ImportarFaturaPdf({
     setFaturaFutura(null);
     setEncargos(0);
     setEncargoCriado(false);
+    setAbatimentoAtual(0);
+    setAbatimentoFutura(0);
+    setAbatimentoCriadoAtual(false);
+    setAbatimentoCriadoFutura(false);
     setSobrandoAtual([]);
     setSobrandoFutura([]);
     try {
@@ -137,6 +157,8 @@ export default function ImportarFaturaPdf({
       setSobrandoAtual(faturaEntries.filter((e) => !matchEntry(e, parsed.atual)));
       setEncargos(parsed.encargos);
       setEncargoCategoria(categoriaPadrao());
+      setAbatimentoAtual(parsed.abatimentos);
+      setAbatimentoCategoria(categoriaPadrao());
 
       if (parsed.proximaFatura.length > 0) {
         const competenciaFutura = shiftCompetencia(fatura.competencia, 1);
@@ -145,6 +167,7 @@ export default function ImportarFaturaPdf({
         const futuraEntriesAgora = entries.filter((e) => e.fatura_id === futura.id);
         setLinesFutura(parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro));
         setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura)));
+        setAbatimentoFutura(parsed.abatimentosProximaFatura);
       } else {
         setLinesFutura([]);
       }
@@ -263,6 +286,39 @@ export default function ImportarFaturaPdf({
       setError('Erro ao lançar encargos: ' + err.message);
     } finally {
       setEncargoCriando(false);
+    }
+  };
+
+  const criarAbatimento = async (destino: 'atual' | 'futura') => {
+    const faturaAlvo = destino === 'atual' ? fatura : faturaFutura;
+    const valor = destino === 'atual' ? abatimentoAtual : abatimentoFutura;
+    if (!faturaAlvo || valor <= 0) return;
+    setAbatimentoCriando(destino);
+    try {
+      const { error: insertError } = await supabase.from('lancamentos').insert([{
+        user_id: userId,
+        cartao_id: cartao.id,
+        fatura_id: faturaAlvo.id,
+        conta_id: null,
+        data: faturaAlvo.data_vencimento,
+        hora: null,
+        descricao: `Abatimentos e estornos da fatura ${faturaAlvo.competencia}`,
+        tipo: 'saida',
+        categoria: abatimentoCategoria,
+        categoria_id: categoriaIdPorNome(abatimentoCategoria),
+        forma_pagamento: 'cartao',
+        // Negativo de propósito: reduz o total da fatura (totalDaFatura soma
+        // valor sem olhar o tipo), em vez de somar como se fosse mais uma
+        // compra — é exatamente o oposto disso.
+        valor: -valor,
+      }]);
+      if (insertError) throw insertError;
+      if (destino === 'atual') setAbatimentoCriadoAtual(true); else setAbatimentoCriadoFutura(true);
+      onImported();
+    } catch (err: any) {
+      setError('Erro ao lançar abatimento: ' + err.message);
+    } finally {
+      setAbatimentoCriando(null);
     }
   };
 
@@ -389,6 +445,37 @@ export default function ImportarFaturaPdf({
     );
   };
 
+  const renderAbatimentoCard = (destino: 'atual' | 'futura', valor: number, jaLancado: boolean, criado: boolean) => {
+    if (valor <= 0) return null;
+    return (
+      <div className="mb-4 border border-sky-200 bg-sky-50 dark:bg-sky-500/10 rounded-lg px-4 py-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-sm font-medium text-sky-800 dark:text-sky-300">
+            Abatimentos e estornos desta fatura: −{currency(valor)}
+          </p>
+          {criado || jaLancado ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md">
+              <CheckCircle2 size={12} /> Já lançado
+            </span>
+          ) : (
+            <button onClick={() => criarAbatimento(destino)} disabled={abatimentoCriando === destino} className="inline-flex items-center gap-1 text-xs font-medium text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 px-2.5 py-1.5 rounded-md">
+              <PlusCircle size={12} /> {abatimentoCriando === destino ? '...' : 'Lançar como um único ajuste'}
+            </button>
+          )}
+        </div>
+        {!criado && !jaLancado && (
+          <select
+            value={abatimentoCategoria}
+            onChange={(e) => setAbatimentoCategoria(e.target.value)}
+            className="mt-2 w-full border border-sky-200 rounded px-2 py-1 text-xs bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 focus:outline-none"
+          >
+            {categoriasSaida.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+          </select>
+        )}
+      </div>
+    );
+  };
+
   const pdfTotalAtual = linesAtual?.reduce((s, l) => s + l.valor, 0) || 0;
   const appTotalAtual = faturaEntries.reduce((s, e) => s + Number(e.valor), 0);
   const diffAtual = appTotalAtual - pdfTotalAtual;
@@ -459,6 +546,8 @@ export default function ImportarFaturaPdf({
               </div>
             )}
 
+            {renderAbatimentoCard('atual', abatimentoAtual, abatimentoJaLancadoAtual, abatimentoCriadoAtual)}
+
             <div className="mb-3 grid grid-cols-3 gap-2 text-center">
               <div className="bg-slate-50 dark:bg-slate-900 rounded-lg py-2">
                 <p className="text-[11px] text-slate-400 dark:text-slate-500">No PDF</p>
@@ -495,6 +584,7 @@ export default function ImportarFaturaPdf({
                   <CalendarClock size={13} /> Compras que só entram na fatura de {faturaFutura.competencia}
                 </p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mb-2">A própria fatura já avisa: essas parcelas só serão cobradas no mês que vem. Lançamos direto na fatura futura pra não esquecer — e pra não duplicar quando você importar o PDF de lá.</p>
+                {renderAbatimentoCard('futura', abatimentoFutura, abatimentoJaLancadoFutura, abatimentoCriadoFutura)}
                 <div className="border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
                   {linesFutura.map((line, idx) => renderLinha('futura', line, idx))}
                 </div>

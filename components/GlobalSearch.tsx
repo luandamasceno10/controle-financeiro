@@ -117,8 +117,8 @@ export default function GlobalSearch({ userId }: { userId: string }) {
                     {fmtDate(e.data)} · {e.categoria} · <PayIcon size={11} className="inline" />
                   </p>
                 </div>
-                <span className={`text-sm font-semibold tabular-nums shrink-0 ${e.tipo === 'entrada' ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
-                  {e.tipo === 'entrada' ? '+' : '-'}{currency(Number(e.valor))}
+                <span className={`text-sm font-semibold tabular-nums shrink-0 ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                  {e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}
                 </span>
               </Link>
             );

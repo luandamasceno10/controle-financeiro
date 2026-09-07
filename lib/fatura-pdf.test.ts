@@ -99,4 +99,26 @@ describe('parseFaturaPdfLines', () => {
     const result = parseFaturaPdfLines(['15/08 UI CREPE 48,00'], '2026-09');
     expect(result.encargos).toBe(0);
   });
+
+  it('soma abatimentos/estornos (linhas de valor negativo na tabela de compras) em vez de simplesmente descartar', () => {
+    const result = parseFaturaPdfLines(
+      [
+        '15/08 UI CREPE 48,00',
+        '03/07 RAIA DROGASIL SA - 0,01',
+        '11/07 LEGO FORTALEZA - 0,01',
+        '17/07 PROPIG *I JO-CT E MELO - 0,02',
+      ],
+      '2026-09'
+    );
+    expect(result.atual).toHaveLength(1); // só a compra de verdade
+    expect(result.abatimentos).toBeCloseTo(0.04);
+  });
+
+  it('não confunde "pagamento efetuado" da fatura anterior com abatimento pequeno', () => {
+    const result = parseFaturaPdfLines(
+      ['62053-745 SOBRAL - CE Pagamento efetuado em 07/08/2026 - 12.497,30'],
+      '2026-09'
+    );
+    expect(result.abatimentos).toBe(0);
+  });
 });

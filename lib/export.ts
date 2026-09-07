@@ -50,7 +50,7 @@ export function exportLancamentosPDF(entries: Lancamento[], titulo: string) {
       <td>${e.categoria}</td>
       <td>${e.tipo === 'entrada' ? 'Entrada' : 'Saída'}</td>
       <td>${e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</td>
-      <td style="text-align:right; color:${e.tipo === 'entrada' ? '#059669' : '#1e293b'}">${e.tipo === 'entrada' ? '+' : '-'}${currency(Number(e.valor))}</td>
+      <td style="text-align:right; color:${e.tipo === 'entrada' || Number(e.valor) < 0 ? '#059669' : '#1e293b'}">${e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}${currency(Math.abs(Number(e.valor)))}</td>
     </tr>
   `).join('');
 
