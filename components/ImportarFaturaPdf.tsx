@@ -84,6 +84,14 @@ export default function ImportarFaturaPdf({
     return contraLines.some((l) => Math.abs(Number(e.valor) - l.valor) < 0.01 && proximoAos5Dias(e.data, l.data));
   };
 
+  // Os lançamentos de "Encargos" e "Abatimentos" que a própria tela cria são
+  // somas agregadas — nunca vão bater com nenhuma linha individual do PDF, e
+  // sem excluir eles daqui apareciam como "sobra" (falso positivo de
+  // duplicado) mesmo já lançados corretamente do jeito esperado.
+  const ehAgregadoConhecido = (e: Lancamento, encargosVal: number, abatimentosVal: number) =>
+    (/encargo/i.test(e.descricao) && Math.abs(Number(e.valor) - encargosVal) < 0.02) ||
+    (/abatimento/i.test(e.descricao) && Math.abs(Number(e.valor) + abatimentosVal) < 0.02);
+
   const encargoJaLancado = useMemo(
     () => faturaEntries.some((e) => /encargo/i.test(e.descricao) && Math.abs(Number(e.valor) - encargos) < 0.02),
     [faturaEntries, encargos]
@@ -154,7 +162,7 @@ export default function ImportarFaturaPdf({
       const pendentesPrimeiro = (a: MatchedLine, b: MatchedLine) => Number(a.matched || a.created) - Number(b.matched || b.created);
 
       setLinesAtual(parsed.atual.map((l) => toMatched(l, faturaEntries)).sort(pendentesPrimeiro));
-      setSobrandoAtual(faturaEntries.filter((e) => !matchEntry(e, parsed.atual)));
+      setSobrandoAtual(faturaEntries.filter((e) => !matchEntry(e, parsed.atual) && !ehAgregadoConhecido(e, parsed.encargos, parsed.abatimentos)));
       setEncargos(parsed.encargos);
       setEncargoCategoria(categoriaPadrao());
       setAbatimentoAtual(parsed.abatimentos);
@@ -166,7 +174,7 @@ export default function ImportarFaturaPdf({
         setFaturaFutura(futura);
         const futuraEntriesAgora = entries.filter((e) => e.fatura_id === futura.id);
         setLinesFutura(parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro));
-        setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura)));
+        setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura) && !ehAgregadoConhecido(e, 0, parsed.abatimentosProximaFatura)));
         setAbatimentoFutura(parsed.abatimentosProximaFatura);
       } else {
         setLinesFutura([]);
@@ -476,7 +484,11 @@ export default function ImportarFaturaPdf({
     );
   };
 
-  const pdfTotalAtual = linesAtual?.reduce((s, l) => s + l.valor, 0) || 0;
+  // Inclui encargos e abatimentos aqui também — senão a comparação é injusta:
+  // assim que o usuário lança os encargos (uma soma à parte, não uma compra),
+  // "já lançado no app" passa a incluir esse valor mas "no PDF" não, e a
+  // diferença mostrada nunca fecha mesmo com tudo certo.
+  const pdfTotalAtual = (linesAtual?.reduce((s, l) => s + l.valor, 0) || 0) + encargos - abatimentoAtual;
   const appTotalAtual = faturaEntries.reduce((s, e) => s + Number(e.valor), 0);
   const diffAtual = appTotalAtual - pdfTotalAtual;
 
