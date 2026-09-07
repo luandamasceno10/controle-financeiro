@@ -9,6 +9,7 @@ import { SkeletonList } from './Skeleton';
 import { competenciaForPurchase, shiftCompetencia, estimatedVencimento, ensureFatura } from '@/lib/faturas';
 import { exportLancamentosCSV } from '@/lib/export';
 import ImportarFaturaPdf from './ImportarFaturaPdf';
+import LancamentoForm from './LancamentoForm';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban, FileUp, Download } from 'lucide-react';
 
@@ -63,6 +64,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [importFatura, setImportFatura] = useState<Fatura | null>(null);
   const [deleteEntryConfirm, setDeleteEntryConfirm] = useState<EntryDeleteTarget | null>(null);
+  const [editingEntry, setEditingEntry] = useState<Lancamento | null>(null);
   const [deletingEntry, setDeletingEntry] = useState(false);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         supabase.from('lancamentos').select('*').eq('user_id', userId).not('cartao_id', 'is', null),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
         supabase.from('compras_recorrentes').select('*').eq('user_id', userId).eq('ativa', true),
-        supabase.from('categorias').select('*').eq('user_id', userId).eq('tipo', 'saida').eq('ativa', true).order('ordem'),
+        supabase.from('categorias').select('*').eq('user_id', userId).eq('ativa', true).order('ordem'),
       ]);
       if (cartoesResult.data) setCartoes(cartoesResult.data);
       if (faturasResult.data) setFaturas(faturasResult.data);
@@ -94,6 +96,8 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   };
 
   const cartoesAtivos = useMemo(() => cartoes.filter((c) => c.ativo), [cartoes]);
+  const categoriasSaida = useMemo(() => categorias.filter((c) => c.tipo === 'saida'), [categorias]);
+  const categoriasEntrada = useMemo(() => categorias.filter((c) => c.tipo === 'entrada'), [categorias]);
 
   // A fatura "atual" é a competência que ainda está acumulando compras (não fechou
   // ainda). Qualquer outra fatura com status 'aberta' já passou do dia de
@@ -495,6 +499,13 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-sm font-semibold text-rose-600">-{currency(Number(e.valor))}</span>
                       <button
+                        onClick={() => setEditingEntry(e)}
+                        className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                        title="Editar lançamento"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
                         onClick={() => setDeleteEntryConfirm({ id: e.id, descricao: e.descricao })}
                         className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-rose-600 hover:bg-rose-50"
                         title="Excluir lançamento"
@@ -538,9 +549,24 @@ export default function CartoesCredito({ userId }: { userId: string }) {
           cartao={detailCartao}
           fatura={importFatura}
           entries={entries}
-          categorias={categorias}
+          categorias={categoriasSaida}
           onClose={() => setImportFatura(null)}
           onImported={loadData}
+        />
+      )}
+
+      {editingEntry && (
+        <LancamentoForm
+          userId={userId}
+          categoriasEntrada={categoriasEntrada}
+          categoriasSaida={categoriasSaida}
+          contas={contas}
+          cartoes={cartoesAtivos}
+          editingEntry={editingEntry}
+          onClose={() => setEditingEntry(null)}
+          onSaved={() => { setEditingEntry(null); loadData(); addToast('Lançamento atualizado!', 'success'); }}
+          onRequestDelete={(id) => { setEditingEntry(null); setDeleteEntryConfirm({ id, descricao: editingEntry.descricao }); }}
+          onError={(msg) => addToast(msg, 'error')}
         />
       )}
 
