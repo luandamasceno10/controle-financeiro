@@ -7,7 +7,8 @@ import { parseFaturaPdf } from '@/lib/fatura-pdf';
 import { shiftCompetencia, ensureFatura } from '@/lib/faturas';
 import { sumMoney } from '@/lib/money';
 import type { StatementLine } from '@/lib/statement';
-import { X, Upload, CheckCircle2, PlusCircle, FileUp, Copy, Check, Pencil, Receipt, CalendarClock } from 'lucide-react';
+import { normalizarDescricao, categoriaPorHistorico, suggestCategoria, type HistoricoCategoria } from '@/lib/categorize';
+import { X, Upload, CheckCircle2, PlusCircle, FileUp, Copy, Check, Pencil, Receipt, CalendarClock, Sparkles } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -24,6 +25,7 @@ interface MatchedLine extends StatementLine {
   failed?: string | null;
   categoria: string;
   categoria_id: number | null;
+  categorizando?: boolean;
 }
 
 export default function ImportarFaturaPdf({
@@ -64,7 +66,10 @@ export default function ImportarFaturaPdf({
   const [removendoSobra, setRemovendoSobra] = useState<number | null>(null);
 
   const categoriasSaida = useMemo(() => categorias.filter((c) => !c.parent_id), [categorias]);
-  const categoriaPadrao = () => categoriasSaida[0]?.nome || 'Diversos';
+  // Sem memória e sem sugestão de IA, cai numa categoria neutra em vez de
+  // "adivinhar" pegando a primeira da lista (foi exatamente isso que fez uma
+  // fatura inteira ser importada como "Moradia" por coincidência de ordem).
+  const categoriaPadrao = () => categoriasSaida.find((c) => c.nome === 'Diversos')?.nome || categoriasSaida[0]?.nome || 'Diversos';
   const categoriaIdPorNome = (nome: string) => categorias.find((c) => c.nome === nome)?.id ?? null;
 
   const faturaEntries = useMemo(() => entries.filter((e) => e.fatura_id === fatura.id), [entries, fatura.id]);
@@ -117,12 +122,12 @@ export default function ImportarFaturaPdf({
     [faturaFuturaEntries, abatimentoFutura]
   );
 
-  // Categoriza pela memória: se essa mesma descrição (ignorando maiúsculas/
-  // espaços) já apareceu antes num lançamento de saída, usa a categoria de
-  // da última vez — mesma lógica de "última categoria usada" do formulário
-  // manual, só que aplicada de uma vez pra todas as linhas reconhecidas.
-  const buscarMemoriaCategoria = async (): Promise<Map<string, string>> => {
-    const mapa = new Map<string, string>();
+  // Categoriza pela memória: se uma compra parecida (mesmo nome do
+  // estabelecimento, ignorando data/código/parcela que variam entre uma
+  // fatura e outra) já apareceu antes num lançamento de saída, usa a
+  // categoria da última vez — mesma lógica de "última categoria usada" do
+  // formulário manual, só que aplicada de uma vez pra todas as linhas.
+  const buscarMemoriaCategoria = async (): Promise<HistoricoCategoria[]> => {
     const { data } = await supabase
       .from('lancamentos')
       .select('descricao, categoria, data')
@@ -130,11 +135,15 @@ export default function ImportarFaturaPdf({
       .eq('tipo', 'saida')
       .order('data', { ascending: false })
       .limit(1000);
+    const historico: HistoricoCategoria[] = [];
+    const vistos = new Set<string>();
     for (const row of data || []) {
-      const chave = row.descricao.trim().toLowerCase();
-      if (!mapa.has(chave)) mapa.set(chave, row.categoria);
+      const descricaoNorm = normalizarDescricao(row.descricao);
+      if (!descricaoNorm || vistos.has(descricaoNorm)) continue;
+      vistos.add(descricaoNorm);
+      historico.push({ descricaoNorm, categoria: row.categoria });
     }
-    return mapa;
+    return historico;
   };
 
   const handleFile = async (file: File) => {
@@ -161,34 +170,65 @@ export default function ImportarFaturaPdf({
       }
 
       const memoria = await buscarMemoriaCategoria();
-      const paraCategoria = (desc: string) => memoria.get(desc.trim().toLowerCase()) || categoriaPadrao();
-      const toMatched = (l: StatementLine, contraEntries: Lancamento[]): MatchedLine => {
-        const categoriaNome = paraCategoria(l.descricao);
-        return { ...l, matched: matchLine(l, contraEntries), creating: false, created: false, categoria: categoriaNome, categoria_id: categoriaIdPorNome(categoriaNome) };
-      };
       // Pendentes primeiro: senão, numa fatura com 100 compras já lançadas e
       // só 2 pendentes, essas 2 ficam perdidas no meio da lista — o motivo de
       // "aparece 2 pendentes mas não dá pra ver quais são".
       const pendentesPrimeiro = (a: MatchedLine, b: MatchedLine) => Number(a.matched || a.created) - Number(b.matched || b.created);
+      const toMatched = (l: StatementLine, contraEntries: Lancamento[]): MatchedLine => {
+        const categoriaMemoria = categoriaPorHistorico(l.descricao, memoria);
+        const categoriaNome = categoriaMemoria || categoriaPadrao();
+        return {
+          ...l,
+          matched: matchLine(l, contraEntries),
+          creating: false,
+          created: false,
+          categoria: categoriaNome,
+          categoria_id: categoriaIdPorNome(categoriaNome),
+          categorizando: !categoriaMemoria,
+        };
+      };
 
-      setLinesAtual(parsed.atual.map((l) => toMatched(l, faturaEntries)).sort(pendentesPrimeiro));
+      const linhasAtual = parsed.atual.map((l) => toMatched(l, faturaEntries)).sort(pendentesPrimeiro);
+      setLinesAtual(linhasAtual);
       setSobrandoAtual(faturaEntries.filter((e) => !matchEntry(e, parsed.atual) && !ehAgregadoConhecido(e, parsed.encargos, parsed.abatimentos)));
       setEncargos(parsed.encargos);
       setEncargoCategoria(categoriaPadrao());
       setAbatimentoAtual(parsed.abatimentos);
       setAbatimentoCategoria(categoriaPadrao());
 
+      let linhasFutura: MatchedLine[] = [];
       if (parsed.proximaFatura.length > 0) {
         const competenciaFutura = shiftCompetencia(fatura.competencia, 1);
         const futura = await ensureFatura(cartao, competenciaFutura, userId);
         setFaturaFutura(futura);
         const futuraEntriesAgora = entries.filter((e) => e.fatura_id === futura.id);
-        setLinesFutura(parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro));
+        linhasFutura = parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro);
+        setLinesFutura(linhasFutura);
         setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura) && !ehAgregadoConhecido(e, 0, parsed.abatimentosProximaFatura)));
         setAbatimentoFutura(parsed.abatimentosProximaFatura);
       } else {
         setLinesFutura([]);
       }
+
+      // Sem memória pra essas linhas: tenta a IA em segundo plano, uma a uma
+      // — sem memória batendo (grátis e mais confiável), vale a chamada.
+      // Enquanto não responde, ou se não achar nada, fica na categoria padrão.
+      const opcoesSaida = categoriasSaida.map((c) => c.nome);
+      const categorizarComIA = async (destino: 'atual' | 'futura', linhas: MatchedLine[]) => {
+        const setLines = setLinesFor(destino);
+        linhas.forEach((linha, idx) => {
+          if (!linha.categorizando) return;
+          suggestCategoria(linha.descricao, opcoesSaida).then((sugestao) => {
+            setLines((prev) => prev && prev.map((l, i) => {
+              if (i !== idx || l.descricao !== linha.descricao || !l.categorizando) return l;
+              const categoriaNome = sugestao || l.categoria;
+              return { ...l, categorizando: false, categoria: categoriaNome, categoria_id: categoriaIdPorNome(categoriaNome) };
+            }));
+          });
+        });
+      };
+      categorizarComIA('atual', linhasAtual);
+      categorizarComIA('futura', linhasFutura);
     } catch (err: any) {
       setError('Erro ao ler o PDF: ' + err.message);
       // Detalhe técnico pra diagnosticar erros que só acontecem em aparelhos
@@ -412,17 +452,22 @@ export default function ImportarFaturaPdf({
           )}
         </div>
         {!line.matched && !line.created && (
-          <select
-            value={line.categoria}
-            onChange={(e) => {
-              const nome = e.target.value;
-              const setLines = setLinesFor(destino);
-              setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, categoria: nome, categoria_id: categoriaIdPorNome(nome) } : l)));
-            }}
-            className="mt-1.5 w-full border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-800"
-          >
-            {categoriasSaida.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
-          </select>
+          <div className="mt-1.5 flex items-center gap-2">
+            <select
+              value={line.categoria}
+              onChange={(e) => {
+                const nome = e.target.value;
+                const setLines = setLinesFor(destino);
+                setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, categoria: nome, categoria_id: categoriaIdPorNome(nome), categorizando: false } : l)));
+              }}
+              className="flex-1 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-800"
+            >
+              {categoriasSaida.map((c) => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+            </select>
+            {line.categorizando && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 shrink-0"><Sparkles size={11} /> sugerindo…</span>
+            )}
+          </div>
         )}
         {line.failed && (
           <p className="text-xs text-rose-600 mt-1">{line.failed}</p>
