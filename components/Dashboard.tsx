@@ -394,6 +394,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   );
 
   const custoVidaReal = relatorioCalculado.custoVidaReal;
+  const totalVariaveis = useMemo(() => relatorioCalculado.variaveis.reduce((s, c) => s + c.value, 0), [relatorioCalculado]);
   const entradasRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.entradasPorCategoria), [relatorioCalculado]);
   const fixosRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.fixos), [relatorioCalculado]);
   const variaveisRelatorio = useMemo(() => comCorPorIndice(relatorioCalculado.variaveis), [relatorioCalculado]);
@@ -797,6 +798,35 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </div>
               ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem despesas neste mês ainda.</p>}
             </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Gastos fixos x variáveis</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Quanto do seu custo de vida é fixo (contas recorrentes) e quanto varia mês a mês</p>
+            {custoVidaReal + totalVariaveis > 0 ? (
+              <>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--series-1)' }} /> Fixos</span>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--series-2)' }} /> Variáveis</span>
+                </div>
+                <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex gap-0.5">
+                  {custoVidaReal > 0 && <div className="h-full rounded-full" style={{ width: `${(custoVidaReal / (custoVidaReal + totalVariaveis)) * 100}%`, backgroundColor: 'var(--series-1)' }} />}
+                  {totalVariaveis > 0 && <div className="h-full rounded-full" style={{ width: `${(totalVariaveis / (custoVidaReal + totalVariaveis)) * 100}%`, backgroundColor: 'var(--series-2)' }} />}
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Fixos</p>
+                    <p className="text-lg font-bold tabular-nums text-slate-800 dark:text-slate-100">{currency(custoVidaReal)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{Math.round((custoVidaReal / (custoVidaReal + totalVariaveis)) * 100)}% do total</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Variáveis</p>
+                    <p className="text-lg font-bold tabular-nums text-slate-800 dark:text-slate-100">{currency(totalVariaveis)}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{Math.round((totalVariaveis / (custoVidaReal + totalVariaveis)) * 100)}% do total</p>
+                  </div>
+                </div>
+              </>
+            ) : <p className="text-center text-slate-400 dark:text-slate-500 text-sm py-10">Sem despesas neste mês ainda.</p>}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
