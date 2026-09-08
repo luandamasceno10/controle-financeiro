@@ -85,7 +85,10 @@ export function computeRelatorioMensal(params: {
   // ser fixo na maioria das vezes mas um Uber avulso específico ser variável.
   const mapFixo: Record<string, { value: number; count: number; icone?: string }> = {};
   const mapVariavel: Record<string, { value: number; count: number; icone?: string }> = {};
-  monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id).forEach((e) => {
+  // "Cartão de crédito" é o lançamento de pagamento da fatura, não uma compra
+  // — as compras já entram categorizadas (e classificadas fixo/variável) no
+  // momento em que caem no cartão. Contar aqui de novo duplicaria o gasto.
+  monthEntries.filter((e) => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').forEach((e) => {
     const nome = rollupNome(categorias, e.categoria, e.tipo);
     const classificacao = resolverTipoGasto(e.categoria, e.tipo_gasto_override);
     const map = classificacao === 'fixo' ? mapFixo : mapVariavel;
@@ -98,7 +101,7 @@ export function computeRelatorioMensal(params: {
   const custoVidaReal = fixos.reduce((s, c) => s + c.value, 0);
 
   const gastoPorCategoriaId: Record<number, number> = {};
-  monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id && !e.cartao_id).forEach((e) => {
+  monthEntries.filter((e) => e.tipo === 'saida' && e.categoria_id && !e.cartao_id && e.categoria !== 'Cartão de crédito').forEach((e) => {
     gastoPorCategoriaId[e.categoria_id!] = (gastoPorCategoriaId[e.categoria_id!] || 0) + Number(e.valor);
   });
   const orcamentoRows = orcamentos
@@ -111,7 +114,7 @@ export function computeRelatorioMensal(params: {
     .sort((a, b) => (b.realizado - b.orcado) - (a.realizado - a.orcado));
 
   const pixCartaoMap: Record<string, { pix: number; cartao: number; icone?: string }> = {};
-  monthEntries.filter((e) => e.tipo === 'saida').forEach((e) => {
+  monthEntries.filter((e) => e.tipo === 'saida' && e.categoria !== 'Cartão de crédito').forEach((e) => {
     const nome = rollupNome(categorias, e.categoria, e.tipo);
     if (!pixCartaoMap[nome]) pixCartaoMap[nome] = { pix: 0, cartao: 0, icone: categorias.find((c) => c.tipo === 'saida' && c.nome === nome)?.icone };
     pixCartaoMap[nome][e.forma_pagamento] += Number(e.valor);

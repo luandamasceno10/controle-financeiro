@@ -295,7 +295,10 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {};
-    monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id).forEach(e => {
+    // "Cartão de crédito" aqui é o lançamento de pagamento da fatura, não uma
+    // compra — as compras já entram categorizadas em "No cartão". Contar essa
+    // categoria aqui duplicaria o gasto.
+    monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
       map[nome] = (map[nome] || 0) + Number(e.valor);
     });
@@ -312,7 +315,7 @@ export default function Dashboard({ userId }: { userId: string }) {
     const prevKey = m === 1 ? null : `${y}-${String(m - 1).padStart(2, '0')}`;
     if (!prevKey) return null;
     const map: Record<string, number> = {};
-    entries.filter(e => monthKey(e.data) === prevKey && e.tipo === 'saida' && !e.cartao_id).forEach(e => {
+    entries.filter(e => monthKey(e.data) === prevKey && e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
       map[nome] = (map[nome] || 0) + Number(e.valor);
     });
@@ -407,7 +410,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
-    monthEntries.filter(e => e.tipo === 'saida').forEach(e => {
+    monthEntries.filter(e => e.tipo === 'saida' && e.categoria !== 'Cartão de crédito').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
       if (!grouped[nome]) grouped[nome] = { category: nome, pix: 0, cartao: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
       grouped[nome][e.forma_pagamento] += Number(e.valor);
@@ -467,7 +470,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const yearCategoryData = useMemo(() => {
     const map: Record<string, number> = {};
-    entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida' && !e.cartao_id).forEach(e => {
+    entries.filter(e => monthKey(e.data).startsWith(String(currentYear)) && e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
       map[nome] = (map[nome] || 0) + Number(e.valor);
     });
