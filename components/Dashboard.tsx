@@ -189,7 +189,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       data.forEach((r: { conta_id: number; saldo: number }) => { map[r.conta_id] = Number(r.saldo); });
       setSaldoPorConta(map);
     });
-  }, [userId, currentMonth]);
+  }, [userId, currentMonth, entries]);
 
   // Evolução patrimonial: saldo total acumulado ao fim de cada mês do ano
   // exibido — busca só quando a vista Anual está aberta (é o único lugar que usa).
