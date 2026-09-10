@@ -58,8 +58,37 @@ export const DEFAULT_CATEGORIAS_SAIDA = [
   { nome: 'Família & Dependentes', cor: '#0D9488', icone: 'Users' },
   { nome: 'Investimentos & Futuro', cor: '#059669', icone: 'PiggyBank' },
   { nome: 'Dívidas & Empréstimos', cor: '#B91C1C', icone: 'Landmark' },
+  { nome: 'Cartão de crédito', cor: '#0F172A', icone: 'CreditCard' },
   { nome: 'Diversos', cor: '#64748B', icone: 'CircleEllipsis' },
 ];
+
+// "Cartão de crédito" existe só pra marcar o lançamento de pagamento da
+// fatura (isolado da conta bancária, excluído dos gráficos por categoria pra
+// não duplicar o gasto — ver lib/relatorioCalculos.ts). Usuários que já
+// tinham categorias antes dela existir nunca passam pelo insert em massa de
+// ensureDefaultCategorias (só roda na conta zerada), então sem isso a
+// categoria nunca aparece na lista pra escolher manualmente.
+export async function ensureCategoriaCartaoCredito(userId: string) {
+  const { data } = await supabase
+    .from('categorias')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('tipo', 'saida')
+    .eq('nome', 'Cartão de crédito')
+    .limit(1);
+
+  if (data && data.length > 0) return;
+
+  const { count } = await supabase
+    .from('categorias')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('tipo', 'saida');
+
+  await supabase.from('categorias').insert([
+    { nome: 'Cartão de crédito', cor: '#0F172A', icone: 'CreditCard', tipo: 'saida', ordem: count ?? 0, user_id: userId },
+  ]);
+}
 
 export const DEFAULT_CATEGORIAS_ENTRADA = [
   { nome: 'Salário', cor: '#059669', icone: 'Briefcase' },
