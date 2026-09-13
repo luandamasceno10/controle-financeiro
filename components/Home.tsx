@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import type { ContaPagar, Lancamento, Categoria, ContaBancaria, CartaoCredito, Fatura, Meta, MetaContribuicao, OrcamentoCategoria, AnaliseIA } from '@/lib/supabase';
+import type { ContaPagar, Lancamento, Categoria, ContaBancaria, CartaoCredito, Fatura, Meta, MetaContribuicao, OrcamentoCategoria, AnaliseIA, Ativo } from '@/lib/supabase';
 import { analyzeFinances } from '@/lib/analyzeWithAI';
 import { computeProgresso } from '@/lib/metas';
 import { useToast, ToastContainer } from './Toast';
@@ -38,6 +38,8 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
   const [metas, setMetas] = useState<Meta[]>([]);
   const [metasContribuicoes, setMetasContribuicoes] = useState<MetaContribuicao[]>([]);
   const [orcamentos, setOrcamentos] = useState<OrcamentoCategoria[]>([]);
+  const [ativos, setAtivos] = useState<Ativo[]>([]);
+  const [saldoContasAtual, setSaldoContasAtual] = useState(0);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -67,7 +69,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     // cobre com folga qualquer fatura aberta esquecida sem crescer sem limite.
     const janelaInicio = new Date();
     janelaInicio.setMonth(janelaInicio.getMonth() - 13);
-    const [entriesResult, billsResult, allBillsResult, categoriasResult, contasResult, cartoesResult, faturasResult, metasResult, contribsResult, orcamentosResult, analiseResult] = await Promise.all([
+    const [entriesResult, billsResult, allBillsResult, categoriasResult, contasResult, cartoesResult, faturasResult, metasResult, contribsResult, orcamentosResult, analiseResult, ativosResult, saldoRpcResult] = await Promise.all([
       supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', janelaInicio.toISOString().slice(0, 10)),
       supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente').order('vencimento', { ascending: true }).limit(1),
       supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente'),
@@ -79,6 +81,8 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
       supabase.from('metas_contribuicoes').select('*').eq('user_id', userId),
       supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
       supabase.from('analises_ia').select('*').eq('user_id', userId).eq('data', hoje).maybeSingle(),
+      supabase.from('ativos').select('*').eq('user_id', userId).eq('ativo', true),
+      supabase.rpc('saldo_por_conta', { p_cutoff: hoje }),
     ]);
 
     if (entriesResult.data) setEntries(entriesResult.data);
@@ -92,6 +96,12 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     if (contribsResult.data) setMetasContribuicoes(contribsResult.data);
     if (orcamentosResult.data) setOrcamentos(orcamentosResult.data);
     if (analiseResult.data) setAnaliseHoje(analiseResult.data);
+    if (ativosResult.data) setAtivos(ativosResult.data);
+    if (saldoRpcResult.data && contasResult.data) {
+      const base = contasResult.data.reduce((s, c) => s + Number(c.saldo_inicial), 0);
+      const soma = saldoRpcResult.data.reduce((s: number, r: { saldo: number }) => s + Number(r.saldo), 0);
+      setSaldoContasAtual(base + soma);
+    }
     setLoading(false);
   };
 
@@ -202,6 +212,93 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     return { total: metas.length, noRitmo };
   }, [metas, metasContribuicoes]);
 
+  // Monta um retrato completo da situação financeira a partir do que já está
+  // carregado (até 13 meses de lançamentos) — em vez de só o mês atual, a IA
+  // passa a ver tendência, dívidas, patrimônio, reserva e metas de uma vez.
+  const buildResumoCompleto = () => {
+    const porMes: Record<string, { entrada: number; saida: number }> = {};
+    entries.forEach((e) => {
+      const mes = e.data.slice(0, 7);
+      if (!porMes[mes]) porMes[mes] = { entrada: 0, saida: 0 };
+      if (e.tipo === 'entrada') porMes[mes].entrada += Number(e.valor);
+      else if (!e.cartao_id) porMes[mes].saida += Number(e.valor);
+    });
+    const mesesOrdenados = Object.keys(porMes).sort();
+    const serieMensal = mesesOrdenados.map((mes) => ({
+      mes, entrada: Math.round(porMes[mes].entrada * 100) / 100, saida: Math.round(porMes[mes].saida * 100) / 100,
+      saldo: Math.round((porMes[mes].entrada - porMes[mes].saida) * 100) / 100,
+    }));
+
+    const ultimosTresMeses = mesesOrdenados.slice(-3);
+    const custoVidaMedio = ultimosTresMeses.length > 0
+      ? ultimosTresMeses.reduce((s, m) => s + porMes[m].saida, 0) / ultimosTresMeses.length
+      : 0;
+    const taxaPoupancaMedia = ultimosTresMeses.length > 0
+      ? ultimosTresMeses.reduce((s, m) => {
+          const { entrada, saida } = porMes[m];
+          return s + (entrada > 0 ? (entrada - saida) / entrada : 0);
+        }, 0) / ultimosTresMeses.length * 100
+      : null;
+
+    const categoriaTotais: Record<string, number> = {};
+    entries.filter((e) => e.tipo === 'saida' && ultimosTresMeses.includes(e.data.slice(0, 7))).forEach((e) => {
+      categoriaTotais[e.categoria] = (categoriaTotais[e.categoria] || 0) + Number(e.valor);
+    });
+    const topCategorias = Object.entries(categoriaTotais).sort((a, b) => b[1] - a[1]).slice(0, 6)
+      .map(([nome, valor]) => ({ nome, valorMedioMensal: Math.round((valor / Math.max(1, ultimosTresMeses.length)) * 100) / 100 }));
+
+    const gastoCartao = entries.filter((e) => e.tipo === 'saida' && !!e.cartao_id && ultimosTresMeses.includes(e.data.slice(0, 7))).reduce((s, e) => s + Number(e.valor), 0);
+    const gastoTotal3m = ultimosTresMeses.reduce((s, m) => s + porMes[m].saida, 0) + gastoCartao;
+    const pctCartao = gastoTotal3m > 0 ? Math.round((gastoCartao / gastoTotal3m) * 100) : 0;
+
+    const reservaMeta = metas.find((m) => m.eh_reserva_emergencia);
+    const valorReserva = reservaMeta ? metasContribuicoes.filter((c) => c.meta_id === reservaMeta.id).reduce((s, c) => s + Number(c.valor), 0) : 0;
+    const reserva = reservaMeta
+      ? { existe: true, valorGuardado: valorReserva, mesesCobertos: custoVidaMedio > 0 ? Math.round((valorReserva / custoVidaMedio) * 10) / 10 : null }
+      : { existe: false, valorGuardado: 0, mesesCobertos: null };
+
+    const gruposDivida = new Map<string, ContaPagar[]>();
+    contasPagar.filter((p) => p.eh_divida && p.parcelamento_id).forEach((p) => {
+      const g = gruposDivida.get(p.parcelamento_id!) || [];
+      g.push(p);
+      gruposDivida.set(p.parcelamento_id!, g);
+    });
+    let totalSaldoDevedor = 0;
+    let totalJurosRestante = 0;
+    gruposDivida.forEach((parcelas) => {
+      const valorTotal = parcelas.reduce((s, p) => s + Number(p.valor), 0);
+      const saldoDevedor = parcelas.reduce((s, p) => s + Number(p.valor), 0);
+      const principal = Number(parcelas[0].valor_principal ?? 0);
+      totalSaldoDevedor += saldoDevedor;
+      totalJurosRestante += valorTotal > 0 ? Math.max(0, valorTotal - principal) : 0;
+    });
+
+    const totalAtivos = ativos.reduce((s, a) => s + Number(a.saldo_atual), 0);
+    const totalContasPagarAbertas = contasPagar.reduce((s, p) => s + Number(p.valor), 0);
+
+    const metasResumo = metas.map((m) => {
+      const contribs = metasContribuicoes.filter((c) => c.meta_id === m.id);
+      const p = computeProgresso(Number(m.valor_alvo), m.data_alvo, m.created_at, contribs);
+      return { nome: m.nome, valorAlvo: Number(m.valor_alvo), valorAtual: p.valorAtual, pctCompleto: Math.round(p.pct), noPrazo: p.noPrazo };
+    });
+
+    const orcamentosEstourados = alertas.filter((a) => a.id.startsWith('orc-')).length;
+
+    return {
+      mesAtual: MONTH_NAMES_FULL[new Date().getMonth()],
+      serieMensal,
+      custoVidaMedioUltimos3Meses: Math.round(custoVidaMedio * 100) / 100,
+      taxaPoupancaMediaUltimos3MesesPct: taxaPoupancaMedia !== null ? Math.round(taxaPoupancaMedia * 10) / 10 : null,
+      topCategoriasUltimos3Meses: topCategorias,
+      pctGastoNoCartaoUltimos3Meses: pctCartao,
+      reservaEmergencia: reserva,
+      dividas: { quantidade: gruposDivida.size, saldoDevedorTotal: Math.round(totalSaldoDevedor * 100) / 100, jurosRestanteEstimado: Math.round(totalJurosRestante * 100) / 100 },
+      patrimonio: { saldoContasBancarias: Math.round(saldoContasAtual * 100) / 100, totalAtivos: Math.round(totalAtivos * 100) / 100, totalContasAPagarEmAberto: Math.round(totalContasPagarAbertas * 100) / 100 },
+      metas: metasResumo,
+      orcamentosEstouradosEsteMs: orcamentosEstourados,
+    };
+  };
+
   const runAnalysis = async () => {
     if (analiseHoje) {
       setShowAnalysis(true);
@@ -209,11 +306,8 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
     }
     setAnalysisLoading(true);
     try {
-      const entrada = monthEntries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
-      const saida = monthEntries.filter(e => e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
-      const totals = { entrada, saida, saldo: entrada - saida };
-      const monthIdx = new Date().getMonth();
-      const text = await analyzeFinances(monthEntries, totals, MONTH_NAMES_FULL[monthIdx]);
+      const resumo = buildResumoCompleto();
+      const text = await analyzeFinances(resumo);
 
       const hoje = todayISO();
       const { data, error } = await supabase.from('analises_ia').insert([{
@@ -411,7 +505,7 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
       <button
         onClick={runAnalysis}
-        disabled={analysisLoading || (monthEntries.length === 0 && !analiseHoje)}
+        disabled={analysisLoading || (entries.length === 0 && !analiseHoje)}
         className="w-full bg-purple-500 hover:bg-purple-400 disabled:bg-slate-300 text-white font-semibold py-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
       >
         {analysisLoading ? (
@@ -441,15 +535,15 @@ export default function Home({ userId, nome }: { userId: string; nome?: string }
 
       {showAnalysis && analiseHoje && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">💡 Análise Financeira IA</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6 max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">💡 Análise Financeira Completa</h3>
               <button onClick={() => setShowAnalysis(false)}><X size={18} /></button>
             </div>
-            <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-lg p-4 text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+            <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-lg p-4 text-slate-700 dark:text-slate-200 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto">
               {analiseHoje.texto}
             </div>
-            <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg">
+            <button onClick={() => setShowAnalysis(false)} className="w-full mt-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2.5 rounded-lg shrink-0">
               Fechar
             </button>
           </div>

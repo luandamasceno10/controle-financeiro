@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export async function analyzeFinances(entries: any[], totals: any, monthName: string) {
+export async function analyzeFinances(resumo: Record<string, any>) {
   const { data: { session } } = await supabase.auth.getSession();
   const response = await fetch("/api/analyze", {
     method: "POST",
@@ -8,7 +8,7 @@ export async function analyzeFinances(entries: any[], totals: any, monthName: st
       "Content-Type": "application/json",
       ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
     },
-    body: JSON.stringify({ entries, totals, monthName }),
+    body: JSON.stringify({ resumo }),
   });
 
   if (!response.ok) {
