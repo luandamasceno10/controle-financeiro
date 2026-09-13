@@ -25,7 +25,8 @@ import {
   Plus, Wallet, CreditCard, QrCode, ChevronDown, X, Trash2, Pencil,
   ArrowUpRight, ArrowDownRight, CircleEllipsis,
   Calendar, ChevronLeft, ChevronRight,
-  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText, Paperclip, Info
+  Target, TrendingUp, BarChart3, Inbox, Loader, Search, FileDown, FileText, Paperclip, Info,
+  ArrowUpFromLine, ArrowDownToLine, AlertTriangle,
 } from 'lucide-react';
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -286,12 +287,23 @@ export default function Dashboard({ userId }: { userId: string }) {
     };
   }, [totals, forecast, currentMonth, carryOver]);
 
+  // Só as contas que vencem NESTE mês — contas de meses futuros ainda vão
+  // ganhar seu próprio "disponível" quando o mês chegar, então somar tudo de
+  // uma vez inflava o projetado com dívidas/recebimentos que nem são deste mês.
   const billTotals = useMemo(() => {
-    const aPagar = payable.filter(p => p.status === 'pendente').reduce((s, p) => s + Number(p.valor), 0);
-    const aReceber = receivable.filter(r => r.status === 'pendente').reduce((s, r) => s + Number(r.valor), 0);
-    const saldoProjetado = commitment.disponivel + aReceber - aPagar;
-    return { aPagar, aReceber, saldoProjetado };
-  }, [payable, receivable, commitment.disponivel]);
+    const pagarMes = payable.filter(p => p.status === 'pendente' && monthKey(p.vencimento) === currentMonth);
+    const receberMes = receivable.filter(r => r.status === 'pendente' && monthKey(r.vencimento) === currentMonth);
+    const hojeISO = todayISO();
+    const aPagar = pagarMes.reduce((s, p) => s + Number(p.valor), 0);
+    const aReceber = receberMes.reduce((s, r) => s + Number(r.valor), 0);
+    const saldoProjetado = commitment.disponivel - aPagar + aReceber;
+    return {
+      aPagar, aReceber, saldoProjetado,
+      countPagar: pagarMes.length, countReceber: receberMes.length,
+      vencidasPagar: pagarMes.filter(p => p.vencimento < hojeISO).length,
+      vencidasReceber: receberMes.filter(r => r.vencimento < hojeISO).length,
+    };
+  }, [payable, receivable, commitment.disponivel, currentMonth]);
 
   const categoryData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -685,23 +697,42 @@ export default function Dashboard({ userId }: { userId: string }) {
               value={billTotals.saldoProjetado}
               icon={Calendar}
               tone={billTotals.saldoProjetado >= 0 ? 'violet' : 'rose'}
-              tooltip={`É o "disponível" (${currency(commitment.disponivel)}) somado ao que você ainda vai receber (${currency(billTotals.aReceber)}) e descontado do que ainda vai pagar (${currency(billTotals.aPagar)}) — uma prévia de como seu saldo deve ficar depois que essas contas em aberto forem resolvidas.`}
+              tooltip={`É o "disponível" (${currency(commitment.disponivel)}) descontado do que ainda vai pagar neste mês (${currency(billTotals.aPagar)}) e somado ao que ainda vai receber neste mês (${currency(billTotals.aReceber)}) — uma prévia de como seu saldo deve fechar o mês. Contas de outros meses não entram aqui.`}
             />
           </div>
 
           {(billTotals.aPagar > 0 || billTotals.aReceber > 0) && (
-            <Link href="/pagar-receber" className="flex items-center justify-between bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-slate-300 transition-colors">
-              <div className="flex items-center gap-6">
-                <div>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">A pagar</p>
-                  <p className="text-sm font-bold text-rose-600 tabular-nums">{currency(billTotals.aPagar)}</p>
+            <Link href="/pagar-receber" className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Contas a pagar/receber neste mês</h3>
+                <span className="text-xs font-medium text-slate-400 dark:text-slate-500">Ver todas →</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 p-3">
+                  <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center shrink-0"><ArrowUpFromLine size={16} className="text-rose-600" /></div>
+                  <div className="min-w-0">
+                    <p className="text-lg font-bold tabular-nums text-rose-700 dark:text-rose-400 truncate">{currency(billTotals.aPagar)}</p>
+                    <p className="text-xs text-rose-600/80 dark:text-rose-400/70 flex items-center gap-1">
+                      {billTotals.countPagar} conta{billTotals.countPagar !== 1 ? 's' : ''} a pagar
+                      {billTotals.vencidasPagar > 0 && (
+                        <span className="inline-flex items-center gap-0.5 font-semibold"><AlertTriangle size={11} /> {billTotals.vencidasPagar} atrasada{billTotals.vencidasPagar !== 1 ? 's' : ''}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">A receber</p>
-                  <p className="text-sm font-bold text-emerald-600 tabular-nums">{currency(billTotals.aReceber)}</p>
+                <div className="flex items-center gap-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 p-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center shrink-0"><ArrowDownToLine size={16} className="text-emerald-600" /></div>
+                  <div className="min-w-0">
+                    <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400 truncate">{currency(billTotals.aReceber)}</p>
+                    <p className="text-xs text-emerald-600/80 dark:text-emerald-400/70 flex items-center gap-1">
+                      {billTotals.countReceber} conta{billTotals.countReceber !== 1 ? 's' : ''} a receber
+                      {billTotals.vencidasReceber > 0 && (
+                        <span className="inline-flex items-center gap-0.5 font-semibold"><AlertTriangle size={11} /> {billTotals.vencidasReceber} atrasada{billTotals.vencidasReceber !== 1 ? 's' : ''}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Contas a Pagar/Receber →</span>
             </Link>
           )}
 
