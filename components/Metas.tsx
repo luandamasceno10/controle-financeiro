@@ -9,7 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
 import {
   Plus, X, Pencil, Trash2, Target, TrendingUp, Calendar, CheckCircle2,
-  AlertTriangle, PlusCircle, Trophy, Archive, MoreVertical, Repeat,
+  AlertTriangle, PlusCircle, Trophy, Archive, MoreVertical, Repeat, ShieldCheck,
 } from 'lucide-react';
 
 function currency(v: number) {
@@ -44,6 +44,7 @@ export default function Metas({ userId }: { userId: string }) {
   const [form, setForm] = useState({
     nome: '', valor_alvo: '', data_alvo: '', cor: CORES[0],
     aporteRecorrenteAtivo: false, aporte_recorrente_valor: '', aporte_recorrente_dia: '5', aporte_recorrente_conta_id: null as number | null,
+    eh_reserva_emergencia: false,
   });
   const [archiveConfirm, setArchiveConfirm] = useState<Meta | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Meta | null>(null);
@@ -54,6 +55,7 @@ export default function Metas({ userId }: { userId: string }) {
   const [contributing, setContributing] = useState(false);
 
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [custoVidaMedio, setCustoVidaMedio] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -70,6 +72,7 @@ export default function Metas({ userId }: { userId: string }) {
       if (metasResult.data) setMetas(metasResult.data);
       if (contribResult.data) setContribuicoes(contribResult.data);
       if (contasResult.data) setContas(contasResult.data);
+      await carregarCustoVidaMedio();
     } catch (err: any) {
       addToast('Erro ao carregar metas: ' + err.message, 'error');
     } finally {
@@ -77,14 +80,43 @@ export default function Metas({ userId }: { userId: string }) {
     }
   };
 
+  // Média do gasto real dos últimos 3 meses fechados (saída, sem compras de
+  // cartão ainda não pagas) — usada como referência de "custo de vida
+  // mensal" pra saber quantos meses a reserva de emergência cobre.
+  const carregarCustoVidaMedio = async () => {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 3, 1).toISOString().slice(0, 10);
+    const fim = new Date(hoje.getFullYear(), hoje.getMonth(), 0).toISOString().slice(0, 10);
+    const { data } = await supabase
+      .from('lancamentos')
+      .select('valor, data')
+      .eq('user_id', userId)
+      .eq('tipo', 'saida')
+      .is('cartao_id', null)
+      .gte('data', inicio)
+      .lte('data', fim);
+    if (!data || data.length === 0) { setCustoVidaMedio(null); return; }
+    const porMes: Record<string, number> = {};
+    data.forEach((l) => {
+      const mes = l.data.slice(0, 7);
+      porMes[mes] = (porMes[mes] || 0) + Number(l.valor);
+    });
+    const meses = Object.values(porMes);
+    setCustoVidaMedio(meses.length > 0 ? meses.reduce((s, v) => s + v, 0) / meses.length : null);
+  };
+
   const metasAtivas = useMemo(() => metas.filter((m) => m.status !== 'arquivada'), [metas]);
   const contribuicoesDaMeta = (metaId: number) => contribuicoes.filter((c) => c.meta_id === metaId);
+  const metaReserva = useMemo(() => metasAtivas.find((m) => m.eh_reserva_emergencia) || null, [metasAtivas]);
+  const valorReserva = useMemo(() => (metaReserva ? contribuicoesDaMeta(metaReserva.id).reduce((s, c) => s + Number(c.valor), 0) : 0), [metaReserva, contribuicoes]);
+  const mesesCobertos = useMemo(() => (metaReserva && custoVidaMedio && custoVidaMedio > 0 ? valorReserva / custoVidaMedio : null), [metaReserva, custoVidaMedio, valorReserva]);
 
   const openNew = () => {
     setEditing(null);
     setForm({
       nome: '', valor_alvo: '', data_alvo: '', cor: CORES[Math.floor(Math.random() * CORES.length)],
       aporteRecorrenteAtivo: false, aporte_recorrente_valor: '', aporte_recorrente_dia: '5', aporte_recorrente_conta_id: contas[0]?.id ?? null,
+      eh_reserva_emergencia: false,
     });
     setShowForm(true);
   };
@@ -97,6 +129,7 @@ export default function Metas({ userId }: { userId: string }) {
       aporte_recorrente_valor: meta.aporte_recorrente_valor ? String(meta.aporte_recorrente_valor) : '',
       aporte_recorrente_dia: meta.aporte_recorrente_dia ? String(meta.aporte_recorrente_dia) : '5',
       aporte_recorrente_conta_id: meta.aporte_recorrente_conta_id ?? contas[0]?.id ?? null,
+      eh_reserva_emergencia: meta.eh_reserva_emergencia,
     });
     setShowForm(true);
   };
@@ -120,7 +153,13 @@ export default function Metas({ userId }: { userId: string }) {
         aporte_recorrente_valor: form.aporteRecorrenteAtivo ? parseFloat(form.aporte_recorrente_valor) : null,
         aporte_recorrente_dia: form.aporteRecorrenteAtivo ? parseInt(form.aporte_recorrente_dia, 10) : null,
         aporte_recorrente_conta_id: form.aporteRecorrenteAtivo ? form.aporte_recorrente_conta_id : null,
+        eh_reserva_emergencia: form.eh_reserva_emergencia,
       };
+      // Só uma reserva de emergência por vez — desmarca qualquer outra antes
+      // de marcar esta (o índice único no banco rejeitaria duas ao mesmo tempo).
+      if (form.eh_reserva_emergencia) {
+        await supabase.from('metas').update({ eh_reserva_emergencia: false }).eq('user_id', userId).eq('eh_reserva_emergencia', true);
+      }
       if (editing) {
         const { error } = await supabase.from('metas').update(payload).eq('id', editing.id);
         if (error) throw error;
@@ -238,6 +277,25 @@ export default function Metas({ userId }: { userId: string }) {
           <Plus size={16} strokeWidth={2.5} /> Nova meta
         </button>
       </div>
+
+      {!loading && metaReserva && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-4">
+          <div className="w-11 h-11 rounded-lg bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center shrink-0"><ShieldCheck size={20} className="text-cyan-600" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Reserva de emergência ({metaReserva.nome})</p>
+            {mesesCobertos !== null ? (
+              <>
+                <p className={`text-lg font-bold tabular-nums ${mesesCobertos >= 3 ? 'text-emerald-600' : mesesCobertos >= 1 ? 'text-amber-600' : 'text-rose-600'}`}>
+                  {mesesCobertos.toFixed(1).replace('.', ',')} mês{mesesCobertos >= 2 ? 'es' : ''} de custo de vida
+                </p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">{currency(valorReserva)} guardados · ideal é cobrir de 3 a 6 meses (média de {currency(custoVidaMedio || 0)}/mês nos últimos 3 meses)</p>
+              </>
+            ) : (
+              <p className="text-xs text-slate-400 dark:text-slate-500">{currency(valorReserva)} guardados · ainda não há gasto suficiente no histórico pra estimar quantos meses isso cobre</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><SkeletonList /></div>
@@ -386,6 +444,13 @@ export default function Metas({ userId }: { userId: string }) {
                     <button key={c} type="button" onClick={() => setForm(f => ({ ...f, cor: c }))} className={`w-8 h-8 rounded-full border-2 transition-transform ${form.cor === c ? 'border-slate-800 scale-110' : 'border-transparent'}`} style={{ backgroundColor: c }} disabled={saving} />
                   ))}
                 </div>
+              </div>
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" checked={form.eh_reserva_emergencia} onChange={(e) => setForm(f => ({ ...f, eh_reserva_emergencia: e.target.checked }))} disabled={saving} className="rounded border-slate-300" />
+                  <ShieldCheck size={14} /> Esta é minha reserva de emergência
+                </label>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Só uma meta pode ser a reserva. Ela passa a mostrar quantos meses do seu custo de vida está coberto.</p>
               </div>
               <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
                 <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
