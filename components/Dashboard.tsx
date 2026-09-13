@@ -707,27 +707,27 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Contas a pagar/receber neste mês</h3>
                 <span className="text-xs font-medium text-slate-400 dark:text-slate-500">Ver todas →</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-start gap-3 rounded-lg bg-rose-50 dark:bg-rose-500/10 p-3">
                   <div className="w-9 h-9 rounded-lg bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center shrink-0"><ArrowUpFromLine size={16} className="text-rose-600" /></div>
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold tabular-nums text-rose-700 dark:text-rose-400 truncate">{currency(billTotals.aPagar)}</p>
-                    <p className="text-xs text-rose-600/80 dark:text-rose-400/70 flex items-center gap-1">
-                      {billTotals.countPagar} conta{billTotals.countPagar !== 1 ? 's' : ''} a pagar
+                  <div className="min-w-0 flex-1">
+                    <p className="text-lg font-bold tabular-nums text-rose-700 dark:text-rose-400 break-words">{currency(billTotals.aPagar)}</p>
+                    <p className="text-xs text-rose-600/80 dark:text-rose-400/70 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                      <span>{billTotals.countPagar} conta{billTotals.countPagar !== 1 ? 's' : ''} a pagar</span>
                       {billTotals.vencidasPagar > 0 && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold"><AlertTriangle size={11} /> {billTotals.vencidasPagar} atrasada{billTotals.vencidasPagar !== 1 ? 's' : ''}</span>
+                        <span className="inline-flex items-center gap-0.5 font-semibold whitespace-nowrap"><AlertTriangle size={11} /> {billTotals.vencidasPagar} atrasada{billTotals.vencidasPagar !== 1 ? 's' : ''}</span>
                       )}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 p-3">
+                <div className="flex items-start gap-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 p-3">
                   <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center shrink-0"><ArrowDownToLine size={16} className="text-emerald-600" /></div>
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400 truncate">{currency(billTotals.aReceber)}</p>
-                    <p className="text-xs text-emerald-600/80 dark:text-emerald-400/70 flex items-center gap-1">
-                      {billTotals.countReceber} conta{billTotals.countReceber !== 1 ? 's' : ''} a receber
+                  <div className="min-w-0 flex-1">
+                    <p className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400 break-words">{currency(billTotals.aReceber)}</p>
+                    <p className="text-xs text-emerald-600/80 dark:text-emerald-400/70 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                      <span>{billTotals.countReceber} conta{billTotals.countReceber !== 1 ? 's' : ''} a receber</span>
                       {billTotals.vencidasReceber > 0 && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold"><AlertTriangle size={11} /> {billTotals.vencidasReceber} atrasada{billTotals.vencidasReceber !== 1 ? 's' : ''}</span>
+                        <span className="inline-flex items-center gap-0.5 font-semibold whitespace-nowrap"><AlertTriangle size={11} /> {billTotals.vencidasReceber} atrasada{billTotals.vencidasReceber !== 1 ? 's' : ''}</span>
                       )}
                     </p>
                   </div>
