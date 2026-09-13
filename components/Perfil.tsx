@@ -5,8 +5,9 @@ import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { pushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client';
 import { biometricEnabled, biometricAvailable, enableBiometric, disableBiometric } from '@/lib/biometric';
+import { mfaStatus, mfaEnroll, mfaConfirmEnroll, mfaUnenroll } from '@/lib/mfa';
 import { useToast, ToastContainer } from './Toast';
-import { UserCircle, Lock, Loader, Bell, BellOff, Mail, Fingerprint } from 'lucide-react';
+import { UserCircle, Lock, Loader, Bell, BellOff, Mail, Fingerprint, ShieldCheck } from 'lucide-react';
 
 export default function Perfil({ user }: { user: User }) {
   const { toasts, addToast, removeToast } = useToast();
@@ -28,11 +29,63 @@ export default function Perfil({ user }: { user: User }) {
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioBusy, setBioBusy] = useState(false);
 
+  const [mfaEnrolled, setMfaEnrolled] = useState(false);
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaBusy, setMfaBusy] = useState(false);
+  const [mfaSetup, setMfaSetup] = useState<{ factorId: string; qrCode: string; secret: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+
+  const loadMfaStatus = () => mfaStatus().then(({ enrolled, factorId }) => { setMfaEnrolled(enrolled); setMfaFactorId(factorId); });
+
   useEffect(() => {
     getPushSubscriptionStatus().then(setPushStatus);
     biometricAvailable().then(setBioAvailable);
     setBioEnabled(biometricEnabled());
+    loadMfaStatus();
   }, []);
+
+  const handleStartMfaEnroll = async () => {
+    setMfaBusy(true);
+    try {
+      const setup = await mfaEnroll();
+      setMfaSetup(setup);
+    } catch (err: any) {
+      addToast('Erro ao iniciar verificação em duas etapas: ' + err.message, 'error');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleConfirmMfaEnroll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaSetup || mfaCode.length !== 6) return;
+    setMfaBusy(true);
+    try {
+      await mfaConfirmEnroll(mfaSetup.factorId, mfaCode);
+      setMfaSetup(null);
+      setMfaCode('');
+      await loadMfaStatus();
+      addToast('Verificação em duas etapas ativada! No próximo login vamos pedir o código.', 'success');
+    } catch (err: any) {
+      addToast('Código inválido: ' + err.message, 'error');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
+
+  const handleDisableMfa = async () => {
+    if (!mfaFactorId) return;
+    setMfaBusy(true);
+    try {
+      await mfaUnenroll(mfaFactorId);
+      await loadMfaStatus();
+      addToast('Verificação em duas etapas desativada', 'success');
+    } catch (err: any) {
+      addToast('Erro ao desativar: ' + err.message, 'error');
+    } finally {
+      setMfaBusy(false);
+    }
+  };
 
   const handleToggleBiometric = async () => {
     setBioBusy(true);
@@ -259,6 +312,54 @@ export default function Perfil({ user }: { user: User }) {
           </div>
         </div>
       )}
+
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 flex items-center justify-center shrink-0">
+              <ShieldCheck size={16} />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Verificação em duas etapas</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500">Pede um código do seu aplicativo autenticador (Google Authenticator, Authy) além da senha, no login</p>
+            </div>
+          </div>
+          {!mfaSetup && (
+            <button
+              onClick={mfaEnrolled ? handleDisableMfa : handleStartMfaEnroll}
+              disabled={mfaBusy}
+              className={`shrink-0 flex items-center gap-2 font-semibold text-xs px-4 py-2.5 rounded-lg transition-colors disabled:opacity-50 ${
+                mfaEnrolled ? 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-900'
+              }`}
+            >
+              {mfaBusy && <Loader size={13} className="animate-spin" />}
+              {mfaEnrolled ? 'Desativar' : 'Ativar'}
+            </button>
+          )}
+        </div>
+        {mfaSetup && (
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Escaneie o QR code com seu app autenticador e digite o código de 6 dígitos pra confirmar.</p>
+            <img src={mfaSetup.qrCode} alt="QR code de configuração" className="mx-auto w-40 h-40 rounded-lg border border-slate-200 dark:border-slate-700" />
+            <p className="text-xs text-center text-slate-400 dark:text-slate-500 break-all">Ou digite manualmente: <span className="font-mono">{mfaSetup.secret}</span></p>
+            <form onSubmit={handleConfirmMfaEnroll} className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="flex-1 text-center text-lg tracking-[0.4em] border border-slate-200 dark:border-slate-700 rounded-lg py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white dark:bg-slate-700 dark:text-slate-100"
+              />
+              <button type="submit" disabled={mfaBusy || mfaCode.length !== 6} className="bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-300 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors shrink-0">
+                Confirmar
+              </button>
+            </form>
+            <button onClick={() => { setMfaSetup(null); setMfaCode(''); }} className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600">Cancelar</button>
+          </div>
+        )}
+      </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
         <div className="flex items-center gap-2 mb-4">
