@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon } from 'lucide-react';
+import { Home as HomeIcon, LayoutDashboard, Landmark, CreditCard, Target, Tag, UserCircle, LogOut, Menu, X, Wallet, WalletCards, Sun, Moon, History, PiggyBank } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -12,10 +12,12 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/contas', label: 'Contas Bancárias', icon: Landmark },
   { href: '/cartoes', label: 'Cartões de Crédito', icon: CreditCard },
-  { href: '/pagar-receber', label: 'Contas a Pagar/Receber', icon: WalletCards },
+  { href: '/pagar-receber', label: 'Contas & Dívidas', icon: WalletCards },
   { href: '/orcamentos', label: 'Orçamentos', icon: Wallet },
   { href: '/metas', label: 'Metas', icon: Target },
+  { href: '/patrimonio', label: 'Patrimônio', icon: PiggyBank },
   { href: '/categorias', label: 'Categorias', icon: Tag },
+  { href: '/historico', label: 'Histórico de alterações', icon: History },
   { href: '/perfil', label: 'Perfil', icon: UserCircle },
 ];
 
