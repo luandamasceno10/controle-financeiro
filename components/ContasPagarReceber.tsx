@@ -12,7 +12,7 @@ import { SkeletonList } from './Skeleton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   Plus, X, Pencil, Trash2, Wallet, ArrowUpFromLine, ArrowDownToLine,
-  AlertTriangle, CheckCircle2, Clock, Calendar, Repeat, Layers, TrendingUp,
+  AlertTriangle, CheckCircle2, Clock, Calendar, Repeat, Layers, TrendingUp, Coins,
 } from 'lucide-react';
 
 function currency(v: number) {
@@ -52,6 +52,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
   const [billForm, setBillForm] = useState({
     desc: '', category: '', amount: '', due: todayISO(),
     tipoRepeticao: 'nenhuma' as TipoRepeticao, periodo: 'mensal' as PeriodoRepeticao, parcelas: '2',
+    ehDivida: false, valorPrincipal: '',
   });
 
   const [settleTarget, setSettleTarget] = useState<{ kind: 'pagar' | 'receber'; id: number } | null>(null);
@@ -97,6 +98,45 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
     return { aPagar, aReceber };
   }, [payable, receivable]);
 
+  // Agrupa as parcelas de cada dívida pelo parcelamento_id — cada dívida vira
+  // uma linha com saldo devedor (soma das parcelas ainda pendentes) e juros
+  // total embutido (soma de todas as parcelas, pagas ou não, menos o valor
+  // efetivamente financiado — valor_principal é o mesmo em todas as parcelas
+  // do grupo, então basta o de uma delas).
+  const dividas = useMemo(() => {
+    const grupos = new Map<string, ContaPagar[]>();
+    payable.filter(p => p.eh_divida && p.parcelamento_id).forEach((p) => {
+      const grupo = grupos.get(p.parcelamento_id!) || [];
+      grupo.push(p);
+      grupos.set(p.parcelamento_id!, grupo);
+    });
+    return Array.from(grupos.entries()).map(([parcelamentoId, parcelas]) => {
+      const pendentes = parcelas.filter(p => p.status === 'pendente').sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime());
+      const saldoDevedor = pendentes.reduce((s, p) => s + Number(p.valor), 0);
+      const valorTotal = parcelas.reduce((s, p) => s + Number(p.valor), 0);
+      const principal = Number(parcelas[0].valor_principal ?? 0);
+      const jurosTotalGrupo = Math.max(0, valorTotal - principal);
+      // Juros ainda embutido no que falta pagar: proporcional às parcelas
+      // pendentes (aproximação linear — sem tabela de amortização real,
+      // é a estimativa mais honesta que dá pra mostrar sem inventar taxa).
+      const jurosRestante = valorTotal > 0 ? jurosTotalGrupo * (saldoDevedor / valorTotal) : 0;
+      return {
+        id: parcelamentoId,
+        descricao: parcelas[0].descricao,
+        totalParcelas: parcelas[0].parcela_total ?? parcelas.length,
+        parcelasPagas: parcelas.length - pendentes.length,
+        saldoDevedor,
+        jurosRestante,
+        proximoVencimento: pendentes[0]?.vencimento ?? null,
+        quitada: pendentes.length === 0,
+      };
+    }).sort((a, b) => Number(a.quitada) - Number(b.quitada));
+  }, [payable]);
+
+  const dividasAbertas = useMemo(() => dividas.filter(d => !d.quitada), [dividas]);
+  const totalSaldoDevedor = useMemo(() => dividasAbertas.reduce((s, d) => s + d.saldoDevedor, 0), [dividasAbertas]);
+  const totalJurosEmbutido = useMemo(() => dividasAbertas.reduce((s, d) => s + d.jurosRestante, 0), [dividasAbertas]);
+
   const upcomingPayable = useMemo(() => [...payable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [payable]);
   const upcomingReceivable = useMemo(() => [...receivable].sort((a, b) => new Date(a.vencimento).getTime() - new Date(b.vencimento).getTime()), [receivable]);
 
@@ -129,7 +169,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 
   const openBillForm = (kind: 'pagar' | 'receber') => {
     setEditingBill(null);
-    setBillForm({ desc: '', category: categoriasSaida[0]?.nome || '', amount: '', due: todayISO(), tipoRepeticao: 'nenhuma', periodo: 'mensal', parcelas: '2' });
+    setBillForm({ desc: '', category: categoriasSaida[0]?.nome || '', amount: '', due: todayISO(), tipoRepeticao: 'nenhuma', periodo: 'mensal', parcelas: '2', ehDivida: false, valorPrincipal: '' });
     setShowBillForm(kind);
   };
 
@@ -143,6 +183,8 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
       tipoRepeticao: item.tipo_repeticao,
       periodo: item.periodo,
       parcelas: '2',
+      ehDivida: false,
+      valorPrincipal: '',
     });
     setShowBillForm(kind);
   };
@@ -184,13 +226,19 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         if (billForm.tipoRepeticao === 'parcelado') {
           const totalParcelas = Math.max(2, parseInt(billForm.parcelas, 10) || 2);
           const valorParcela = Math.round((valor / totalParcelas) * 100) / 100;
+          const ehDivida = showBillForm === 'pagar' && billForm.ehDivida;
+          const valorPrincipal = ehDivida && billForm.valorPrincipal ? parseFloat(billForm.valorPrincipal) : null;
+          const parcelamentoId = ehDivida ? crypto.randomUUID() : null;
           const rows = [];
           let vencimento = billForm.due;
           let acumulado = 0;
           for (let i = 1; i <= totalParcelas; i++) {
             const valorDaVez = i === totalParcelas ? Math.round((valor - acumulado) * 100) / 100 : valorParcela;
             acumulado += valorDaVez;
-            rows.push({ ...basePayload, valor: valorDaVez, vencimento, parcela_atual: i, parcela_total: totalParcelas });
+            rows.push({
+              ...basePayload, valor: valorDaVez, vencimento, parcela_atual: i, parcela_total: totalParcelas,
+              eh_divida: ehDivida, valor_principal: valorPrincipal, parcelamento_id: parcelamentoId,
+            });
             vencimento = addByPeriodo(vencimento, billForm.periodo);
           }
           const { error } = await supabase.from(table).insert(rows);
@@ -317,7 +365,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
           <Wallet size={16} />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Contas a Pagar/Receber</h1>
+          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Contas & Dívidas</h1>
           <p className="text-xs text-slate-400 dark:text-slate-500">Só afeta o saldo quando marcada como paga/recebida</p>
         </div>
       </div>
@@ -326,6 +374,41 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"><SkeletonList /></div>
       ) : (
         <>
+        {dividasAbertas.length > 0 && (
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-lg bg-rose-50 dark:bg-rose-500/10 text-rose-600 flex items-center justify-center"><Coins size={16} /></div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Resumo de dívidas</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Empréstimos e financiamentos marcados como dívida, com saldo devedor e juros restantes</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded-lg bg-rose-50 dark:bg-rose-500/10 p-3">
+                <p className="text-lg font-bold tabular-nums text-rose-700 dark:text-rose-400">{currency(totalSaldoDevedor)}</p>
+                <p className="text-xs text-rose-600/80 dark:text-rose-400/70">Saldo devedor total</p>
+              </div>
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-500/10 p-3">
+                <p className="text-lg font-bold tabular-nums text-amber-700 dark:text-amber-400">{currency(totalJurosEmbutido)}</p>
+                <p className="text-xs text-amber-600/80 dark:text-amber-400/70">Juros ainda embutidos (estimativa)</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {dividasAbertas.map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-3 py-2 border-t border-slate-100 dark:border-slate-800 first:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{d.descricao}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Parcela {d.parcelasPagas + 1}/{d.totalParcelas}
+                      {d.proximoVencimento && ` · próxima em ${new Date(d.proximoVencimento + 'T00:00:00').toLocaleDateString('pt-BR')}`}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200 shrink-0">{currency(d.saldoDevedor)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {(totals.aPagar > 0 || totals.aReceber > 0) && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3 mb-4">
@@ -429,6 +512,21 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
                     ? 'A próxima ocorrência só é criada depois que esta for marcada como paga/recebida.'
                     : 'Lançamento único, sem repetição.'}
                 </p>
+                {showBillForm === 'pagar' && billForm.tipoRepeticao === 'parcelado' && (
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+                    <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                      <input type="checkbox" checked={billForm.ehDivida} onChange={(e) => setBillForm(f => ({ ...f, ehDivida: e.target.checked }))} disabled={savingBill} className="rounded border-slate-300" />
+                      <Coins size={14} /> Isto é uma dívida (empréstimo, financiamento)
+                    </label>
+                    {billForm.ehDivida && (
+                      <div className="mt-3">
+                        <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor financiado (sem os juros)</label>
+                        <input type="number" step="0.01" value={billForm.valorPrincipal} onChange={(e) => setBillForm(f => ({ ...f, valorPrincipal: e.target.value }))} placeholder="Ex: 8000,00" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={savingBill} />
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">A diferença entre o valor total ({billForm.amount ? currency(parseFloat(billForm.amount)) : 'R$0,00'}) e este valor é o total de juros embutido — aparece no resumo de dívidas.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 </>
               )}
               {editingBill && (
