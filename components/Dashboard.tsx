@@ -736,12 +736,12 @@ export default function Dashboard({ userId }: { userId: string }) {
             </Link>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-4">
               <div className="w-11 h-11 rounded-lg bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center shrink-0"><QrCode size={20} className="text-cyan-600" /></div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Saídas via Pix</p>
-                <p className="text-lg font-bold tabular-nums truncate">{currency(totals.pix)}</p>
+                <p className="text-lg font-bold tabular-nums break-words">{currency(totals.pix)}</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">{totals.saida > 0 ? Math.round((totals.pix / totals.saida) * 100) : 0}% do total</p>
               </div>
             </div>
@@ -749,7 +749,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               <div className="w-11 h-11 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center shrink-0"><CreditCard size={20} className="text-amber-600" /></div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Saídas via Cartão</p>
-                <p className="text-lg font-bold tabular-nums truncate">{currency(totals.cartao)}</p>
+                <p className="text-lg font-bold tabular-nums break-words">{currency(totals.cartao)}</p>
                 <p className="text-xs text-amber-600 font-medium">Ver categorias →</p>
               </div>
             </button>
