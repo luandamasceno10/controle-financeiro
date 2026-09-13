@@ -429,3 +429,105 @@ ALTER TABLE lancamentos ADD COLUMN compra_recorrente_id BIGINT REFERENCES compra
 -- ter gastos dos dois tipos. Nulo por padrão = automático (heurística por nome
 -- da categoria, ver lib/gastoFixoVariavel.ts).
 ALTER TABLE lancamentos ADD COLUMN tipo_gasto_override TEXT CHECK (tipo_gasto_override IN ('fixo', 'variavel'));
+
+-- ============================================================
+-- Fase 8: reserva de emergência, dívidas, patrimônio e auditoria
+-- ============================================================
+
+-- Reserva de emergência: marca uma meta existente como a reserva —
+-- lib/relatorioCalculos.ts já calcula o custo de vida mensal, então o app só
+-- precisa saber QUAL meta comparar contra ele pra mostrar "cobre X meses".
+ALTER TABLE metas ADD COLUMN eh_reserva_emergencia BOOLEAN NOT NULL DEFAULT false;
+-- Só uma reserva de emergência por usuário (índice parcial: não conflita com
+-- metas que não são reserva, todas com eh_reserva_emergencia = false).
+CREATE UNIQUE INDEX metas_reserva_unica ON metas(user_id) WHERE eh_reserva_emergencia = true;
+
+-- Dívidas: evolui contas_pagar parceladas (que já modelam parcela_atual/
+-- parcela_total) em dívidas de verdade — valor_principal guarda quanto foi
+-- financiado de fato, então (soma das parcelas − valor_principal) = juros
+-- embutidos. parcelamento_id agrupa as parcelas da mesma dívida de forma
+-- estável (mesmo padrão de lancamentos.parcelamento_id), já que descrição
+-- sozinha pode se repetir entre dívidas diferentes.
+ALTER TABLE contas_pagar ADD COLUMN eh_divida BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE contas_pagar ADD COLUMN valor_principal DECIMAL(12, 2);
+ALTER TABLE contas_pagar ADD COLUMN taxa_juros_mensal DECIMAL(6, 3);
+ALTER TABLE contas_pagar ADD COLUMN parcelamento_id UUID;
+CREATE INDEX contas_pagar_parcelamento_id ON contas_pagar(parcelamento_id);
+
+-- Patrimônio: ativos fora da conta corrente (investimentos, imóveis etc.),
+-- saldo atualizado manualmente. ativos_historico guarda o saldo por
+-- competência pra reconstruir a evolução patrimonial mês a mês.
+CREATE TABLE ativos (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK (tipo IN ('renda_fixa', 'acoes_fundos', 'imovel', 'veiculo', 'outro')),
+  saldo_atual DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  cor TEXT,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ativos_user_id ON ativos(user_id);
+ALTER TABLE ativos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own ativos" ON ativos
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE TABLE ativos_historico (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  ativo_id BIGINT NOT NULL REFERENCES ativos(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  saldo DECIMAL(14, 2) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(ativo_id, competencia)
+);
+CREATE INDEX ativos_historico_user_id ON ativos_historico(user_id);
+ALTER TABLE ativos_historico ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own ativos_historico" ON ativos_historico
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Auditoria: histórico de edição/exclusão de lançamento via trigger no
+-- banco — pega qualquer caminho de escrita, não só os botões do app.
+-- Sem policy de INSERT/UPDATE/DELETE pro usuário: só o trigger (rodando como
+-- dono da função, SECURITY DEFINER) escreve aqui — o usuário só lê, nunca
+-- apaga nem edita o próprio histórico.
+CREATE TABLE lancamentos_auditoria (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  lancamento_id BIGINT NOT NULL,
+  user_id UUID NOT NULL,
+  acao TEXT NOT NULL CHECK (acao IN ('editado', 'excluido')),
+  antes JSONB NOT NULL,
+  depois JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX lancamentos_auditoria_user_id ON lancamentos_auditoria(user_id);
+CREATE INDEX lancamentos_auditoria_lancamento_id ON lancamentos_auditoria(lancamento_id);
+ALTER TABLE lancamentos_auditoria ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only read their own lancamentos_auditoria" ON lancamentos_auditoria
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION registrar_auditoria_lancamento()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (TG_OP = 'UPDATE') THEN
+    INSERT INTO lancamentos_auditoria (lancamento_id, user_id, acao, antes, depois)
+    VALUES (OLD.id, OLD.user_id, 'editado', to_jsonb(OLD), to_jsonb(NEW));
+    RETURN NEW;
+  ELSIF (TG_OP = 'DELETE') THEN
+    INSERT INTO lancamentos_auditoria (lancamento_id, user_id, acao, antes, depois)
+    VALUES (OLD.id, OLD.user_id, 'excluido', to_jsonb(OLD), NULL);
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS lancamentos_auditoria_trigger ON lancamentos;
+CREATE TRIGGER lancamentos_auditoria_trigger
+AFTER UPDATE OR DELETE ON lancamentos
+FOR EACH ROW EXECUTE FUNCTION registrar_auditoria_lancamento();
+
+-- 2FA: usa o MFA nativo do Supabase Auth (TOTP) — não precisa de tabela
+-- própria, o Supabase já guarda os fatores. Só é preciso habilitar "Multi-
+-- factor authentication" > TOTP em Authentication > Providers no painel,
+-- caso já não esteja habilitado por padrão.

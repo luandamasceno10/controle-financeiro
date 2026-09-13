@@ -48,6 +48,10 @@ export interface ContaPagar {
   parcela_atual: number | null;
   parcela_total: number | null;
   lancamento_id: number | null;
+  eh_divida: boolean;
+  valor_principal: number | null;
+  taxa_juros_mensal: number | null;
+  parcelamento_id: string | null;
   created_at: string;
 }
 
@@ -156,6 +160,37 @@ export interface Meta {
   aporte_recorrente_dia: number | null;
   aporte_recorrente_conta_id: number | null;
   aporte_recorrente_ultimo_mes: string | null;
+  eh_reserva_emergencia: boolean;
+}
+
+export interface Ativo {
+  id: number;
+  user_id: string;
+  nome: string;
+  tipo: 'renda_fixa' | 'acoes_fundos' | 'imovel' | 'veiculo' | 'outro';
+  saldo_atual: number;
+  cor: string | null;
+  ativo: boolean;
+  created_at: string;
+}
+
+export interface AtivoHistorico {
+  id: number;
+  ativo_id: number;
+  user_id: string;
+  competencia: string;
+  saldo: number;
+  created_at: string;
+}
+
+export interface LancamentoAuditoria {
+  id: number;
+  lancamento_id: number;
+  user_id: string;
+  acao: 'editado' | 'excluido';
+  antes: Record<string, any>;
+  depois: Record<string, any> | null;
+  created_at: string;
 }
 
 export interface MetaContribuicao {
