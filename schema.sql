@@ -531,3 +531,32 @@ FOR EACH ROW EXECUTE FUNCTION registrar_auditoria_lancamento();
 -- própria, o Supabase já guarda os fatores. Só é preciso habilitar "Multi-
 -- factor authentication" > TOTP em Authentication > Providers no painel,
 -- caso já não esteja habilitado por padrão.
+
+-- ============================================================
+-- Fase 9: Painel Executivo (faturamento, lucro, margem e metas)
+-- ============================================================
+
+-- Classificação de cada categoria na DRE gerencial. NULL = o app decide pela
+-- heurística por nome (ver lib/executivo.ts); o usuário corrige no painel.
+ALTER TABLE categorias ADD COLUMN IF NOT EXISTS grupo_dre TEXT
+  CHECK (grupo_dre IN ('receita', 'custo', 'despesa', 'fora'));
+
+-- Metas mensais do negócio. Uma meta vale para o mês dela e para os seguintes
+-- até ser substituída (o app resolve a herança), então não é preciso
+-- recadastrar todo mês. Cada campo é opcional.
+CREATE TABLE IF NOT EXISTS metas_executivas (
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  mes TEXT NOT NULL,
+  meta_faturamento DECIMAL(14, 2),
+  meta_lucro DECIMAL(14, 2),
+  meta_margem DECIMAL(5, 2),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, mes)
+);
+CREATE INDEX IF NOT EXISTS metas_executivas_user_id ON metas_executivas(user_id);
+ALTER TABLE metas_executivas ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  CREATE POLICY "Users can only see their own metas_executivas" ON metas_executivas
+    FOR ALL USING (auth.uid() = user_id);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

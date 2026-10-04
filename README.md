@@ -8,6 +8,7 @@ Uma aplicação para rastrear onde seu dinheiro vai cada mês. Você registra en
 
 ## Funcionalidades
 
+- 🎯 Painel Executivo: faturamento, lucro, margem, ponto de equilíbrio e metas do negócio (DRE simplificada)
 - 📊 Gráficos de despesas por categoria
 - 💳 Comparação Pix vs Cartão
 - 📋 Contas a pagar e a receber com recorrência

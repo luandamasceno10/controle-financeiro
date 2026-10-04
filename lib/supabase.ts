@@ -89,6 +89,9 @@ export interface Categoria {
   ativa: boolean;
   ordem: number;
   parent_id: number | null;
+  // Classificação na DRE do Painel Executivo; null = heurística por nome
+  // (ver lib/executivo.ts).
+  grupo_dre?: 'receita' | 'custo' | 'despesa' | 'fora' | null;
   created_at: string;
 }
 
