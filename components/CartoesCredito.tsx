@@ -248,9 +248,10 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: payContaId,
+        fatura_id: payFatura.id,
         data: todayISO(),
         hora: nowTime(),
-        descricao: `Fatura ${selectedCartao.nome} — ${payFatura.competencia}`,
+        descricao: `Pagamento fatura ${selectedCartao.nome} — ${payFatura.competencia}`,
         tipo: 'saida',
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
@@ -258,10 +259,24 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       }]);
       if (insertError) throw insertError;
 
-      const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', payFatura.id);
-      if (updateError) throw updateError;
+      const { data: pagamentos, error: fetchError } = await supabase
+        .from('lancamentos')
+        .select('valor')
+        .eq('fatura_id', payFatura.id)
+        .eq('tipo', 'saida');
+      if (fetchError) throw fetchError;
 
-      addToast('Fatura paga!', 'success');
+      const valorPago = (pagamentos || []).reduce((sum, l) => sum + Number(l.valor), 0);
+      const devePagar = total;
+
+      if (Math.abs(valorPago - devePagar) < 0.01) {
+        const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', payFatura.id);
+        if (updateError) throw updateError;
+        addToast(`Fatura totalmente paga! (R$ ${currency(devePagar)})`, 'success');
+      } else {
+        addToast(`Pagamento de R$ ${currency(total)} registrado! Faltam R$ ${currency(devePagar - valorPago)} para quitar a fatura.`, 'info');
+      }
+
       setPayFatura(null);
       await loadData();
     } catch (err: any) {
