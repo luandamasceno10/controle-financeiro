@@ -59,6 +59,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [payFatura, setPayFatura] = useState<Fatura | null>(null);
   const [payContaId, setPayContaId] = useState<number | null>(null);
   const [paying, setPaying] = useState(false);
+  const [reverting, setReverting] = useState(false);
 
   const [detailCartao, setDetailCartao] = useState<CartaoCredito | null>(null);
   const [detailCompetencia, setDetailCompetencia] = useState('');
@@ -270,6 +271,38 @@ export default function CartoesCredito({ userId }: { userId: string }) {
     }
   };
 
+  const revertPayFatura = async (fatura: Fatura, cartao: CartaoCredito) => {
+    setReverting(true);
+    try {
+      const total = totalDaFatura(fatura.id);
+      const pattern = `Fatura ${cartao.nome} — ${fatura.competencia}`;
+      const { data: lancamentos, error: fetchError } = await supabase
+        .from('lancamentos')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('tipo', 'saida')
+        .eq('categoria', 'Cartão de crédito')
+        .eq('valor', total)
+        .ilike('descricao', pattern);
+      if (fetchError) throw fetchError;
+
+      if (lancamentos && lancamentos.length > 0) {
+        const { error: deleteError } = await supabase.from('lancamentos').delete().eq('id', lancamentos[0].id);
+        if (deleteError) throw deleteError;
+      }
+
+      const { error: updateError } = await supabase.from('faturas').update({ status: 'aberta' }).eq('id', fatura.id);
+      if (updateError) throw updateError;
+
+      addToast('Pagamento desfeito — fatura marcada como aberta', 'success');
+      await loadData();
+    } catch (err: any) {
+      addToast('Erro ao desfazer pagamento: ' + err.message, 'error');
+    } finally {
+      setReverting(false);
+    }
+  };
+
   return (
     <main className="max-w-2xl mx-auto px-5 py-8 space-y-6">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -437,6 +470,15 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   className="w-full mt-3 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors"
                 >
                   <Check size={14} /> Pagar esta fatura
+                </button>
+              )}
+              {!detailEhAtual && detailFatura?.status === 'paga' && (
+                <button
+                  onClick={() => detailCartao && revertPayFatura(detailFatura, detailCartao)}
+                  disabled={reverting}
+                  className="w-full mt-3 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors"
+                >
+                  <Ban size={14} /> Marcar como não pago
                 </button>
               )}
               {detailFatura?.status !== 'paga' && (
