@@ -68,6 +68,9 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [deleteEntryConfirm, setDeleteEntryConfirm] = useState<EntryDeleteTarget | null>(null);
   const [editingEntry, setEditingEntry] = useState<Lancamento | null>(null);
   const [deletingEntry, setDeletingEntry] = useState(false);
+  const [deleteFaturaConfirm, setDeleteFaturaConfirm] = useState<Fatura | null>(null);
+  const [deletingFatura, setDeletingFatura] = useState(false);
+  const [criacaoFatura, setCriacaoFatura] = useState<Fatura | null>(null);
 
   useEffect(() => {
     loadData();
@@ -232,6 +235,27 @@ export default function CartoesCredito({ userId }: { userId: string }) {
     } finally {
       setDeletingEntry(false);
       setDeleteEntryConfirm(null);
+    }
+  };
+
+  const confirmDeleteFatura = async () => {
+    if (!deleteFaturaConfirm) return;
+    setDeletingFatura(true);
+    try {
+      const { error: deleteEntriesError } = await supabase.from('lancamentos').delete().eq('fatura_id', deleteFaturaConfirm.id);
+      if (deleteEntriesError) throw deleteEntriesError;
+
+      const { error: deleteFaturaError } = await supabase.from('faturas').delete().eq('id', deleteFaturaConfirm.id);
+      if (deleteFaturaError) throw deleteFaturaError;
+
+      addToast(`Fatura ${deleteFaturaConfirm.competencia} e seus lançamentos foram excluídos`, 'success');
+      setDetailCartao(null);
+      await loadData();
+    } catch (err: any) {
+      addToast('Erro ao excluir fatura: ' + err.message, 'error');
+    } finally {
+      setDeletingFatura(false);
+      setDeleteFaturaConfirm(null);
     }
   };
 
@@ -511,6 +535,14 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   <FileUp size={14} /> Importar fatura em PDF
                 </button>
               )}
+              {detailFatura && (
+                <button
+                  onClick={() => setDeleteFaturaConfirm(detailFatura)}
+                  className="w-full mt-2 flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors"
+                >
+                  <Trash2 size={14} /> Apagar fatura
+                </button>
+              )}
             </div>
 
             <div className="mb-5">
@@ -535,14 +567,24 @@ export default function CartoesCredito({ userId }: { userId: string }) {
 
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Compras dessa fatura</h4>
-              {detailEntries.length > 0 && (
-                <button
-                  onClick={() => exportLancamentosCSV(detailEntries, `Fatura ${detailCartao.nome} ${detailCompetencia}`)}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                >
-                  <Download size={12} /> Exportar CSV
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {detailFatura && (
+                  <button
+                    onClick={() => setCriacaoFatura(detailFatura)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
+                  >
+                    <Plus size={12} /> Novo lançamento
+                  </button>
+                )}
+                {detailEntries.length > 0 && (
+                  <button
+                    onClick={() => exportLancamentosCSV(detailEntries, `Fatura ${detailCartao.nome} ${detailCompetencia}`)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  >
+                    <Download size={12} /> Exportar CSV
+                  </button>
+                )}
+              </div>
             </div>
             <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
               {detailEntries.length === 0 ? (
@@ -632,6 +674,21 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         />
       )}
 
+      {criacaoFatura && detailCartao && (
+        <LancamentoForm
+          userId={userId}
+          categoriasEntrada={categoriasEntrada}
+          categoriasSaida={categoriasSaida}
+          contas={contas}
+          cartoes={cartoesAtivos}
+          editingEntry={null}
+          faturasPendentes={[{ fatura: criacaoFatura, cartao: detailCartao, total: 0 }]}
+          onClose={() => setCriacaoFatura(null)}
+          onSaved={() => { setCriacaoFatura(null); loadData(); addToast('Lançamento criado!', 'success'); }}
+          onError={(msg) => addToast(msg, 'error')}
+        />
+      )}
+
       <ConfirmDialog
         open={!!deleteConfirm}
         title="Remover cartão"
@@ -659,6 +716,16 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         onConfirm={confirmDeleteEntry}
         onCancel={() => setDeleteEntryConfirm(null)}
         confirmText={deletingEntry ? 'Excluindo...' : 'Excluir'}
+        danger
+      />
+
+      <ConfirmDialog
+        open={!!deleteFaturaConfirm}
+        title="Apagar fatura"
+        message={`Tem certeza que deseja apagar a fatura de ${deleteFaturaConfirm?.competencia}? TODOS os ${detailEntries.length} lançamentos desta fatura também serão excluídos. Esta ação não pode ser desfeita.`}
+        onConfirm={confirmDeleteFatura}
+        onCancel={() => setDeleteFaturaConfirm(null)}
+        confirmText={deletingFatura ? 'Apagando...' : 'Apagar'}
         danger
       />
     </main>
