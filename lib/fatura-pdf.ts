@@ -232,5 +232,12 @@ export function parseFaturaPdfLines(linhasCompletas: string[], competencia?: str
 
 export async function parseFaturaPdf(file: File, competencia?: string): Promise<FaturaParseResult> {
   const lines = await extractPdfLines(file);
-  return parseFaturaPdfLines(lines, competencia);
+  const result = parseFaturaPdfLines(lines, competencia);
+
+  console.log('[PDF Parser] Total lines extracted:', lines.length);
+  console.log('[PDF Parser] Current month purchases:', result.atual.length, 'Value:', result.atual.reduce((s, c) => s + c.valor, 0).toFixed(2));
+  console.log('[PDF Parser] Next month purchases:', result.proximaFatura.length, 'Value:', result.proximaFatura.reduce((s, c) => s + c.valor, 0).toFixed(2));
+  console.log('[PDF Parser] Charges:', result.encargos.toFixed(2), 'Adjustments:', result.abatimentos.toFixed(2));
+
+  return result;
 }
