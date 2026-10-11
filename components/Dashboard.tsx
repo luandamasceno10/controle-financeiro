@@ -717,6 +717,10 @@ export default function Dashboard({ userId }: { userId: string }) {
               <MiniStat label="Previsão" value={commitment.forecastValue} tone="violet" />
               <MiniStat label="Disponível" value={commitment.disponivel} tone="slate" bold />
             </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded border border-emerald-200 dark:border-emerald-500/20">
+              💡 <strong>Saldo Inicial</strong> = saldo base das contas (definido em Contas) + todos os lançamentos até o final do mês anterior.
+              <Link href="/contas" className="ml-1 text-emerald-600 dark:text-emerald-400 hover:underline">Ajustar em Contas →</Link>
+            </p>
             <div>
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="text-slate-500 dark:text-slate-400">Comprometimento</span>

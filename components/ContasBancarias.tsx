@@ -208,10 +208,12 @@ export default function ContasBancarias({ userId }: { userId: string }) {
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">
-                  {editing ? 'Saldo inicial' : 'Saldo desta conta hoje'}
+                  💰 {editing ? 'Saldo inicial' : 'Saldo base da conta'}
                 </label>
                 <input type="number" step="0.01" value={form.saldo_inicial} onChange={(e) => setForm(f => ({ ...f, saldo_inicial: e.target.value }))} placeholder="0,00" className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" required disabled={saving} />
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O app passa a contabilizar a partir daqui — lançamentos futuros somam ou subtraem deste valor.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                  <strong>Este é o ponto de partida</strong> para o saldo da conta. Define o saldo que você tinha antes de começar a usar o app. O app soma ou subtrai todos os lançamentos daqui para frente.
+                </p>
               </div>
               <button type="submit" disabled={saving} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors">
                 {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar conta'}
