@@ -41,6 +41,8 @@ export interface RelatorioPDFProps {
   saldo: number;
   taxaPoupanca: number;
   custoVidaReal: number;
+  saldoInicial?: number;
+  saldoFinal?: number;
   entradasPorCategoria: RelatorioCategoriaItem[];
   fixos: RelatorioCategoriaItem[];
   variaveis: RelatorioCategoriaItem[];
@@ -63,7 +65,7 @@ function CategoriaBadge({ icone, color }: { icone?: string; color?: string }) {
 // nada de interações (hover, tooltip) que não sobrevivem no papel. As cores
 // seguem a mesma paleta categórica do resto do app (lib/categoriaPalette.ts).
 export default function RelatorioPDF({
-  mesLabel, geradoEm, entrada, saida, saldo, taxaPoupanca, custoVidaReal,
+  mesLabel, geradoEm, entrada, saida, saldo, taxaPoupanca, custoVidaReal, saldoInicial = 0, saldoFinal = 0,
   entradasPorCategoria, fixos, variaveis, categoriaPixCartao, assinaturasAtivas, orcamentoRows, proximasDespesas,
 }: RelatorioPDFProps) {
   const top3 = [...variaveis].sort((a, b) => b.value - a.value).slice(0, 3);
@@ -90,7 +92,33 @@ export default function RelatorioPDF({
         </p>
       </Secao>
 
-      <Secao numero="2" titulo="Entradas por categoria" cor="#059669">
+      {(saldoInicial !== 0 || saldoFinal !== 0) && (
+        <Secao numero="2" titulo="Reconciliação: Saldo Inicial/Final" cor="#8b5cf6">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="border border-slate-200 rounded-lg p-2">
+              <p className="text-[11px] text-slate-500 mb-1">Saldo inicial</p>
+              <p className="text-sm font-bold" style={{ color: saldoInicial >= 0 ? '#059669' : '#dc2626' }}>{currency(saldoInicial)}</p>
+            </div>
+            <div className="border border-slate-200 rounded-lg p-2">
+              <p className="text-[11px] text-slate-500 mb-1">Variação do mês</p>
+              <p className="text-sm font-bold" style={{ color: saldo >= 0 ? '#059669' : '#dc2626' }}>
+                {saldo >= 0 ? '+' : ''}{currency(saldo)}
+              </p>
+            </div>
+            <div className="border border-slate-200 rounded-lg p-2 bg-slate-50">
+              <p className="text-[11px] text-slate-500 mb-1">Saldo final</p>
+              <p className="text-sm font-bold" style={{ color: saldoFinal >= 0 ? '#059669' : '#dc2626' }}>{currency(saldoFinal)}</p>
+            </div>
+          </div>
+          <p className="text-[12px] text-slate-500 mt-2">
+            {Math.abs(saldoFinal - (saldoInicial + saldo)) < 0.01
+              ? '✓ Reconciliado: saldo inicial + variação = saldo final'
+              : '⚠ Discrepância detectada. Verifique se há lançamentos não registrados.'}
+          </p>
+        </Secao>
+      )}
+
+      <Secao numero={saldoInicial !== 0 || saldoFinal !== 0 ? "3" : "2"} titulo="Entradas por categoria" cor="#059669">
         {entradasPorCategoria.length > 0 ? (
           <table className="w-full text-[12px]">
             <thead>
@@ -113,7 +141,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Sem entradas neste mês.</p>}
       </Secao>
 
-      <Secao numero="3" titulo="Gastos por categoria — Pix x Cartão" cor="#1baf7a">
+      <Secao numero={saldoInicial !== 0 || saldoFinal !== 0 ? "4" : "3"} titulo="Gastos por categoria — Pix x Cartão" cor="#1baf7a">
         {categoriaPixCartao.length > 0 ? (
           <table className="w-full text-[12px]">
             <thead>
@@ -138,7 +166,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Sem despesas neste mês.</p>}
       </Secao>
 
-      <Secao numero="4" titulo='Indicadores "abre olhos"' cor="#eb6834">
+      <Secao numero={saldoInicial !== 0 || saldoFinal !== 0 ? "5" : "4"} titulo='Indicadores "abre olhos"' cor="#eb6834">
         <p className="text-[12px] font-semibold text-slate-700 mb-1.5">Top 3 vilões (fora dos fixos)</p>
         {top3.length > 0 ? (
           <div className="space-y-1 mb-3">
@@ -168,7 +196,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Nenhuma assinatura recorrente cadastrada no cartão.</p>}
       </Secao>
 
-      <Secao numero="5" titulo="Orçado x realizado" cor="#4a3aa7">
+      <Secao numero={saldoInicial !== 0 || saldoFinal !== 0 ? "6" : "5"} titulo="Orçado x realizado" cor="#4a3aa7">
         {orcamentoRows.length > 0 ? (
           <table className="w-full text-[12px]">
             <thead>
@@ -202,7 +230,7 @@ export default function RelatorioPDF({
         ) : <p className="text-[12px] text-slate-400">Nenhum orçamento definido por categoria ainda.</p>}
       </Secao>
 
-      <Secao numero="6" titulo="Plano de ação" cor="#e34948" ultima>
+      <Secao numero={saldoInicial !== 0 || saldoFinal !== 0 ? "7" : "6"} titulo="Plano de ação" cor="#e34948" ultima>
         <ul className="space-y-1.5 text-[12px]">
           {orcamentoRows.filter((o) => o.realizado > o.orcado).map((o, i) => (
             <li key={`t${i}`} className="rounded-lg bg-rose-50 px-2.5 py-1.5">🎯 <strong>Teto para {o.categoria}:</strong> mantenha o orçado de {currency(o.orcado)} no próximo mês — este mês passou {currency(o.realizado - o.orcado)} do combinado.</li>

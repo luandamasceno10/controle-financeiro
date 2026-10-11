@@ -420,6 +420,41 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const baixarRelatorioPDF = () => window.print();
 
+  const saldosRelatorio = useMemo(() => {
+    const saldoInicial = commitment.saldoInicial || 0;
+    const saldoFinal = saldoInicial + relatorioCalculado.entrada - relatorioCalculado.saida;
+    return { saldoInicial, saldoFinal };
+  }, [commitment.saldoInicial, relatorioCalculado.entrada, relatorioCalculado.saida]);
+
+  const exportarBackup = () => {
+    const backup = {
+      exportadoEm: new Date().toISOString(),
+      usuario: userId,
+      dados: {
+        contas,
+        cartoes,
+        categorias,
+        metas,
+        orcamentos,
+        lancamentos: entries,
+        comprasRecorrentes,
+        contasPagar: payable,
+        contasReceber: receivable,
+      }
+    };
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addToast('Backup exportado com sucesso!', 'success');
+  };
+
   const paymentBarData = useMemo(() => {
     const grouped: Record<string, any> = {};
     monthEntries.filter(e => e.tipo === 'saida' && e.categoria !== 'Cartão de crédito').forEach(e => {
@@ -600,9 +635,14 @@ export default function Dashboard({ userId }: { userId: string }) {
             </div>
             {view === 'mensal' && (
               <>
-                <button onClick={baixarRelatorioPDF} title="Baixar relatório do mês em PDF" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm px-3 py-2.5 rounded-lg transition-colors">
-                  <FileDown size={16} /> Relatório
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={baixarRelatorioPDF} title="Baixar relatório do mês em PDF" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm px-3 py-2.5 rounded-lg transition-colors">
+                    <FileDown size={16} /> Relatório
+                  </button>
+                  <button onClick={exportarBackup} title="Exportar backup de todos os dados em JSON" className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold text-sm px-3 py-2.5 rounded-lg transition-colors">
+                    <FileDown size={16} /> Backup
+                  </button>
+                </div>
                 {contas.length === 0 ? (
                   <Link href="/contas" className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
                     <Plus size={16} strokeWidth={2.5} /> Cadastrar conta
@@ -1024,6 +1064,8 @@ export default function Dashboard({ userId }: { userId: string }) {
             saldo={relatorioCalculado.saldo}
             taxaPoupanca={relatorioCalculado.taxaPoupanca}
             custoVidaReal={custoVidaReal}
+            saldoInicial={saldosRelatorio.saldoInicial}
+            saldoFinal={saldosRelatorio.saldoFinal}
             entradasPorCategoria={entradasRelatorio}
             fixos={fixosRelatorio}
             variaveis={variaveisRelatorio}
