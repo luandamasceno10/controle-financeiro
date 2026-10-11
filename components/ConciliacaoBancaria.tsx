@@ -96,7 +96,7 @@ export default function ConciliacaoBancaria({
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
       const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
-      if (dias > 3) return false;
+      if (dias > 90) return false;
       const descNorm = e.descricao.toLowerCase().trim();
       const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
       return mesmaDesc;

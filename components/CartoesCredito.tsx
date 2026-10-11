@@ -58,6 +58,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [selectedCartao, setSelectedCartao] = useState<CartaoCredito | null>(null);
   const [payFatura, setPayFatura] = useState<Fatura | null>(null);
   const [payContaId, setPayContaId] = useState<number | null>(null);
+  const [payDataPagamento, setPayDataPagamento] = useState<string>('');
   const [paying, setPaying] = useState(false);
   const [reverting, setReverting] = useState(false);
 
@@ -278,7 +279,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   };
 
   const confirmPayFatura = async () => {
-    if (!payFatura || !payContaId || !selectedCartao) return;
+    if (!payFatura || !payContaId || !selectedCartao || !payDataPagamento) return;
     setPaying(true);
     try {
       const total = totalDaFatura(payFatura.id);
@@ -286,7 +287,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         user_id: userId,
         conta_id: payContaId,
         fatura_id: payFatura.id,
-        data: todayISO(),
+        data: payDataPagamento,
         hora: nowTime(),
         descricao: `Pagamento fatura ${selectedCartao.nome} — ${payFatura.competencia}`,
         tipo: 'saida',
@@ -704,6 +705,11 @@ export default function CartoesCredito({ userId }: { userId: string }) {
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">{selectedCartao.nome} · {payFatura.competencia}</p>
             <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">{currency(totalDaFatura(payFatura.id))}</p>
+            <div className="mb-4">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Data do pagamento</label>
+              <input type="date" value={payDataPagamento} onChange={(e) => setPayDataPagamento(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={paying} />
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Quando foi o pagamento no extrato? (Deixa como hoje se foi hoje)</p>
+            </div>
             <div className="mb-4">
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Debitar da conta</label>
               <select value={payContaId ?? ''} onChange={(e) => setPayContaId(Number(e.target.value))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={paying}>
