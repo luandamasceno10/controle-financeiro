@@ -87,10 +87,11 @@ export default function ConciliacaoBancaria({
   // dá 0.009999999999990905 em JS, não 0.01 exato — passa no "< 0.01" e trata
   // duas transações DIFERENTES (por só 1 centavo) como se fossem a mesma.
   // Arredondar pra centavos inteiros antes de comparar evita essa armadilha.
-  const matchLine = (line: StatementLine): boolean => {
+  const matchLine = (line: StatementLine, lineIndex: number, allLines: StatementLine[]): boolean => {
     const alvoCentavos = Math.round(Math.abs(line.valor) * 100);
     const lineDescNorm = line.descricao.toLowerCase().trim();
-    return contaEntries.some((e) => {
+
+    const correspondencias = contaEntries.filter((e) => {
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
@@ -100,6 +101,17 @@ export default function ConciliacaoBancaria({
       const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
       return mesmaDesc;
     });
+
+    if (correspondencias.length === 0) return false;
+
+    const duplicatasSemDiferenca = allLines.filter((l, idx) =>
+      idx < lineIndex &&
+      Math.round(Math.abs(l.valor) * 100) === alvoCentavos &&
+      l.data === line.data &&
+      l.descricao.toLowerCase().trim().split(' ')[0] === lineDescNorm.split(' ')[0]
+    ).length;
+
+    return duplicatasSemDiferenca < correspondencias.length;
   };
 
   const handleFile = async (file: File) => {
@@ -116,7 +128,7 @@ export default function ConciliacaoBancaria({
         setLines(null);
         return;
       }
-      const matchedLines = parsed.map((l) => ({ ...l, matched: matchLine(l), creating: false, created: false }));
+      const matchedLines = parsed.map((l, idx) => ({ ...l, matched: matchLine(l, idx, parsed), creating: false, created: false }));
       setLines(matchedLines);
       matchedLines.forEach((l, idx) => {
         if (!l.matched) categorizarLinha(l, idx);
