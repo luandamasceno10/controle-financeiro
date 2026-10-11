@@ -96,7 +96,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const [filterType, setFilterType] = useState('todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 15;
+  const PAGE_SIZE = 20;
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento'; id: number } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
