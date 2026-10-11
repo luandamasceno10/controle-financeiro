@@ -75,7 +75,7 @@ export default function LancamentoForm({
         recorrente: false,
         meta_id: null as number | null,
         tipoGastoOverride: editingEntry.tipo_gasto_override,
-        vinculo: 'nenhum' as 'nenhum' | 'contapagar' | 'fatura',
+        vinculo: 'nenhum' as 'nenhum' | 'contapagar' | 'fatura' | 'fatura_parcial',
         vinculo_conta_pagar_id: null as number | null,
         vinculo_fatura_id: null as number | null,
       };
@@ -89,7 +89,7 @@ export default function LancamentoForm({
       parcelas: '2',
       meta_id: null as number | null,
       tipoGastoOverride: null as 'fixo' | 'variavel' | null,
-      vinculo: 'nenhum' as 'nenhum' | 'contapagar' | 'fatura',
+      vinculo: 'nenhum' as 'nenhum' | 'contapagar' | 'fatura' | 'fatura_parcial',
       vinculo_conta_pagar_id: null as number | null,
       vinculo_fatura_id: null as number | null,
     };
@@ -238,6 +238,10 @@ export default function LancamentoForm({
         const { error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]);
         if (error) throw error;
         await supabase.from('faturas').update({ status: 'paga' }).eq('id', form.vinculo_fatura_id);
+      } else if (form.vinculo === 'fatura_parcial' && form.vinculo_fatura_id) {
+        const { error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]);
+        if (error) throw error;
+        // Pagamento parcial: não marca como paga, apenas insere o lançamento
       } else {
         const { error } = await supabase.from('lancamentos').insert([{ ...payload, user_id: userId }]);
         if (error) throw error;
@@ -456,17 +460,18 @@ export default function LancamentoForm({
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
                 <Link2 size={13} /> Vincular a um pagamento (opcional)
               </label>
-              <div className="grid grid-cols-3 gap-2 mb-2">
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 {([
                   { v: 'nenhum' as const, label: 'Nenhum' },
                   { v: 'contapagar' as const, label: 'Conta a pagar' },
-                  { v: 'fatura' as const, label: 'Fatura' },
+                  { v: 'fatura' as const, label: 'Pagto. Completo' },
+                  { v: 'fatura_parcial' as const, label: 'Pagto. Parcial' },
                 ]).map((opt) => (
                   <button
                     key={opt.v}
                     type="button"
                     onClick={() => setForm(f => ({ ...f, vinculo: opt.v, vinculo_conta_pagar_id: null, vinculo_fatura_id: null }))}
-                    disabled={saving || (opt.v === 'contapagar' && payable.filter(p => p.status === 'pendente').length === 0) || (opt.v === 'fatura' && faturasPendentes.length === 0)}
+                    disabled={saving || (opt.v === 'contapagar' && payable.filter(p => p.status === 'pendente').length === 0) || ((opt.v === 'fatura' || opt.v === 'fatura_parcial') && faturasPendentes.length === 0)}
                     className={`py-2 rounded-lg text-xs font-medium border transition-colors disabled:opacity-40 ${form.vinculo === opt.v ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}
                   >
                     {opt.label}
@@ -521,6 +526,38 @@ export default function LancamentoForm({
                     ))}
                   </select>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Marca a fatura como paga ao salvar este lançamento.</p>
+                </>
+              )}
+              {form.vinculo === 'fatura_parcial' && (
+                <>
+                  <select
+                    value={form.vinculo_fatura_id ?? ''}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      const alvo = faturasPendentes.find(x => x.fatura.id === id);
+                      setForm(f => ({
+                        ...f,
+                        vinculo_fatura_id: id,
+                        desc: alvo ? `Pagamento parcial — ${alvo.cartao.nome} ${alvo.fatura.competencia}` : f.desc,
+                        amount: '',
+                        category: categoriaOptions.some(c => c.nome === 'Cartão de crédito') ? 'Cartão de crédito' : f.category,
+                      }));
+                    }}
+                    className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
+                    disabled={saving}
+                  >
+                    <option value="">Selecione a fatura</option>
+                    {faturasPendentes.map(({ fatura, cartao, total }) => (
+                      <option key={fatura.id} value={fatura.id}>{cartao.nome} — {fatura.competencia} — R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</option>
+                    ))}
+                  </select>
+                  {form.vinculo_fatura_id && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Total: R$ {faturasPendentes.find(x => x.fatura.id === form.vinculo_fatura_id)?.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {form.amount && ` • Restante: R$ ${Math.max(0, (faturasPendentes.find(x => x.fatura.id === form.vinculo_fatura_id)?.total ?? 0) - parseFloat(form.amount)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Digite o valor que está pagando. A fatura continua aberta até ser completamente quitada.</p>
                 </>
               )}
             </div>

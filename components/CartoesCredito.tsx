@@ -125,6 +125,15 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const totalDaFatura = (faturaId: number) =>
     sumMoney(entries.filter((e) => e.fatura_id === faturaId).map((e) => Number(e.valor)));
 
+  const valorPagoDaFatura = (faturaId: number) =>
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId && e.tipo === 'saida').map((e) => Number(e.valor)));
+
+  const saldoPendenteFatura = (faturaId: number) => {
+    const total = totalDaFatura(faturaId);
+    const pago = valorPagoDaFatura(faturaId);
+    return Math.max(0, total - pago);
+  };
+
   const openDetail = (cartao: CartaoCredito) => {
     setDetailCartao(cartao);
     setDetailCompetencia(competenciaAtualDoCartao(cartao));
@@ -501,6 +510,28 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               </div>
               <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{currency(detailTotal)}</p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Vencimento {fmtDate(detailVencimento)}</p>
+
+              {detailFatura && detailFatura.status === 'aberta' && (
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-500/10 rounded-lg border border-amber-200 dark:border-amber-500/20">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-medium text-amber-900 dark:text-amber-100">Pagamentos</span>
+                    <span className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                      {currency(valorPagoDaFatura(detailFatura.id))} de {currency(detailTotal)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-amber-200 dark:bg-amber-500/30 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-amber-500 dark:bg-amber-400 h-full transition-all"
+                      style={{ width: `${detailTotal > 0 ? (valorPagoDaFatura(detailFatura.id) / detailTotal) * 100 : 0}%` }}
+                    />
+                  </div>
+                  {saldoPendenteFatura(detailFatura.id) > 0.01 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-200 mt-2">
+                      Faltam {currency(saldoPendenteFatura(detailFatura.id))} para quitar
+                    </p>
+                  )}
+                </div>
+              )}
 
               {!detailEhAtual && detailFatura?.status === 'aberta' && detailTotal > 0 && (
                 <button
