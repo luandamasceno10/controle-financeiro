@@ -505,7 +505,8 @@ export default function Dashboard({ userId }: { userId: string }) {
       const me = entries.filter(e => monthKey(e.data) === key);
       const entrada = me.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
       const saida = me.filter(e => e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
-      months.push({ key, label: MONTH_NAMES[m - 1], entrada, saida, saldo: entrada - saida });
+      const cartao = me.filter(e => !!e.cartao_id && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+      months.push({ key, label: MONTH_NAMES[m - 1], entrada, saida: saida + cartao, saldo: entrada - (saida + cartao) });
     }
     return months;
   }, [entries, currentYear]);
@@ -735,7 +736,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <SummaryCard label="Entradas (mês)" value={totals.entrada} icon={ArrowUpRight} tone="emerald" />
-            <SummaryCard label="Saídas (mês)" value={totals.saida} icon={ArrowDownRight} tone="rose" />
+            <SummaryCard label="Saídas (mês)" value={totals.saida + totals.cartao} icon={ArrowDownRight} tone="rose" />
             <SummaryCard label="Saldo do mês" value={totals.saldo} icon={Wallet} tone={totals.saldo >= 0 ? 'blue' : 'rose'} />
             <SummaryCard
               label="Saldo projetado"
@@ -787,7 +788,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               <div className="min-w-0 flex-1">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Saídas via Pix</p>
                 <p className="text-lg font-bold tabular-nums break-words">{currency(totals.pix)}</p>
-                <p className="text-xs text-slate-400 dark:text-slate-500">{totals.saida > 0 ? Math.round((totals.pix / totals.saida) * 100) : 0}% do total</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">{(totals.saida + totals.cartao) > 0 ? Math.round((totals.pix / (totals.saida + totals.cartao)) * 100) : 0}% do total</p>
               </div>
             </div>
             <button onClick={() => setShowCardDetail(true)} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-4 text-left hover:border-amber-300 transition-colors">
@@ -1170,7 +1171,7 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard label="Entradas no ano" value={yearTotals.entrada} icon={ArrowUpRight} tone="emerald" />
-        <SummaryCard label="Saídas no ano" value={yearTotals.saida} icon={ArrowDownRight} tone="rose" />
+        <SummaryCard label="Saídas no ano (total)" value={yearTotals.saida} icon={ArrowDownRight} tone="rose" />
         <SummaryCard label="Saldo do ano" value={yearTotals.saldo} icon={Wallet} tone={yearTotals.saldo >= 0 ? 'blue' : 'rose'} />
         <SummaryCard label="Previsão total" value={totalForecast} icon={Target} tone="violet" />
       </div>
