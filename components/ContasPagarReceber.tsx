@@ -58,6 +58,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
   const [settleTarget, setSettleTarget] = useState<{ kind: 'pagar' | 'receber'; id: number } | null>(null);
   const [settlePayment, setSettlePayment] = useState<'pix' | 'cartao'>('pix');
   const [settleContaId, setSettleContaId] = useState<number | null>(null);
+  const [settleData, setSettleData] = useState<string>('');
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ kind: 'pagar' | 'receber'; id: number } | null>(null);
 
@@ -288,7 +289,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
   };
 
   const confirmSettle = async () => {
-    if (!settleTarget || !settleContaId) return;
+    if (!settleTarget || !settleContaId || !settleData) return;
     const { kind, id } = settleTarget;
 
     try {
@@ -297,7 +298,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         if (!target) return;
 
         const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
-          user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
+          user_id: userId, data: settleData, hora: nowTime(), descricao: target.descricao,
           tipo: 'saida', categoria: target.categoria, categoria_id: target.categoria_id,
           forma_pagamento: settlePayment, conta_id: settleContaId, valor: target.valor,
         }]).select().single();
@@ -317,7 +318,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
         if (!target) return;
 
         const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
-          user_id: userId, data: todayISO(), hora: nowTime(), descricao: target.descricao,
+          user_id: userId, data: settleData, hora: nowTime(), descricao: target.descricao,
           tipo: 'entrada', categoria: 'Diversos', categoria_id: categoriaByName['entrada|Diversos']?.id ?? null,
           forma_pagamento: settlePayment, conta_id: settleContaId, valor: target.valor,
         }]).select().single();
@@ -336,6 +337,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
 
       await loadData();
       setSettleTarget(null);
+      setSettleData('');
       addToast('Conta quitada com sucesso!', 'success');
     } catch (err: any) {
       addToast('Erro ao quitar: ' + err.message, 'error');
@@ -554,18 +556,24 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
               })}
             </div>
             {contasBancarias.length > 0 ? (
-              <div className="mb-5">
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{settleTarget.kind === 'pagar' ? 'Debitar da conta' : 'Creditar na conta'}</label>
-                <select value={settleContaId ?? ''} onChange={(e) => setSettleContaId(Number(e.target.value))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800">
-                  {contasBancarias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </select>
-              </div>
+              <>
+                <div className="mb-3">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Data {settleTarget.kind === 'pagar' ? 'do pagamento' : 'do recebimento'}</label>
+                  <input type="date" value={settleData} onChange={(e) => setSettleData(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" />
+                </div>
+                <div className="mb-5">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">{settleTarget.kind === 'pagar' ? 'Debitar da conta' : 'Creditar na conta'}</label>
+                  <select value={settleContaId ?? ''} onChange={(e) => setSettleContaId(Number(e.target.value))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800">
+                    {contasBancarias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </div>
+              </>
             ) : (
               <p className="text-xs text-rose-500 mb-5">Cadastre uma conta bancária antes de quitar esta conta.</p>
             )}
             <div className="flex gap-2">
               <button onClick={() => setSettleTarget(null)} className="flex-1 py-2.5 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">Cancelar</button>
-              <button onClick={confirmSettle} disabled={!settleContaId} className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-300 disabled:cursor-not-allowed text-slate-900">Confirmar</button>
+              <button onClick={confirmSettle} disabled={!settleContaId || !settleData} className="flex-1 py-2.5 rounded-lg text-sm font-semibold bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-300 disabled:cursor-not-allowed text-slate-900">Confirmar</button>
             </div>
           </div>
         </div>

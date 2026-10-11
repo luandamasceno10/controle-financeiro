@@ -95,6 +95,10 @@ export async function GET(request: Request) {
   const mesRef = `${ano}-${String(mesIdx + 1).padStart(2, '0')}`;
   const proximoMesRef = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
+  // Calcular o último dia do mês anterior (funciona para fevereiro também)
+  const ultimoDiaDoMes = new Date(ano, mesIdx + 1, 0).getDate();
+  const dataFimMes = `${mesRef}-${String(ultimoDiaDoMes).padStart(2, '0')}`;
+
   const { data: subs } = await supabase.from('push_subscriptions').select('*');
 
   // E-mail não depende de push subscription — pega todos os usuários da conta.
@@ -112,7 +116,7 @@ export async function GET(request: Request) {
 
   for (const userId of userIds) {
     const [{ data: lancamentos }, { data: categorias }, { data: orcamentos }, { data: comprasRecorrentes }, { data: contasPagar }] = await Promise.all([
-      supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', `${mesRef}-01`).lte('data', `${mesRef}-31`),
+      supabase.from('lancamentos').select('*').eq('user_id', userId).gte('data', `${mesRef}-01`).lte('data', dataFimMes),
       supabase.from('categorias').select('*').eq('user_id', userId),
       supabase.from('orcamentos_categoria').select('*').eq('user_id', userId),
       supabase.from('compras_recorrentes').select('*').eq('user_id', userId).eq('ativa', true),
@@ -120,7 +124,7 @@ export async function GET(request: Request) {
     ]);
 
     const monthEntries = lancamentos || [];
-    if (monthEntries.length === 0) continue;
+    // Envia relatório mesmo que não tenha lançamentos (pode ser mês com saldo zero)
 
     const proximasContasPagar = (contasPagar || []).filter((p) => p.vencimento.startsWith(proximoMesRef));
 
