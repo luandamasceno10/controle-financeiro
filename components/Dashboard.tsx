@@ -482,6 +482,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const filtered = useMemo(() => {
     return monthEntries
+      .filter(e => !e.cartao_id && e.categoria !== 'Cartão de crédito')
       .filter(e => filterPayment === 'todos' || e.forma_pagamento === filterPayment)
       .filter(e => filterCategory === 'todas' || e.categoria === filterCategory)
       .filter(e => filterType === 'todos' || e.tipo === filterType)
@@ -958,7 +959,6 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <input type="text" placeholder="Buscar..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" />
               </div>
               <FilterSelect value={filterType} onChange={setFilterType} options={[{ v: 'todos', l: 'Todos os tipos' }, { v: 'entrada', l: 'Entradas' }, { v: 'saida', l: 'Saídas' }]} />
-              <FilterSelect value={filterPayment} onChange={setFilterPayment} options={[{ v: 'todos', l: 'Todas formas' }, { v: 'pix', l: 'Pix' }, { v: 'cartao', l: 'Cartão' }]} />
               <FilterSelect value={filterCategory} onChange={setFilterCategory} options={[{ v: 'todas', l: 'Todas categorias' }, ...Array.from(new Set(categorias.map(c => c.nome))).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' })).map(c => ({ v: c, l: c }))]} />
               <div className="flex items-center gap-1.5">
                 <button onClick={() => exportLancamentosCSV(filtered, `extrato-${currentMonth}`)} disabled={filtered.length === 0} className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors">
