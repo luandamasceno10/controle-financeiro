@@ -250,7 +250,11 @@ export default function Dashboard({ userId }: { userId: string }) {
     const filtered = entries.filter(e => monthKey(e.data) === currentMonth);
     // Debug: mostrar entradas
     const entradas = filtered.filter(e => e.tipo === 'entrada');
-    console.log('📊 Entradas do mês:', { currentMonth, total: filtered.length, entradas: entradas.length, detalhes: entradas.map(e => ({ descricao: e.descricao, valor: e.valor, data: e.data })) });
+    if (entradas.length === 0) {
+      console.log(`📊 MÊS ${currentMonth}: ${filtered.length} lançamentos total, 0 entradas`);
+    } else {
+      entradas.forEach(e => console.log(`  💰 ${e.data} - ${e.descricao}: R$ ${e.valor}`));
+    }
     return filtered;
   }, [entries, currentMonth]);
 
