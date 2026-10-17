@@ -249,7 +249,7 @@ export default function Dashboard({ userId }: { userId: string }) {
   const monthEntries = useMemo(() => {
     const filtered = entries.filter(e => monthKey(e.data) === currentMonth);
 
-    // Debug: análise completa
+    // Debug: análise completa com detalhes de entradas
     const todasAsEntradas = entries.filter(e => e.tipo === 'entrada');
     const entradasDoMes = filtered.filter(e => e.tipo === 'entrada');
 
@@ -257,14 +257,26 @@ export default function Dashboard({ userId }: { userId: string }) {
       lancamentosNoMes: filtered.length,
       entradasNoMes: entradasDoMes.length,
       todasAsEntradasNoApp: todasAsEntradas.length,
-      distribuicaoPorMes: Object.entries(
-        todasAsEntradas.reduce((acc: any, e) => {
-          const mes = monthKey(e.data);
-          acc[mes] = (acc[mes] || 0) + 1;
-          return acc;
-        }, {})
-      ).map(([mes, count]) => `${mes}: ${count}`)
     });
+
+    // Debug detalhado: mostrar CADA entrada de agosto com todas as propriedades
+    if (currentMonth.includes('2026-08')) {
+      console.log(`\n🔍 ENTRADAS DE AGOSTO (${entradasDoMes.length} total):`);
+      entradasDoMes.forEach(e => {
+        console.log(`  ✓ ${e.data} | ${e.descricao} | R$ ${e.valor} | cartao_id=${e.cartao_id} | fatura_id=${e.fatura_id}`);
+      });
+
+      // Debug: mostrar entradas filtradas (que NÃO aparecem porque foram filtradas)
+      const filtradasAgosto = entradasDoMes.filter(e => !e.cartao_id || (e.cartao_id && !e.fatura_id));
+      const escondidas = entradasDoMes.filter(e => !((!e.cartao_id) || (e.cartao_id && !e.fatura_id)));
+
+      if (escondidas.length > 0) {
+        console.log(`\n❌ ENTRADAS ESCONDIDAS PELOS FILTROS (${escondidas.length}):`);
+        escondidas.forEach(e => {
+          console.log(`  ✗ ${e.data} | ${e.descricao} | R$ ${e.valor} | cartao_id=${e.cartao_id} | fatura_id=${e.fatura_id}`);
+        });
+      }
+    }
 
     return filtered;
   }, [entries, currentMonth]);
