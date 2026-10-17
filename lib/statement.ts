@@ -186,6 +186,11 @@ export function parseStatementCSV(text: string): StatementLine[] {
     // Hora pode vir em coluna própria, ou embutida junto da data/descrição (ex: "29/07/2026 14:32")
     const hora = horaIdx !== -1 ? extractTime(row[horaIdx] ?? '') : (extractTime(dataRaw) || extractTime(descRaw));
 
+    // Debug: log das datas parseadas com valores > 5000
+    if (Math.abs(valor) > 5000) {
+      console.log(`🔍 Parsing CSV: raw="${dataRaw}" -> parsed="${data}" | valor=${valor} | desc="${descRaw.slice(0, 50)}"`);
+    }
+
     result.push({ data, hora, descricao: normalizeDescricao(descRaw), valor });
   }
 
