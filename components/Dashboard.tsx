@@ -319,7 +319,9 @@ export default function Dashboard({ userId }: { userId: string }) {
       })
       .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), 0);
 
-    return base + lancamentosAnteriores;
+    const result = base + lancamentosAnteriores;
+    console.log(`✓ SALDO INICIAL ${currentMonth}: base=${base} + lancamentos_ant=${lancamentosAnteriores} = ${result}`);
+    return result;
   }, [contas, entries, currentMonth]);
 
   const commitment = useMemo(() => {
