@@ -175,6 +175,8 @@ export default function Dashboard({ userId }: { userId: string }) {
   // todo o histórico de lançamentos pra somar em JS, a soma é feita no banco via
   // RPC. Roda à parte do loadData principal porque o corte é por mês selecionado
   // (currentMonth), granularidade mais fina do que o ano carregado na tabela.
+  const lastCutoffRef = useRef<string>('');
+
   useEffect(() => {
     const [y, m] = currentMonth.split('-').map(Number);
     // Dia 0 do mês seguinte = último dia real do mês atual (28-31, conforme o
@@ -183,6 +185,11 @@ export default function Dashboard({ userId }: { userId: string }) {
     // inicial do mês ficar preso no cutoff válido anterior (mês passado).
     const ultimoDia = new Date(y, m, 0).getDate();
     const cutoff = `${y}-${String(m).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+
+    // Evitar chamar a RPC múltiplas vezes com o mesmo cutoff
+    if (lastCutoffRef.current === cutoff) return;
+    lastCutoffRef.current = cutoff;
+
     supabase.rpc('saldo_por_conta', { p_cutoff: cutoff }).then(({ data, error }) => {
       if (error) { addToast('Erro ao calcular saldo: ' + error.message, 'error'); return; }
       if (!data) return;
