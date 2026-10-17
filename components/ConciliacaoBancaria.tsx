@@ -171,6 +171,12 @@ export default function ConciliacaoBancaria({
         setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, categoriaSugerida: sugestao } : l)));
       }
       const { categoria, categoria_id } = categoriaEIdParaLinha(linhaAtual, tipo);
+
+      // Debug: mostrar qual data está sendo inserida
+      if (Math.abs(line.valor) > 5000) {
+        console.log(`🚀 CRIANDO LANÇAMENTO: data="${line.data}" | valor=${line.valor} | desc="${line.descricao}"`);
+      }
+
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
