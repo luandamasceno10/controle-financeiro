@@ -311,22 +311,10 @@ export default function Dashboard({ userId }: { userId: string }) {
   const saldoAteMes = useMemo(() => {
     const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
     const lancamentos = contas.reduce((s, c) => s + (saldoPorConta[c.id] || 0), 0);
-    const total = base + lancamentos;
+    return base + lancamentos;
+  }, [contas, saldoPorConta]);
 
-    if (currentMonth.includes('2026-08') || currentMonth.includes('2026-09')) {
-      console.log(`💰 SALDO ${currentMonth}: base=${base}, lancamentos_acumulados=${lancamentos}, saldoAteMes=${total}, entrada=${totals.entrada}, saida=${totals.saida}`);
-    }
-
-    return total;
-  }, [contas, saldoPorConta, currentMonth, totals]);
-
-  const carryOver = useMemo(() => {
-    const carry = saldoAteMes - totals.entrada + totals.saida;
-    if (currentMonth.includes('2026-08') || currentMonth.includes('2026-09')) {
-      console.log(`🔄 CARRY OVER ${currentMonth}: saldoAteMes=${saldoAteMes} - entrada=${totals.entrada} + saida=${totals.saida} = ${carry}`);
-    }
-    return carry;
-  }, [saldoAteMes, totals, currentMonth]);
+  const carryOver = useMemo(() => saldoAteMes - totals.entrada + totals.saida, [saldoAteMes, totals]);
 
   const commitment = useMemo(() => {
     const saldoInicial = carryOver;
