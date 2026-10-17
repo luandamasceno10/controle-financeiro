@@ -276,6 +276,13 @@ export default function Dashboard({ userId }: { userId: string }) {
           console.log(`  ✗ ${e.data} | ${e.descricao} | R$ ${e.valor} | cartao_id=${e.cartao_id} | fatura_id=${e.fatura_id}`);
         });
       }
+
+      // Debug: procurar POR QUALQUER entrada de 10.000 em TODO o app
+      const todasDe10k = entries.filter(e => Math.abs(Number(e.valor)) === 10000 && e.tipo === 'entrada');
+      console.log(`\n🔎 PROCURANDO ENTRADA DE R$ 10.000 EM TODO O APP (${todasDe10k.length} encontradas):`);
+      todasDe10k.forEach(e => {
+        console.log(`  📍 ${e.data} (${e.data.slice(0, 7)}) | ${e.descricao} | R$ ${e.valor} | id=${e.id}`);
+      });
     }
 
     return filtered;
