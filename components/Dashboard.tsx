@@ -472,6 +472,11 @@ export default function Dashboard({ userId }: { userId: string }) {
     [monthEntries]
   );
 
+  const orphanedEntries = useMemo(
+    () => monthEntries.filter(e => !!e.cartao_id && !e.fatura_id),
+    [monthEntries]
+  );
+
   const cardByCategory = useMemo(() => {
     const map: Record<string, number> = {};
     cardEntries.forEach(e => { map[e.categoria] = (map[e.categoria] || 0) + Number(e.valor); });
@@ -975,6 +980,12 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </button>
               </div>
             </div>
+            {orphanedEntries.length > 0 && (
+              <div className="px-5 py-2.5 bg-amber-50 dark:bg-amber-500/10 border-b border-amber-100 dark:border-amber-500/20 flex items-center gap-3">
+                <AlertTriangle size={14} className="text-amber-600 dark:text-amber-400" />
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-200">{orphanedEntries.length} lançamento{orphanedEntries.length > 1 ? 's' : ''} sem vinculação à fatura — clique para editar/excluir</p>
+              </div>
+            )}
             {selectedIds.size > 0 && (
               <div className="px-5 py-2.5 bg-rose-50 dark:bg-rose-500/10 border-b border-rose-100 flex items-center gap-3">
                 <p className="text-xs font-semibold text-rose-700">{selectedIds.size} selecionado{selectedIds.size > 1 ? 's' : ''}</p>
