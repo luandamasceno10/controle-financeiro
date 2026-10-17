@@ -472,10 +472,13 @@ export default function Dashboard({ userId }: { userId: string }) {
     [monthEntries]
   );
 
-  const orphanedEntries = useMemo(
-    () => monthEntries.filter(e => !!e.cartao_id && !e.fatura_id),
-    [monthEntries]
-  );
+  const orphanedEntries = useMemo(() => {
+    const orphaned = monthEntries.filter(e => !!e.cartao_id && !e.fatura_id);
+    if (orphaned.length > 0) {
+      console.log('🔍 Lançamentos órfãos encontrados:', orphaned);
+    }
+    return orphaned;
+  }, [monthEntries]);
 
   const cardByCategory = useMemo(() => {
     const map: Record<string, number> = {};
