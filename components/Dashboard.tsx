@@ -246,10 +246,15 @@ export default function Dashboard({ userId }: { userId: string }) {
     return nome;
   };
 
-  const monthEntries = useMemo(
-    () => entries.filter(e => monthKey(e.data) === currentMonth),
-    [entries, currentMonth]
-  );
+  const monthEntries = useMemo(() => {
+    const filtered = entries.filter(e => monthKey(e.data) === currentMonth);
+    // Debug: mostrar entradas
+    const entradas = filtered.filter(e => e.tipo === 'entrada');
+    if (entradas.length === 0 && monthKey(new Date().toISOString().slice(0, 10)) === currentMonth) {
+      console.log('📊 Entradas do mês:', { currentMonth, total: filtered.length, entradas: entradas.length, todasAsEntradas: entries.filter(e => e.tipo === 'entrada') });
+    }
+    return filtered;
+  }, [entries, currentMonth]);
 
   const totals = useMemo(() => {
     // Compras no cartão: (1) lançamentos com cartao_id (compras não pagas) ou
