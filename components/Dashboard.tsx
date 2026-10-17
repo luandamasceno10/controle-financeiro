@@ -314,7 +314,7 @@ export default function Dashboard({ userId }: { userId: string }) {
     return base + lancamentos;
   }, [contas, saldoPorConta]);
 
-  const carryOver = useMemo(() => saldoAteMes - totals.entrada + totals.saida, [saldoAteMes, totals]);
+  const carryOver = useMemo(() => saldoAteMes - totals.entrada + totals.saida + totals.cartao, [saldoAteMes, totals]);
 
   const commitment = useMemo(() => {
     const saldoInicial = carryOver;
