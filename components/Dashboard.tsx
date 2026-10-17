@@ -248,13 +248,24 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const monthEntries = useMemo(() => {
     const filtered = entries.filter(e => monthKey(e.data) === currentMonth);
-    // Debug: mostrar entradas
-    const entradas = filtered.filter(e => e.tipo === 'entrada');
-    if (entradas.length === 0) {
-      console.log(`📊 MÊS ${currentMonth}: ${filtered.length} lançamentos total, 0 entradas`);
-    } else {
-      entradas.forEach(e => console.log(`  💰 ${e.data} - ${e.descricao}: R$ ${e.valor}`));
-    }
+
+    // Debug: análise completa
+    const todasAsEntradas = entries.filter(e => e.tipo === 'entrada');
+    const entradasDoMes = filtered.filter(e => e.tipo === 'entrada');
+
+    console.log(`📊 ANÁLISE ${currentMonth}:`, {
+      lancamentosNoMes: filtered.length,
+      entradasNoMes: entradasDoMes.length,
+      todasAsEntradasNoApp: todasAsEntradas.length,
+      distribuicaoPorMes: Object.entries(
+        todasAsEntradas.reduce((acc: any, e) => {
+          const mes = monthKey(e.data);
+          acc[mes] = (acc[mes] || 0) + 1;
+          return acc;
+        }, {})
+      ).map(([mes, count]) => `${mes}: ${count}`)
+    });
+
     return filtered;
   }, [entries, currentMonth]);
 
