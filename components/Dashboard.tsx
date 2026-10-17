@@ -482,7 +482,7 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const filtered = useMemo(() => {
     return monthEntries
-      .filter(e => !e.cartao_id && e.categoria !== 'Cartão de crédito')
+      .filter(e => !e.cartao_id)
       .filter(e => filterPayment === 'todos' || e.forma_pagamento === filterPayment)
       .filter(e => filterCategory === 'todas' || e.categoria === filterCategory)
       .filter(e => filterType === 'todos' || e.tipo === filterType)
@@ -1015,8 +1015,12 @@ export default function Dashboard({ userId }: { userId: string }) {
                     const CatIcon = catObj ? ICONS[catObj.icone] : null;
                     const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
                     const selected = selectedIds.has(e.id);
+                    const isFaturaPaga = e.categoria === 'Cartão de crédito' && e.fatura_id;
+                    const handleRowClick = isFaturaPaga
+                      ? () => { const fatura = faturas.find(f => f.id === e.fatura_id); if (fatura) window.location.href = `?mes=${fatura.competencia}&scrollToFatura=${e.fatura_id}`; }
+                      : () => openEditEntry(e);
                     return (
-                      <tr key={e.id} onClick={() => openEditEntry(e)} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
+                      <tr key={e.id} onClick={handleRowClick} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
                         <td className="px-5 py-3" onClick={(ev) => ev.stopPropagation()}>
                           <input type="checkbox" className="w-4 h-4 accent-rose-600" checked={selected} onChange={() => toggleSelect(e.id)} />
                         </td>
