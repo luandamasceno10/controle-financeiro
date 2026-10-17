@@ -95,6 +95,20 @@ export default function LancamentoForm({
     };
   });
 
+  // Quando criando lançamento dentro de uma fatura, forçar configurações corretas
+  useEffect(() => {
+    if (faturasPendentes.length > 0 && !editingEntry) {
+      const { fatura, cartao } = faturasPendentes[0];
+      setForm(f => ({
+        ...f,
+        payment: 'cartao',
+        cartao_id: cartao.id,
+        vinculo: 'fatura',
+        vinculo_fatura_id: fatura.id,
+      }));
+    }
+  }, [faturasPendentes.length, editingEntry]);
+
   const categoriaByName = useMemo(() => {
     const map: Record<string, Categoria> = {};
     [...categoriasEntrada, ...categoriasSaida].forEach((c) => { map[`${c.tipo}|${c.nome}`] = c; });
@@ -342,7 +356,7 @@ export default function LancamentoForm({
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cartão de crédito</label>
-                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
+                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving || faturasPendentes.length > 0}>
                     {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
@@ -455,7 +469,7 @@ export default function LancamentoForm({
               {form.meta_id && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor deste lançamento também conta como aporte para a meta.</p>}
             </div>
           )}
-          {!editingEntry && form.type === 'saida' && form.payment === 'pix' && !form.parcelado && !form.recorrente && !form.meta_id && (payable.filter(p => p.status === 'pendente').length > 0 || faturasPendentes.length > 0) && (
+          {!editingEntry && form.type === 'saida' && form.payment === 'pix' && !form.parcelado && !form.recorrente && !form.meta_id && faturasPendentes.length === 0 && payable.filter(p => p.status === 'pendente').length > 0 && (
             <div>
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block flex items-center gap-1.5">
                 <Link2 size={13} /> Vincular a um pagamento (opcional)
