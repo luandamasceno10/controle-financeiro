@@ -186,7 +186,7 @@ export default function ConciliacaoBancaria({
       if (insertError) throw insertError;
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, created: true, matched: true, failed: null } : l)));
-      onCreated();
+      await onCreated();
       return true;
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, failed: err.message } : l)));
@@ -233,7 +233,7 @@ export default function ConciliacaoBancaria({
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
       setAbatendoIdx(null);
-      onCreated();
+      await onCreated();
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
     } finally {
@@ -278,7 +278,7 @@ export default function ConciliacaoBancaria({
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
       setAbatendoPagarIdx(null);
-      onCreated();
+      await onCreated();
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
     } finally {
@@ -315,7 +315,7 @@ export default function ConciliacaoBancaria({
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
       setAbatendoFaturaIdx(null);
-      onCreated();
+      await onCreated();
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
     } finally {
