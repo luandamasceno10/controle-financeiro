@@ -482,7 +482,8 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const filtered = useMemo(() => {
     return monthEntries
-      .filter(e => !e.cartao_id)
+      // Mostrar lançamentos normais (!cartao_id) + lançamentos órfãos (cartao_id mas sem fatura_id)
+      .filter(e => !e.cartao_id || (e.cartao_id && !e.fatura_id))
       .filter(e => filterPayment === 'todos' || e.forma_pagamento === filterPayment)
       .filter(e => filterCategory === 'todas' || e.categoria === filterCategory)
       .filter(e => filterType === 'todos' || e.tipo === filterType)
