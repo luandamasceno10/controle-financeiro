@@ -305,28 +305,35 @@ export default function Dashboard({ userId }: { userId: string }) {
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
 
-  // Saldo real: soma dos saldos iniciais das contas bancárias + todos os
-  // lançamentos vinculados a uma conta, até o fim do mês selecionado (inclusive).
-  // Livro-razão cumulativo — não reinicia na virada do ano.
-  const saldoAteMes = useMemo(() => {
+  // Saldo inicial do mês = saldo base + lançamentos até o final do mês ANTERIOR
+  const carryOver = useMemo(() => {
     const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
-    const lancamentos = contas.reduce((s, c) => s + (saldoPorConta[c.id] || 0), 0);
-    return base + lancamentos;
-  }, [contas, saldoPorConta]);
+    const [y, m] = currentMonth.split('-').map(Number);
+    const ultimoDiaMesAnterior = m === 1 ? new Date(y - 1, 11, 31).getTime() : new Date(y, m - 1, 0).getTime();
 
-  const carryOver = useMemo(() => saldoAteMes - totals.entrada + totals.saida + totals.cartao, [saldoAteMes, totals]);
+    // Soma lançamentos até o final do mês anterior
+    const lancamentosAnteriores = entries
+      .filter(e => {
+        const dataTime = new Date(e.data + 'T00:00:00').getTime();
+        return dataTime <= ultimoDiaMesAnterior;
+      })
+      .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), 0);
+
+    return base + lancamentosAnteriores;
+  }, [contas, entries, currentMonth]);
 
   const commitment = useMemo(() => {
     const saldoInicial = carryOver;
     const forecastValue = forecast[currentMonth] || 0;
-    const disponivel = saldoInicial + totals.entrada - totals.saida;
+    const totalSaida = totals.saida + totals.cartao;
+    const disponivel = saldoInicial + totals.entrada - totalSaida;
     const recursosPlanejados = saldoInicial + forecastValue;
-    const pct = recursosPlanejados > 0 ? Math.min(Math.round((totals.saida / recursosPlanejados) * 100), 999) : null;
+    const pct = recursosPlanejados > 0 ? Math.min(Math.round((totalSaida / recursosPlanejados) * 100), 999) : null;
     return {
       disponivel,
       forecastValue,
       pct,
-      gasto: totals.saida,
+      gasto: totalSaida,
       saldoInicial
     };
   }, [totals, forecast, currentMonth, carryOver]);
