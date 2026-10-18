@@ -51,101 +51,83 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
       continue;
     }
 
-    // Parse linha de transação - flexível para tabelas e texto
-    // Formatos suportados:
-    // "DD/MM DESCRICAO ... R$ VALOR"
-    // "| DD/MM | DESCRICAO | R$ VALOR |"
-    // "DD/MM | DESCRICAO | VALOR"
-    // Detectar se há múltiplas transações na mesma linha (layout de duas colunas)
-    const allDates = line.match(/(\d{2}\/\d{2})/g) || [];
-    const allValues = line.match(/(-?\d{1,3}(?:\.\d{3})*,\d{2})/g) || [];
+    // Se estamos em uma seção de transações
+    if (inCurrentTransactions || inNextTransactions) {
+      // Usar estratégia agressiva: encontrar TODAS as transações (data + valor) na linha
+      // Regex: captura DATA, tudo até o valor, e o VALOR
+      // Padrão: DD/MM ... VVVV,VV - podendo haver próxima data colada (VVVV,VVDD/MM)
 
-    // Se há múltiplas datas e valores, tentar split por padrão de duas colunas
-    if (allDates.length >= 2 && allValues.length >= 2 && (inCurrentTransactions || inNextTransactions)) {
-      // Padrão: "DD/MM DESC VAL DD/MM DESC VAL" ou com pipes
-      const doubleMatch = line.match(/(\d{2}\/\d{2})\s+([^,]*?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*\|?\s*(\d{2}\/\d{2})\s+([^,]*?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
-      if (doubleMatch) {
-        // Processar duas transações
-        const transacoes = [
-          { data: doubleMatch[1], desc: doubleMatch[2], valor: doubleMatch[3] },
-          { data: doubleMatch[4], desc: doubleMatch[5], valor: doubleMatch[6] },
-        ];
+      // Remover conteúdo com conhecidas palavras inúteis
+      let workLine = line
+        .replace(/DATA\s+ESTABELECIMENTO\s+VALOR\s+EM\s+R\$/gi, ' ')
+        .replace(/EDUCAÇÃO\s+\.\S+/gi, ' ')
+        .replace(/ALIMENTAÇÃO\s+\.\S+/gi, ' ')
+        .replace(/VESTUÁRIO\s+\.\S+/gi, ' ')
+        .replace(/SAÚDE\s+\.\S+/gi, ' ')
+        .replace(/DIVERSOS\s+\.\S+/gi, ' ')
+        .replace(/HOBBY\s+\.\S+/gi, ' ')
+        .replace(/VEÍCULOS\s+\.\S+/gi, ' ')
+        .replace(/LAZER\s+\.\S+/gi, ' ')
+        .replace(/TURISMO\s+E\s+ENTRETENIM\.\S+/gi, ' ')
+        .replace(/MORADIA\s+\.\S+/gi, ' ')
+        .replace(/Lançamentos no cartão.*?(?=\d{2}\/\d{2}|\d+\.\d+|$)/gi, ' ')
+        .replace(/\s{2,}/g, ' ');
 
-        for (const tx of transacoes) {
-          const data = inferirData(tx.data, competencia);
-          if (!data) continue;
+      // Estratégia: encontrar TODAS as ocorrências de (DATA DESCRICAO VALOR)
+      // Quando há valor colado à data (29,0015/08), precisamos separar
 
-          const valorNum = parseBRNumber(tx.valor);
-          if (valorNum === null || valorNum === 0) continue;
+      // Primeiro: normalizar valores colados à data seguinte (29,0015/08 -> 29,00 15/08)
+      workLine = workLine.replace(/(\d{2}),(\d{2})(\d{2}\/\d{2})/g, '$1,$2 $3');
 
-          const { texto: descSemParcela, parcela } = extrairParcela(tx.desc.trim());
-          const descricaoBase = normalizeDescricao(descSemParcela);
-          const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
+      // Agora extrair transações: buscar por (DD/MM) ... (VVVV,VV)
+      // Uso lookahead para não consumir a próxima data
+      const transactionPattern = /(\d{2}\/\d{2})\s+([^0-9]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|\||$)/g;
+      let match;
+      while ((match = transactionPattern.exec(workLine)) !== null) {
+        const [, dataRaw, descRaw, valorRaw] = match;
 
-          if (/total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas/i.test(descricao)) continue;
+        const data = inferirData(dataRaw, competencia);
+        if (!data) continue;
 
-          const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
-          if (vistos.has(chave)) continue;
-          vistos.add(chave);
+        const valorNum = parseBRNumber(valorRaw);
+        if (valorNum === null || valorNum === 0) continue;
 
-          const stmt: StatementLine = { data, hora: null, descricao, valor: Math.abs(valorNum) };
-          if (inCurrentTransactions) atual.push(stmt);
-          else if (inNextTransactions) proximaFatura.push(stmt);
+        const { texto: descSemParcela, parcela } = extrairParcela(descRaw.trim());
+        const descricaoBase = normalizeDescricao(descSemParcela);
+        const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
+
+        // Filtrar descrições conhecidas
+        if (/total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas|francisco|antonio|final|últimas/i.test(descricao)) {
+          continue;
         }
-        continue;
-      }
-    }
 
-    const transacaoMatch = line.match(/\|?\s*(\d{2}\/\d{2})\s+\|?\s*(.+?)\s+\|?\s*(-?R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})/);
-    if (transacaoMatch && (inCurrentTransactions || inNextTransactions)) {
-      const [, dataRaw, descRaw, valorRaw] = transacaoMatch;
+        // Valor negativo = abatimento
+        if (valorNum < 0) {
+          if (inCurrentTransactions) {
+            abatimentos += Math.abs(valorNum);
+          } else {
+            abatimentosProximaFatura += Math.abs(valorNum);
+          }
+          continue;
+        }
 
-      const data = inferirData(dataRaw, competencia);
-      if (!data) continue;
+        // Evitar duplicatas
+        const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
+        if (vistos.has(chave)) continue;
+        vistos.add(chave);
 
-      const negativo = valorRaw.includes('-');
-      const valorNum = parseBRNumber(valorRaw.replace(/R?\$|\s/g, ''));
-      if (valorNum === null || valorNum === 0) continue;
+        const stmt: StatementLine = {
+          data,
+          hora: null,
+          descricao,
+          valor: Math.abs(valorNum),
+        };
 
-      // Extrair parcela
-      const { texto: descSemParcela, parcela } = extrairParcela(descRaw);
-      const descricaoBase = normalizeDescricao(descSemParcela);
-      const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
-
-      // Filtrar descrições conhecidas a ignorar
-      if (
-        /total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas/i.test(descricao) ||
-        /total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas/i.test(descRaw)
-      ) {
-        continue;
-      }
-
-      // Valores negativos são abatimentos
-      if (negativo || valorNum < 0) {
         if (inCurrentTransactions) {
-          abatimentos += Math.abs(valorNum);
-        } else {
-          abatimentosProximaFatura += Math.abs(valorNum);
+          atual.push(stmt);
+        } else if (inNextTransactions) {
+          proximaFatura.push(stmt);
         }
-        continue;
-      }
-
-      // Evitar duplicatas
-      const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
-      if (vistos.has(chave)) continue;
-      vistos.add(chave);
-
-      const stmt: StatementLine = {
-        data,
-        hora: null,
-        descricao,
-        valor: Math.abs(valorNum),
-      };
-
-      if (inCurrentTransactions) {
-        atual.push(stmt);
-      } else if (inNextTransactions) {
-        proximaFatura.push(stmt);
       }
     }
 
