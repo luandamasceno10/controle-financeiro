@@ -300,12 +300,29 @@ export default function Dashboard({ userId }: { userId: string }) {
     // Entrada/Saida normais + caixa real de cartão (pagamentos), pix
     // Exclui compras em cartão (cartao_id) do cálculo de entradas
     const entrada = monthEntries.filter(e => e.tipo === 'entrada' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
-    const saida = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').reduce((s, e) => s + Number(e.valor), 0);
+    const saidaFiltered = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito');
+    const saida = saidaFiltered.reduce((s, e) => s + Number(e.valor), 0);
     const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
     // Para cálculo de disponível (Regime de Caixa): apenas pagamentos de fatura
     const cartao = monthEntries.filter(e => !e.cartao_id && e.categoria === 'Cartão de crédito' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+
+    if (currentMonth === '2026-08') {
+      console.log(`\n💰 DEBUG AGOSTO - Contabilização de SAÍDAS:`);
+      console.log(`Total de monthEntries em agosto: ${monthEntries.length}`);
+      console.log(`Saídas filtradas (tipo=saida && !cartao_id && categoria!='Cartão de crédito'): ${saidaFiltered.length}`);
+      saidaFiltered.forEach(e => {
+        console.log(`  ✓ ${e.data} | ${e.descricao} | R$ ${e.valor} | cat=${e.categoria} | pag=${e.forma_pagamento}`);
+      });
+      const saidaExcluidas = monthEntries.filter(e => e.tipo === 'saida' && (e.cartao_id || e.categoria === 'Cartão de crédito'));
+      console.log(`\nSaídas EXCLUÍDAS (cartao_id ou categoria='Cartão de crédito'): ${saidaExcluidas.length}`);
+      saidaExcluidas.forEach(e => {
+        console.log(`  ✗ ${e.data} | ${e.descricao} | R$ ${e.valor} | cartao_id=${e.cartao_id} | cat=${e.categoria}`);
+      });
+      console.log(`\n📊 Total: entrada=${entrada}, saida=${saida}, pix=${pix}, cartao=${cartao}`);
+    }
+
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
-  }, [monthEntries]);
+  }, [monthEntries, currentMonth]);
 
   // Saldo inicial = saldo base + acumulado até o mês anterior
   const carryOver = useMemo(() => {
