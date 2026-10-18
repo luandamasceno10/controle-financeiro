@@ -73,7 +73,8 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
       workLine = workLine.replace(/(\d{2}),(\d{2})(\d{2}\/\d{2})/g, '$1,$2 $3');
 
       // Extrair TODAS as transações: (DD/MM) ... (VVVV,VV) com global regex
-      const transactionPattern = /(\d{2}\/\d{2})\s+([^0-9]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|\||$)/g;
+      // Usar (.+?) para capturar descrição (inclusive números como "AMAZON PRIME BR 12/12")
+      const transactionPattern = /(\d{2}\/\d{2})\s+(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|\||$)/g;
       let match;
       while ((match = transactionPattern.exec(workLine)) !== null) {
         const [, dataRaw, descRaw, valorRaw] = match;
