@@ -107,6 +107,11 @@ export default function ConciliacaoBancaria({
       // Não permitir match entre meses diferentes (máx 5 dias de diferença)
       // Para permitir transações que aparecem 1-2 dias atrasadas no banco
       if (dias > 5) return false;
+
+      // Para lançamentos com vinculo (abatimentos, pagamentos), data e valor já são únicos o suficiente
+      // Descrição pode variar (ex: "Venda X (abatimento)" vs "Cliente Y" no extrato)
+      if (e.vinculo) return true;
+
       const descNorm = e.descricao.toLowerCase().trim();
       const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
       return mesmaDesc;
