@@ -67,7 +67,7 @@ export default function ConciliacaoBancaria({
   const [abatendoFatura, setAbatendoFatura] = useState(false);
 
   const contaEntries = useMemo(() =>
-    entries.filter((e) => e.conta_id === conta.id && !e.fatura_id && !e.vinculo),
+    entries.filter((e) => e.conta_id === conta.id && !e.fatura_id),
     [entries, conta.id]
   );
 
@@ -371,15 +371,21 @@ export default function ConciliacaoBancaria({
       await onCreated();
 
       // DEPOIS de recarregar, verifica se fatura ficou 100% paga
-      // Buscar dados atualizados diretamente do Supabase para garantir que o novo pagamento está incluído
+      // Buscar dados ATUALIZADOS diretamente do Supabase para garantir consistência
+      const { data: comprasAtualizadas } = await supabase
+        .from('lancamentos')
+        .select('valor')
+        .eq('fatura_id', alvo.fatura.id)
+        .is('vinculo', null);
+
       const { data: pagamentosAtualizados } = await supabase
         .from('lancamentos')
         .select('valor')
         .eq('fatura_id', alvo.fatura.id)
         .not('vinculo', 'is', null);
 
+      const totalAbsoluto = Math.abs(sumMoney((comprasAtualizadas || []).map((e: any) => Number(e.valor))));
       const totalPago = Math.abs(sumMoney((pagamentosAtualizados || []).map((e: any) => Number(e.valor))));
-      const totalAbsoluto = Math.abs(alvo.total);
       console.log(`💳 DEBUG FATURA: totalPago=${totalPago}, total=${totalAbsoluto}, paga=${totalPago >= totalAbsoluto}`);
       if (totalPago >= totalAbsoluto) {
         console.log(`✅ Marcando fatura como PAGA`);
