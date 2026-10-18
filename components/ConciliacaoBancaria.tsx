@@ -347,8 +347,8 @@ export default function ConciliacaoBancaria({
 
       // Verificar se fatura ficou 100% paga somando todos os pagamentos
       const pagamentos = entries.filter((e) => e.fatura_id === alvo.fatura.id && e.vinculo);
-      const totalPago = sumMoney(pagamentos.map((e) => Number(e.valor)));
-      if (totalPago >= alvo.total) {
+      const totalPago = Math.abs(sumMoney(pagamentos.map((e) => Number(e.valor))));
+      if (totalPago >= Math.abs(alvo.total)) {
         const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
         if (updateError) throw updateError;
       }
