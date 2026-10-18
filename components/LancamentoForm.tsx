@@ -101,6 +101,7 @@ export default function LancamentoForm({
       const { fatura, cartao } = faturasPendentes[0];
       setForm(f => ({
         ...f,
+        type: 'entrada',
         payment: 'cartao',
         cartao_id: cartao.id,
         vinculo: 'fatura',
