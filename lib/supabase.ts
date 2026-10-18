@@ -19,6 +19,7 @@ export interface Lancamento {
   conta_id: number | null;
   cartao_id: number | null;
   fatura_id: number | null;
+  vinculo: 'fatura_completa' | 'fatura_parcial' | 'abatimento_receber' | 'abatimento_pagar' | null;
   recorrente_id: number | null;
   parcela_atual: number | null;
   parcela_total: number | null;
