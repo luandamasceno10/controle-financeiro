@@ -27,7 +27,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
     const line = lines[i].trim();
 
     // Detectar seções
-    if (/lançamentos.*compras.*saques|compras\s+e\s+saques/i.test(line) && !inNextTransactions) {
+    if (/lançamentos.*compras.*saques|compras\s+e\s+saques|lançamentos.*produtos.*serviços/i.test(line) && !inNextTransactions) {
       inCurrentTransactions = true;
       inNextTransactions = false;
       inChargesSection = false;
