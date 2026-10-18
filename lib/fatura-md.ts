@@ -27,7 +27,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
     const line = lines[i].trim();
 
     // Detectar seções
-    if (/lançamentos.*compras.*saques/i.test(line) && !inNextTransactions) {
+    if (/lançamentos.*compras.*saques|lançamentos.*produtos.*serviços/i.test(line) && !inNextTransactions) {
       inCurrentTransactions = true;
       inNextTransactions = false;
       inChargesSection = false;
@@ -39,71 +39,93 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
       inChargesSection = false;
       continue;
     }
-    if (/encargos cobrados nesta fatura/i.test(line)) {
+    if (/encargos cobrados nesta fatura|lançamentos internacionais/i.test(line)) {
       inCurrentTransactions = false;
       inNextTransactions = false;
       inChargesSection = true;
       continue;
     }
 
-    // Parse linha de transação: "DD/MM DESCRICAO ... R$ VALOR"
-    const transacaoMatch = line.match(/^(\d{2}\/\d{2})\s+(.+?)\s+R?\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*$/);
-    if (transacaoMatch && (inCurrentTransactions || inNextTransactions)) {
-      const [, dataRaw, descRaw, valorRaw] = transacaoMatch;
+    // Skip linhas que são separadores de tabela ou headers
+    if (/^\|?\s*---+\s*\|?|^\|?\s*data|^\|?\s*descrição/i.test(line)) {
+      continue;
+    }
 
-      const data = inferirData(dataRaw, competencia);
-      if (!data) continue;
+    // Se estamos em uma seção de transações
+    if (inCurrentTransactions || inNextTransactions) {
+      // Estratégia agressiva: remover metadados conhecidos e extrair TODAS as transações
+      let workLine = line
+        .replace(/DATA\s+ESTABELECIMENTO\s+VALOR\s+EM\s+R\$/gi, ' ')
+        .replace(/EDUCAÇÃO\s+\.\S+/gi, ' ')
+        .replace(/ALIMENTAÇÃO\s+\.\S+/gi, ' ')
+        .replace(/VESTUÁRIO\s+\.\S+/gi, ' ')
+        .replace(/SAÚDE\s+\.\S+/gi, ' ')
+        .replace(/DIVERSOS\s+\.\S+/gi, ' ')
+        .replace(/HOBBY\s+\.\S+/gi, ' ')
+        .replace(/VEÍCULOS\s+\.\S+/gi, ' ')
+        .replace(/LAZER\s+\.\S+/gi, ' ')
+        .replace(/TURISMO\s+E\s+ENTRETENIM\.\S+/gi, ' ')
+        .replace(/MORADIA\s+\.\S+/gi, ' ')
+        .replace(/Lançamentos no cartão.*?(?=\d{2}\/\d{2}|\d+\.\d+|$)/gi, ' ')
+        .replace(/\s{2,}/g, ' ');
 
-      const negativo = valorRaw.includes('-');
-      const valorNum = parseBRNumber(valorRaw.replace('-', ''));
-      if (valorNum === null || valorNum === 0) continue;
+      // Normalizar valores colados à data seguinte (29,0015/08 -> 29,00 15/08)
+      workLine = workLine.replace(/(\d{2}),(\d{2})(\d{2}\/\d{2})/g, '$1,$2 $3');
 
-      // Extrair parcela
-      const { texto: descSemParcela, parcela } = extrairParcela(descRaw);
-      const descricaoBase = normalizeDescricao(descSemParcela);
-      const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
+      // Extrair TODAS as transações: (DD/MM) ... (VVVV,VV) com global regex
+      const transactionPattern = /(\d{2}\/\d{2})\s+([^0-9]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|\||$)/g;
+      let match;
+      while ((match = transactionPattern.exec(workLine)) !== null) {
+        const [, dataRaw, descRaw, valorRaw] = match;
 
-      // Filtrar descrições conhecidas a ignorar
-      if (
-        /total/i.test(descricao) ||
-        /saldo/i.test(descricao) ||
-        /limite/i.test(descricao)
-      ) {
-        continue;
-      }
+        const data = inferirData(dataRaw, competencia);
+        if (!data) continue;
 
-      // Valores negativos são abatimentos
-      if (negativo || valorNum < 0) {
-        if (inCurrentTransactions) {
-          abatimentos += Math.abs(valorNum);
-        } else {
-          abatimentosProximaFatura += Math.abs(valorNum);
+        const valorNum = parseBRNumber(valorRaw);
+        if (valorNum === null || valorNum === 0) continue;
+
+        const { texto: descSemParcela, parcela } = extrairParcela(descRaw.trim());
+        const descricaoBase = normalizeDescricao(descSemParcela);
+        const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
+
+        // Filtrar descrições conhecidas
+        if (/total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas|francisco|antonio|final|últimas/i.test(descricao)) {
+          continue;
         }
-        continue;
-      }
 
-      // Evitar duplicatas
-      const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
-      if (vistos.has(chave)) continue;
-      vistos.add(chave);
+        // Valor negativo = abatimento
+        if (valorNum < 0) {
+          if (inCurrentTransactions) {
+            abatimentos += Math.abs(valorNum);
+          } else {
+            abatimentosProximaFatura += Math.abs(valorNum);
+          }
+          continue;
+        }
 
-      const stmt: StatementLine = {
-        data,
-        hora: null,
-        descricao,
-        valor: Math.abs(valorNum),
-      };
+        // Evitar duplicatas
+        const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
+        if (vistos.has(chave)) continue;
+        vistos.add(chave);
 
-      if (inCurrentTransactions) {
-        atual.push(stmt);
-      } else if (inNextTransactions) {
-        proximaFatura.push(stmt);
+        const stmt: StatementLine = {
+          data,
+          hora: null,
+          descricao,
+          valor: Math.abs(valorNum),
+        };
+
+        if (inCurrentTransactions) {
+          atual.push(stmt);
+        } else if (inNextTransactions) {
+          proximaFatura.push(stmt);
+        }
       }
     }
 
     // Parse encargos: "IOF de financiamento ... R$ XX,XX"
     if (inChargesSection) {
-      const encargosMatch = line.match(/IOF de financiamento.*?R?\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+      const encargosMatch = line.match(/IOF de financiamento.*?(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
       if (encargosMatch) {
         const v = parseBRNumber(encargosMatch[1]);
         if (v !== null) encargos = Math.abs(v);
