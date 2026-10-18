@@ -1088,7 +1088,15 @@ export default function Dashboard({ userId }: { userId: string }) {
                     const selected = selectedIds.has(e.id);
                     const isFaturaPaga = e.categoria === 'Cartão de crédito' && e.fatura_id;
                     const handleRowClick = isFaturaPaga
-                      ? () => { const fatura = faturas.find(f => f.id === e.fatura_id); if (fatura) window.location.href = `?mes=${fatura.competencia}&scrollToFatura=${e.fatura_id}`; }
+                      ? () => {
+                          const fatura = faturas.find(f => f.id === e.fatura_id);
+                          if (fatura) {
+                            const params = new URLSearchParams(searchParams);
+                            params.set('mes', fatura.competencia);
+                            params.set('scrollToFatura', String(e.fatura_id));
+                            router.push(`?${params.toString()}`);
+                          }
+                        }
                       : () => openEditEntry(e);
                     return (
                       <tr key={e.id} onClick={handleRowClick} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
