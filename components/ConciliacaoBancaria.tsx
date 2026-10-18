@@ -338,10 +338,10 @@ export default function ConciliacaoBancaria({
         tipo: 'saida',
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
-        valor: -valorPagamento,
+        valor: valorPagamento,
         cartao_id: alvo.cartao.id,
         fatura_id: alvo.fatura.id,
-        vinculo: valorPagamento >= alvo.total ? 'fatura_completa' : 'fatura_parcial',
+        vinculo: valorPagamento >= Math.abs(alvo.total) ? 'fatura_completa' : 'fatura_parcial',
       }]);
       if (insertError) throw insertError;
 
