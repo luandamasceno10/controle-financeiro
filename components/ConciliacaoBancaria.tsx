@@ -61,7 +61,6 @@ export default function ConciliacaoBancaria({
   const [abatendoPagar, setAbatendoPagar] = useState(false);
   const [abatendoFaturaIdx, setAbatendoFaturaIdx] = useState<number | null>(null);
   const [abaterFaturaId, setAbaterFaturaId] = useState<number | null>(null);
-  const [abaterFaturaValor, setAbaterFaturaValor] = useState('');
   const [abatendoFatura, setAbatendoFatura] = useState(false);
 
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
@@ -307,9 +306,10 @@ export default function ConciliacaoBancaria({
     const alvo = faturasPendentes.find((x) => x.fatura.id === abaterFaturaId);
     if (!alvo) return;
 
-    const valorPagamento = abaterFaturaValor ? parseFloat(abaterFaturaValor) : alvo.total;
-    if (valorPagamento <= 0 || valorPagamento > alvo.total) {
-      alert(`Valor inválido. Máximo: R$ ${alvo.total.toFixed(2)}`);
+    // O valor é sempre o do lançamento (value absoluto)
+    const valorPagamento = Math.abs(line.valor);
+    if (valorPagamento <= 0) {
+      alert('Valor inválido');
       return;
     }
 
@@ -340,7 +340,6 @@ export default function ConciliacaoBancaria({
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
       setAbatendoFaturaIdx(null);
-      setAbaterFaturaValor('');
       await onCreated();
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
@@ -510,12 +509,7 @@ export default function ConciliacaoBancaria({
                     <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg space-y-2">
                       <select
                         value={abaterFaturaId ?? ''}
-                        onChange={(e) => {
-                          const id = Number(e.target.value);
-                          setAbaterFaturaId(id);
-                          const alvo = faturasPendentes.find(x => x.fatura.id === id);
-                          setAbaterFaturaValor(String(alvo?.total ?? 0));
-                        }}
+                        onChange={(e) => setAbaterFaturaId(Number(e.target.value))}
                         className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
                       >
                         {faturasPendentes.map(({ fatura, cartao, total }) => (
@@ -523,21 +517,17 @@ export default function ConciliacaoBancaria({
                         ))}
                       </select>
                       <div>
-                        <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Valor a pagar (deixe em branco para pagar o total)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={abaterFaturaValor}
-                          onChange={(e) => setAbaterFaturaValor(e.target.value)}
-                          className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
-                        />
+                        <label className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Valor a pagar (do lançamento)</label>
+                        <div className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          {currency(Math.abs(line.valor))}
+                        </div>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">O valor é sempre o do lançamento. Se for menor que o total da fatura, fica parcialmente paga.</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => confirmarAbatimentoFatura(line, idx)} disabled={abatendoFatura} className="flex-1 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-3 py-2 rounded-lg">
                           {abatendoFatura ? 'Abatendo...' : 'Confirmar pagamento'}
                         </button>
-                        <button onClick={() => { setAbatendoFaturaIdx(null); setAbaterFaturaValor(''); }} className="text-xs text-slate-400 hover:text-slate-600 px-2">Cancelar</button>
+                        <button onClick={() => setAbatendoFaturaIdx(null)} className="text-xs text-slate-400 hover:text-slate-600 px-2">Cancelar</button>
                       </div>
                       <p className="text-xs text-slate-400 dark:text-slate-500">Se pagar menos que o total, a fatura fica parcialmente paga (vínculo fatura_parcial).</p>
                     </div>

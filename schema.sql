@@ -222,6 +222,7 @@ CREATE POLICY "Users can only see their own faturas" ON faturas
 -- afeta o saldo bancário até a fatura ser paga (ver fluxo de pagamento no app).
 ALTER TABLE lancamentos ADD COLUMN cartao_id BIGINT REFERENCES cartoes_credito(id) ON DELETE SET NULL;
 ALTER TABLE lancamentos ADD COLUMN fatura_id BIGINT REFERENCES faturas(id) ON DELETE SET NULL;
+ALTER TABLE lancamentos ADD COLUMN vinculo TEXT CHECK (vinculo IN ('fatura_completa', 'fatura_parcial'));
 CREATE INDEX lancamentos_cartao_id ON lancamentos(cartao_id);
 CREATE INDEX lancamentos_fatura_id ON lancamentos(fatura_id);
 
