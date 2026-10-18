@@ -913,7 +913,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               </div>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Quanto de cada categoria foi pago no cartão — útil pra enxergar onde o crédito está pesando mais</p>
               {paymentBarData.length > 0 ? (
-                <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
+                <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
                   {paymentBarData.map((c: any, i: number) => {
                     const totalCat = c.pix + c.cartao;
                     const pctCartao = totalCat > 0 ? Math.round((c.cartao / totalCat) * 100) : 0;
