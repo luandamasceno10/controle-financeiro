@@ -325,6 +325,9 @@ export default function Dashboard({ userId }: { userId: string }) {
     const disponivel = saldoInicial + totals.entrada - totalSaida;
     const recursosPlanejados = saldoInicial + forecastValue;
     const pct = recursosPlanejados > 0 ? Math.min(Math.round((totalSaida / recursosPlanejados) * 100), 999) : null;
+
+    console.log(`DEBUG ${currentMonth}: carryOver=${carryOver}, saldoInicial=${saldoInicial}`);
+
     return {
       disponivel,
       forecastValue,
