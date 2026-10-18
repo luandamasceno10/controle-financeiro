@@ -226,6 +226,7 @@ export default function ConciliacaoBancaria({
         categoria_id: categoriaIdPadrao('entrada'),
         forma_pagamento: 'pix',
         valor,
+        vinculo: 'abatimento_receber',
       }]).select().single();
       if (lancError) throw lancError;
 
@@ -273,6 +274,7 @@ export default function ConciliacaoBancaria({
         categoria_id: contaPagar.categoria_id ?? categoriaIdPadrao('saida'),
         forma_pagamento: 'pix',
         valor,
+        vinculo: 'abatimento_pagar',
       }]).select().single();
       if (lancError) throw lancError;
 
@@ -295,13 +297,25 @@ export default function ConciliacaoBancaria({
   };
 
   const openAbaterFatura = (idx: number) => {
+    // Bloquear se não há fatura com valor a pagar
+    const faturaComValor = faturasPendentes.find((f) => f.total > 0);
+    if (!faturaComValor) {
+      alert('Nenhuma fatura com valor pendente disponível para abatimento');
+      return;
+    }
     setAbatendoFaturaIdx(idx);
-    setAbaterFaturaId(faturasPendentes[0]?.fatura.id ?? null);
+    setAbaterFaturaId(faturaComValor.fatura.id);
   };
 
   const confirmarAbatimentoFatura = async (line: MatchedLine, idx: number) => {
     const alvo = faturasPendentes.find((x) => x.fatura.id === abaterFaturaId);
     if (!alvo) return;
+
+    // Validar que a fatura tem valor a pagar
+    if (alvo.total <= 0) {
+      alert('Essa fatura não tem valor pendente para abatimento');
+      return;
+    }
 
     setAbatendoFatura(true);
     try {
