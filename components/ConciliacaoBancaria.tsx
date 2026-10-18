@@ -61,6 +61,7 @@ export default function ConciliacaoBancaria({
   const [abatendoPagar, setAbatendoPagar] = useState(false);
   const [abatendoFaturaIdx, setAbatendoFaturaIdx] = useState<number | null>(null);
   const [abaterFaturaId, setAbaterFaturaId] = useState<number | null>(null);
+  const [abaterFaturaValor, setAbaterFaturaValor] = useState('');
   const [abatendoFatura, setAbatendoFatura] = useState(false);
 
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
@@ -306,9 +307,16 @@ export default function ConciliacaoBancaria({
     const alvo = faturasPendentes.find((x) => x.fatura.id === abaterFaturaId);
     if (!alvo) return;
 
+    const valorPagamento = abaterFaturaValor ? parseFloat(abaterFaturaValor) : alvo.total;
+    if (valorPagamento <= 0 || valorPagamento > alvo.total) {
+      alert(`Valor inválido. Máximo: R$ ${alvo.total.toFixed(2)}`);
+      return;
+    }
+
     setAbatendoFatura(true);
     try {
-      const { error: insertError } = await supabase.from('lancamentos').insert([{
+      // Criar lançamento de pagamento
+      const { data: lanc, error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
@@ -317,15 +325,22 @@ export default function ConciliacaoBancaria({
         tipo: 'saida',
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
-        valor: alvo.total,
-      }]);
+        valor: valorPagamento,
+        cartao_id: alvo.cartao.id,
+        fatura_id: alvo.fatura.id,
+        vinculo: valorPagamento >= alvo.total ? 'fatura_completa' : 'fatura_parcial',
+      }]).select().single();
       if (insertError) throw insertError;
 
-      const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
-      if (updateError) throw updateError;
+      // Se pagamento completo, marcar fatura como paga
+      if (valorPagamento >= alvo.total) {
+        const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
+        if (updateError) throw updateError;
+      }
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
       setAbatendoFaturaIdx(null);
+      setAbaterFaturaValor('');
       await onCreated();
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
