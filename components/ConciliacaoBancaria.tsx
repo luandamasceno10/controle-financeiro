@@ -348,9 +348,18 @@ export default function ConciliacaoBancaria({
       // Verificar se fatura ficou 100% paga somando todos os pagamentos
       const pagamentos = entries.filter((e) => e.fatura_id === alvo.fatura.id && e.vinculo);
       const totalPago = Math.abs(sumMoney(pagamentos.map((e) => Number(e.valor))));
-      if (totalPago >= Math.abs(alvo.total)) {
+      const totalAbsoluto = Math.abs(alvo.total);
+      console.log(`💳 DEBUG FATURA: totalPago=${totalPago}, total=${totalAbsoluto}, paga=${totalPago >= totalAbsoluto}`);
+      if (totalPago >= totalAbsoluto) {
+        console.log(`✅ Marcando fatura como PAGA`);
         const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('❌ Erro ao atualizar status:', updateError);
+          throw updateError;
+        }
+        console.log('✅ Status atualizado com sucesso');
+      } else {
+        console.log(`⏳ Fatura ainda pendente: ${totalAbsoluto - totalPago} para pagar`);
       }
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
