@@ -210,10 +210,29 @@ export default function ConciliacaoBancaria({
     }
   };
 
+  const filterAndSelectConta = (contas: any[], lineData: string, maxDaysDiff: number = 14) => {
+    if (!contas.length) return null;
+    const lineDateObj = new Date(lineData);
+    const filtered = contas.filter(c => {
+      const contaDateObj = new Date(c.vencimento);
+      const daysDiff = Math.abs(Math.floor((lineDateObj.getTime() - contaDateObj.getTime()) / (1000 * 60 * 60 * 24)));
+      return daysDiff <= maxDaysDiff;
+    });
+    if (!filtered.length) return contas[0]?.id ?? null;
+    filtered.sort((a, b) => {
+      const aDiff = Math.abs(Math.floor((lineDateObj.getTime() - new Date(a.vencimento).getTime()) / (1000 * 60 * 60 * 24)));
+      const bDiff = Math.abs(Math.floor((lineDateObj.getTime() - new Date(b.vencimento).getTime()) / (1000 * 60 * 60 * 24)));
+      return aDiff - bDiff;
+    });
+    return filtered[0]?.id ?? null;
+  };
+
   const openAbater = (idx: number, line: MatchedLine) => {
     setAbatendoIdx(idx);
-    setAbaterContaId(receivable[0]?.id ?? null);
-    setAbaterValor(String(Math.min(Math.abs(line.valor), Number(receivable[0]?.valor ?? Math.abs(line.valor)))));
+    const selectedId = filterAndSelectConta(receivable, line.data);
+    const selectedConta = receivable.find(r => r.id === selectedId);
+    setAbaterContaId(selectedId);
+    setAbaterValor(String(Math.min(Math.abs(line.valor), Number(selectedConta?.valor ?? Math.abs(line.valor)))));
   };
 
   const confirmarAbatimento = async (line: MatchedLine, idx: number) => {
@@ -260,8 +279,10 @@ export default function ConciliacaoBancaria({
 
   const openAbaterPagar = (idx: number, line: MatchedLine) => {
     setAbatendoPagarIdx(idx);
-    setAbaterPagarContaId(payable[0]?.id ?? null);
-    setAbaterPagarValor(String(Math.min(Math.abs(line.valor), Number(payable[0]?.valor ?? Math.abs(line.valor)))));
+    const selectedId = filterAndSelectConta(payable, line.data);
+    const selectedConta = payable.find(p => p.id === selectedId);
+    setAbaterPagarContaId(selectedId);
+    setAbaterPagarValor(String(Math.min(Math.abs(line.valor), Number(selectedConta?.valor ?? Math.abs(line.valor)))));
   };
 
   const confirmarAbatimentoPagar = async (line: MatchedLine, idx: number) => {
@@ -499,7 +520,7 @@ export default function ConciliacaoBancaria({
                         }}
                         className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
                       >
-                        {receivable.map(r => <option key={r.id} value={r.id}>{r.descricao} — {currency(Number(r.valor))}</option>)}
+                        {receivable.map(r => <option key={r.id} value={r.id}>{r.descricao} — {r.vencimento} — {currency(Number(r.valor))}</option>)}
                       </select>
                       <div className="flex items-center gap-2">
                         <MoneyInput value={abaterValor} onChange={setAbaterValor} className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" />
@@ -523,7 +544,7 @@ export default function ConciliacaoBancaria({
                         }}
                         className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800"
                       >
-                        {payable.map(p => <option key={p.id} value={p.id}>{p.descricao} — {currency(Number(p.valor))}</option>)}
+                        {payable.map(p => <option key={p.id} value={p.id}>{p.descricao} — {p.vencimento} — {currency(Number(p.valor))}</option>)}
                       </select>
                       <div className="flex items-center gap-2">
                         <MoneyInput value={abaterPagarValor} onChange={setAbaterPagarValor} className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" />
