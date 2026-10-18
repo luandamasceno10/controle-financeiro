@@ -309,12 +309,13 @@ export default function Dashboard({ userId }: { userId: string }) {
   const carryOver = useMemo(() => {
     const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
 
-    // Lançamentos anteriores: EXCLUI compras no cartão (que não afetam saldo bancário até fatura paga)
+    // Lançamentos anteriores: EXCLUI compras no cartão (cartao_id)
+    // Pois compras no cartão não afetam saldo bancário até fatura ser paga
     const lancamentosAnteriores = entries
       .filter(e => {
         const eAnterior = monthKey(e.data) < currentMonth;
-        const naoECompraNCartao = !e.cartao_id || (e.cartao_id && e.categoria === 'Cartão de crédito');
-        return eAnterior && naoECompraNCartao;
+        const naoTemCartaoId = !e.cartao_id;
+        return eAnterior && naoTemCartaoId;
       })
       .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), 0);
 
