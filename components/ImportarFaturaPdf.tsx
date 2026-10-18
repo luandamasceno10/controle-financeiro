@@ -275,6 +275,7 @@ export default function ImportarFaturaPdf({
         categoria_id: line.categoria_id,
         forma_pagamento: 'cartao',
         valor: line.valor,
+        vinculo: null,
       }]);
       if (insertError) throw insertError;
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, created: true, matched: true, failed: null } : l)));
