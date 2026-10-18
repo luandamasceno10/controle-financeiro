@@ -92,6 +92,9 @@ export default function ConciliacaoBancaria({
     const lineDescNorm = line.descricao.toLowerCase().trim();
 
     const correspondencias = contaEntries.filter((e) => {
+      // Excluir lançamentos que já foram associados a uma fatura (já processados)
+      if (e.cartao_id && e.fatura_id) return false;
+
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
