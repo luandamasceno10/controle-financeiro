@@ -363,7 +363,7 @@ export default function LancamentoForm({
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Cartão de crédito</label>
-                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving || (form.vinculo === 'fatura' || form.vinculo === 'fatura_parcial')}>
+                  <select value={form.cartao_id ?? ''} onChange={(e) => setForm(f => ({ ...f, cartao_id: Number(e.target.value) }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={saving}>
                     {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Essa compra entra na fatura do cartão e só afeta o saldo da conta quando a fatura for paga.</p>
