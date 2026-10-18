@@ -207,6 +207,7 @@ export default function LancamentoForm({
         fatura_id: faturaId,
         valor: parseFloat(form.amount),
         tipo_gasto_override: form.type === 'saida' ? (form.tipoGastoOverride ?? resolverTipoGasto(form.category)) : null,
+        vinculo: (form.vinculo === 'fatura' || form.vinculo === 'fatura_parcial') ? form.vinculo_fatura_id : null,
       };
 
       if (editingEntry) {
