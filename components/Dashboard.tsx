@@ -296,12 +296,12 @@ export default function Dashboard({ userId }: { userId: string }) {
   }, [entries, currentMonth]);
 
   const totals = useMemo(() => {
-    // Regime de Competência: contar no mês em que foi CONSUMIDO/COMPRADO, não quando foi pago
-    // Saídas via Cartão = COMPRAS feitas naquele mês (cartao_id), independente de terem sido pagas
+    // Entrada/Saida normais + caixa real de cartão (pagamentos), pix
     const entrada = monthEntries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const saida = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').reduce((s, e) => s + Number(e.valor), 0);
     const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
-    const cartao = monthEntries.filter(e => !!e.cartao_id && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    // Para cálculo de disponível (Regime de Caixa): apenas pagamentos de fatura
+    const cartao = monthEntries.filter(e => !e.cartao_id && e.categoria === 'Cartão de crédito' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
 
