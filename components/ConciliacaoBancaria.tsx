@@ -77,7 +77,9 @@ export default function ConciliacaoBancaria({
         if (!cartao) return null;
         const competenciaAtual = competenciaForPurchase(todayISO(), cartao.dia_fechamento, cartao.dia_vencimento);
         if (f.competencia >= competenciaAtual) return null;
-        return { fatura: f, cartao, total: totalDaFatura(f.id) };
+        const total = totalDaFatura(f.id);
+        if (total <= 0) return null;
+        return { fatura: f, cartao, total };
       })
       .filter((x): x is { fatura: Fatura; cartao: CartaoCredito; total: number } => x !== null)
       .sort((a, b) => a.fatura.competencia.localeCompare(b.fatura.competencia));
@@ -92,6 +94,9 @@ export default function ConciliacaoBancaria({
     const lineDescNorm = line.descricao.toLowerCase().trim();
 
     const correspondencias = contaEntries.filter((e) => {
+      // Excluir lançamentos já processados (associados a faturas ou abatimentos)
+      if (e.fatura_id || e.vinculo) return false;
+
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
@@ -319,6 +324,8 @@ export default function ConciliacaoBancaria({
 
     setAbatendoFatura(true);
     try {
+      const valorPagamento = Math.abs(line.valor);
+
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
@@ -328,12 +335,20 @@ export default function ConciliacaoBancaria({
         tipo: 'saida',
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
-        valor: alvo.total,
+        valor: valorPagamento,
+        cartao_id: alvo.cartao.id,
+        fatura_id: alvo.fatura.id,
+        vinculo: valorPagamento >= alvo.total ? 'fatura_completa' : 'fatura_parcial',
       }]);
       if (insertError) throw insertError;
 
-      const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
-      if (updateError) throw updateError;
+      // Verificar se fatura ficou 100% paga somando todos os pagamentos
+      const pagamentos = entries.filter((e) => e.fatura_id === alvo.fatura.id && e.vinculo);
+      const totalPago = sumMoney(pagamentos.map((e) => Number(e.valor)));
+      if (totalPago >= alvo.total) {
+        const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
+        if (updateError) throw updateError;
+      }
 
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
       setAbatendoFaturaIdx(null);
