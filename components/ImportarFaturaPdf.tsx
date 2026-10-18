@@ -261,8 +261,7 @@ export default function ImportarFaturaPdf({
     if (!faturaAlvo) return false;
     setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: true, failed: null } : l)));
     try {
-      console.log('🔧 NOVO CÓDIGO - Criando lançamento com TIPO ENTRADA');
-      const { error: insertError } = await supabase.from('lancamentos').insert([{
+      const lancamento = {
         user_id: userId,
         cartao_id: cartao.id,
         fatura_id: faturaAlvo.id,
@@ -276,8 +275,11 @@ export default function ImportarFaturaPdf({
         forma_pagamento: 'cartao',
         valor: line.valor,
         vinculo: null,
-      }]);
+      };
+      console.log('📝 Criando lançamento (COMPRA):', { descricao: lancamento.descricao, valor: lancamento.valor, vinculo: lancamento.vinculo, tipo: lancamento.tipo });
+      const { error: insertError } = await supabase.from('lancamentos').insert([lancamento]);
       if (insertError) throw insertError;
+      console.log('✅ Lançamento criado com sucesso');
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, created: true, matched: true, failed: null } : l)));
       onImported();
       return true;
