@@ -126,10 +126,10 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   };
 
   const totalDaFatura = (faturaId: number) =>
-    sumMoney(entries.filter((e) => e.fatura_id === faturaId && e.tipo === 'saida' && !e.vinculo).map((e) => Number(e.valor)));
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId && !e.vinculo).map((e) => Number(e.valor)));
 
   const valorPagoDaFatura = (faturaId: number) =>
-    sumMoney(entries.filter((e) => e.fatura_id === faturaId && e.tipo === 'saida' && e.vinculo).map((e) => Number(e.valor)));
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId && e.vinculo).map((e) => Number(e.valor)));
 
   const saldoPendenteFatura = (faturaId: number) => {
     const total = totalDaFatura(faturaId);
