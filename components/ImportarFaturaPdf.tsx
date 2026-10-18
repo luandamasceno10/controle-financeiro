@@ -196,19 +196,11 @@ export default function ImportarFaturaPdf({
       setAbatimentoAtual(parsed.abatimentos);
       setAbatimentoCategoria(categoriaPadrao());
 
-      let linhasFutura: MatchedLine[] = [];
-      if (parsed.proximaFatura.length > 0) {
-        const competenciaFutura = shiftCompetencia(fatura.competencia, 1);
-        const futura = await ensureFatura(cartao, competenciaFutura, userId);
-        setFaturaFutura(futura);
-        const futuraEntriesAgora = entries.filter((e) => e.fatura_id === futura.id);
-        linhasFutura = parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro);
-        setLinesFutura(linhasFutura);
-        setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura) && !ehAgregadoConhecido(e, 0, parsed.abatimentosProximaFatura)));
-        setAbatimentoFutura(parsed.abatimentosProximaFatura);
-      } else {
-        setLinesFutura([]);
-      }
+      // Apenas importa lançamentos da fatura atual, não da próxima fatura
+      setLinesFutura([]);
+      setFaturaFutura(null);
+      setSobrandoFutura([]);
+      setAbatimentoFutura(0);
 
       // Sem memória pra essas linhas: tenta a IA em segundo plano, uma a uma
       // — sem memória batendo (grátis e mais confiável), vale a chamada.
@@ -228,7 +220,6 @@ export default function ImportarFaturaPdf({
         });
       };
       categorizarComIA('atual', linhasAtual);
-      categorizarComIA('futura', linhasFutura);
     } catch (err: any) {
       setError('Erro ao ler o PDF: ' + err.message);
       // Detalhe técnico pra diagnosticar erros que só acontecem em aparelhos
@@ -263,6 +254,7 @@ export default function ImportarFaturaPdf({
     if (!faturaAlvo) return false;
     setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: true, failed: null } : l)));
     try {
+      console.log('🔧 NOVO CÓDIGO - Criando lançamento com TIPO ENTRADA');
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         cartao_id: cartao.id,
@@ -271,7 +263,7 @@ export default function ImportarFaturaPdf({
         data: line.data,
         hora: line.hora,
         descricao: line.descricao,
-        tipo: 'saida',
+        tipo: 'entrada',
         categoria: line.categoria,
         categoria_id: line.categoria_id,
         forma_pagamento: 'cartao',
@@ -331,7 +323,7 @@ export default function ImportarFaturaPdf({
         data: fatura.data_vencimento,
         hora: null,
         descricao: `Encargos da fatura ${fatura.competencia}`,
-        tipo: 'saida',
+        tipo: 'entrada',
         categoria: encargoCategoria,
         categoria_id: categoriaIdPorNome(encargoCategoria),
         forma_pagamento: 'cartao',
@@ -361,7 +353,7 @@ export default function ImportarFaturaPdf({
         data: faturaAlvo.data_vencimento,
         hora: null,
         descricao: `Abatimentos e estornos da fatura ${faturaAlvo.competencia}`,
-        tipo: 'saida',
+        tipo: 'entrada',
         categoria: abatimentoCategoria,
         categoria_id: categoriaIdPorNome(abatimentoCategoria),
         forma_pagamento: 'cartao',

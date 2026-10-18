@@ -17,6 +17,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import LancamentoForm from './LancamentoForm';
 import CategoriaDonutChart from './CategoriaDonutChart';
 import { toDonutSlices } from '@/lib/categoriaPalette';
+import ChangeFaturaModal from './ChangeFaturaModal';
 import {
   ResponsiveContainer, Tooltip, Legend,
   Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ComposedChart

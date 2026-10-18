@@ -15,6 +15,9 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// DEBUG: Verificar se nova versão foi carregada
+console.log('✅ ConciliacaoBancaria.tsx carregado - Versão com filtro de vinculo');
+
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -65,16 +68,8 @@ export default function ConciliacaoBancaria({
 
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
 
-  const totalDaFatura = (faturaId: number) => {
-    // Apenas compras: tem fatura_id, cartao_id e SEM vinculo
-    // Pagamentos têm vinculo preenchido ('fatura_completa' ou 'fatura_parcial')
-    const compras = entries.filter((e) =>
-      e.fatura_id === faturaId &&
-      !!e.cartao_id &&
-      !e.vinculo
-    );
-    return sumMoney(compras.map((e) => Number(e.valor)));
-  };
+  const totalDaFatura = (faturaId: number) =>
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId && !e.vinculo).map((e) => Number(e.valor)));
 
   // Só oferece faturas que já fecharam (aguardando pagamento) — a fatura ainda
   // acumulando compras deste mês não deve aparecer aqui como se já pudesse ser paga.
@@ -85,7 +80,9 @@ export default function ConciliacaoBancaria({
         if (!cartao) return null;
         const competenciaAtual = competenciaForPurchase(todayISO(), cartao.dia_fechamento, cartao.dia_vencimento);
         if (f.competencia >= competenciaAtual) return null;
-        return { fatura: f, cartao, total: totalDaFatura(f.id) };
+        const total = totalDaFatura(f.id);
+        if (total <= 0) return null;
+        return { fatura: f, cartao, total };
       })
       .filter((x): x is { fatura: Fatura; cartao: CartaoCredito; total: number } => x !== null)
       .sort((a, b) => a.fatura.competencia.localeCompare(b.fatura.competencia));
@@ -100,9 +97,7 @@ export default function ConciliacaoBancaria({
     const lineDescNorm = line.descricao.toLowerCase().trim();
 
     const correspondencias = contaEntries.filter((e) => {
-      // Excluir lançamentos que já foram processados:
-      // - Têm fatura_id (foram vinculados a uma fatura)
-      // - Têm vinculo preenchido (são pagamentos ou abatimentos)
+      // Excluir lançamentos já processados (associados a faturas ou abatimentos)
       if (e.fatura_id || e.vinculo) return false;
 
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
@@ -239,6 +234,7 @@ export default function ConciliacaoBancaria({
         categoria_id: categoriaIdPadrao('entrada'),
         forma_pagamento: 'pix',
         valor,
+        vinculo: 'abatimento_receber',
       }]).select().single();
       if (lancError) throw lancError;
 
@@ -286,6 +282,7 @@ export default function ConciliacaoBancaria({
         categoria_id: contaPagar.categoria_id ?? categoriaIdPadrao('saida'),
         forma_pagamento: 'pix',
         valor,
+        vinculo: 'abatimento_pagar',
       }]).select().single();
       if (lancError) throw lancError;
 
@@ -308,25 +305,31 @@ export default function ConciliacaoBancaria({
   };
 
   const openAbaterFatura = (idx: number) => {
+    // Bloquear se não há fatura com valor a pagar
+    const faturaComValor = faturasPendentes.find((f) => f.total > 0);
+    if (!faturaComValor) {
+      alert('Nenhuma fatura com valor pendente disponível para abatimento');
+      return;
+    }
     setAbatendoFaturaIdx(idx);
-    setAbaterFaturaId(faturasPendentes[0]?.fatura.id ?? null);
+    setAbaterFaturaId(faturaComValor.fatura.id);
   };
 
   const confirmarAbatimentoFatura = async (line: MatchedLine, idx: number) => {
     const alvo = faturasPendentes.find((x) => x.fatura.id === abaterFaturaId);
     if (!alvo) return;
 
-    // O valor é sempre o do lançamento (value absoluto)
-    const valorPagamento = Math.abs(line.valor);
-    if (valorPagamento <= 0) {
-      alert('Valor inválido');
+    // Validar que a fatura tem valor a pagar
+    if (alvo.total <= 0) {
+      alert('Essa fatura não tem valor pendente para abatimento');
       return;
     }
 
     setAbatendoFatura(true);
     try {
-      // Criar lançamento de pagamento
-      const { data: lanc, error: insertError } = await supabase.from('lancamentos').insert([{
+      const valorPagamento = Math.abs(line.valor);
+
+      const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
@@ -339,11 +342,13 @@ export default function ConciliacaoBancaria({
         cartao_id: alvo.cartao.id,
         fatura_id: alvo.fatura.id,
         vinculo: valorPagamento >= alvo.total ? 'fatura_completa' : 'fatura_parcial',
-      }]).select().single();
+      }]);
       if (insertError) throw insertError;
 
-      // Se pagamento completo, marcar fatura como paga
-      if (valorPagamento >= alvo.total) {
+      // Verificar se fatura ficou 100% paga somando todos os pagamentos
+      const pagamentos = entries.filter((e) => e.fatura_id === alvo.fatura.id && e.vinculo);
+      const totalPago = sumMoney(pagamentos.map((e) => Number(e.valor)));
+      if (totalPago >= alvo.total) {
         const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', alvo.fatura.id);
         if (updateError) throw updateError;
       }
