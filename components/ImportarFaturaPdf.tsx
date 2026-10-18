@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { CartaoCredito, Fatura, Lancamento, Categoria } from '@/lib/supabase';
 import { parseFaturaPdf } from '@/lib/fatura-pdf';
+import { parseFaturaMd } from '@/lib/fatura-md';
 import { shiftCompetencia, ensureFatura } from '@/lib/faturas';
 import { sumMoney } from '@/lib/money';
 import type { StatementLine } from '@/lib/statement';
@@ -163,9 +164,15 @@ export default function ImportarFaturaPdf({
     setSobrandoAtual([]);
     setSobrandoFutura([]);
     try {
-      const parsed = await parseFaturaPdf(file, fatura.competencia);
+      let parsed;
+      if (file.name.endsWith('.md') || file.type === 'text/markdown' || file.type === 'text/plain') {
+        const content = await file.text();
+        parsed = parseFaturaMd(content, fatura.competencia);
+      } else {
+        parsed = await parseFaturaPdf(file, fatura.competencia);
+      }
       if (parsed.atual.length === 0 && parsed.proximaFatura.length === 0 && parsed.encargos === 0) {
-        setError('Não consegui reconhecer nenhuma compra no PDF. O layout dessa fatura pode ser diferente do que sabemos ler — tente conferir manualmente.');
+        setError('Não consegui reconhecer nenhuma compra no arquivo. O layout dessa fatura pode ser diferente do que sabemos ler — tente conferir manualmente.');
         return;
       }
 
@@ -221,7 +228,7 @@ export default function ImportarFaturaPdf({
       };
       categorizarComIA('atual', linhasAtual);
     } catch (err: any) {
-      setError('Erro ao ler o PDF: ' + err.message);
+      setError('Erro ao ler o arquivo: ' + err.message);
       // Detalhe técnico pra diagnosticar erros que só acontecem em aparelhos
       // específicos (o normal "err.message" sozinho não diz em que ponto do
       // código quebrou) — o botão de copiar existe porque digitar/print de
@@ -543,10 +550,10 @@ export default function ImportarFaturaPdf({
     <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-semibold text-slate-800 dark:text-slate-100">Importar fatura em PDF — {cartao.nome}</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100">Importar fatura — {cartao.nome}</h3>
           <button onClick={onClose}><X size={18} /></button>
         </div>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Envie o PDF da fatura de {fatura.competencia}. Comparamos nos dois sentidos com o que já está lançado: o que falta, você cria em um clique; o que sobra (duplicado ou errado), aparece pra você revisar.</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-5">Envie o PDF ou markdown (.md) da fatura de {fatura.competencia}. Comparamos nos dois sentidos com o que já está lançado: o que falta, você cria em um clique; o que sobra (duplicado ou errado), aparece pra você revisar.</p>
 
         {!linesAtual && !parsing && (
           <div
@@ -554,14 +561,14 @@ export default function ImportarFaturaPdf({
             className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-10 text-center cursor-pointer hover:border-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
             <FileUp size={28} className="mx-auto text-slate-400 dark:text-slate-500 mb-3" />
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Clique para escolher o PDF da fatura</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Funciona melhor com o PDF baixado direto do app/site do banco (não uma foto ou print).</p>
-            <input ref={fileInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Clique para escolher o PDF ou markdown da fatura</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">PDF do banco ou cópia em markdown (copie direto do PDF visual). Recomenda-se markdown pra melhor reconhecimento — sem erros de OCR.</p>
+            <input ref={fileInputRef} type="file" accept=".pdf,application/pdf,.md,text/markdown,text/plain" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
           </div>
         )}
 
         {parsing && (
-          <div className="p-10 text-center text-sm text-slate-400 dark:text-slate-500">Lendo o PDF...</div>
+          <div className="p-10 text-center text-sm text-slate-400 dark:text-slate-500">Processando arquivo...</div>
         )}
 
         {error && (
