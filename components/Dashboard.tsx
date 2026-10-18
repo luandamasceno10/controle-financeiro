@@ -306,8 +306,8 @@ export default function Dashboard({ userId }: { userId: string }) {
     // Inclui TODOS os lançamentos com categoria 'Cartão de crédito' e tipo 'saida'
     const cartao = monthEntries.filter(e => e.categoria === 'Cartão de crédito' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
 
-    return { entrada, saida, saldo: entrada - saida, pix, cartao };
-  }, [monthEntries, currentMonth]);
+    return { entrada, saida, saldo: entrada - saida - cartao, pix, cartao };
+  }, [monthEntries]);
 
   // Saldo inicial = saldo base + acumulado até o mês anterior
   const carryOver = useMemo(() => {
