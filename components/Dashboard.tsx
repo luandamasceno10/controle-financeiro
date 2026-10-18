@@ -308,20 +308,18 @@ export default function Dashboard({ userId }: { userId: string }) {
   // Saldo inicial = saldo base + acumulado até o mês anterior
   const carryOver = useMemo(() => {
     const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
-    const [y, m] = currentMonth.split('-').map(Number);
 
-    if (m === 1) {
-      // Em janeiro, não há mês anterior neste ano
-      return base;
-    }
+    // Lançamentos anteriores: EXCLUI compras no cartão (que não afetam saldo bancário até fatura paga)
+    const lancamentosAnteriores = entries
+      .filter(e => {
+        const eAnterior = monthKey(e.data) < currentMonth;
+        const naoECompraNCartao = !e.cartao_id || (e.cartao_id && e.categoria === 'Cartão de crédito');
+        return eAnterior && naoECompraNCartao;
+      })
+      .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), 0);
 
-    // Usa saldoPorConta que já tem o acumulado até o mês ANTERIOR
-    const saldoMesAnterior = contas.reduce((s, c) => {
-      return s + (saldoPorConta[c.id] || 0);
-    }, 0);
-
-    return base + saldoMesAnterior;
-  }, [contas, saldoPorConta, currentMonth]);
+    return base + lancamentosAnteriores;
+  }, [contas, entries, currentMonth]);
 
   const commitment = useMemo(() => {
     const saldoInicial = carryOver;
