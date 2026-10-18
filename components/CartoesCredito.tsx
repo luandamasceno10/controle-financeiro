@@ -542,7 +542,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                   disabled={contas.length === 0}
                   className="w-full mt-3 flex items-center justify-center gap-2 bg-violet-500 hover:bg-violet-400 disabled:bg-slate-300 text-white font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors"
                 >
-                  <Check size={14} /> Pagar esta fatura
+                  <Check size={14} /> Pagar fatura (completo ou parcial)
                 </button>
               )}
               {!detailEhAtual && detailFatura?.status === 'paga' && (
