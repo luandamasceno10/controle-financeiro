@@ -300,6 +300,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
         valor: pagamentoValor,
+        vinculo: pagamentoValor === total ? 'fatura_completa' : 'fatura_parcial',
       }]);
       if (insertError) throw insertError;
 
@@ -307,18 +308,18 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         .from('lancamentos')
         .select('valor')
         .eq('fatura_id', payFatura.id)
-        .eq('tipo', 'saida');
+        .not('vinculo', 'is', null);
       if (fetchError) throw fetchError;
 
       const valorPago = (pagamentos || []).reduce((sum, l) => sum + Number(l.valor), 0);
       const devePagar = total;
 
-      if (Math.abs(valorPago - devePagar) < 0.01) {
+      if (valorPago >= devePagar) {
         const { error: updateError } = await supabase.from('faturas').update({ status: 'paga' }).eq('id', payFatura.id);
         if (updateError) throw updateError;
-        addToast(`Fatura totalmente paga! (R$ ${currency(devePagar)})`, 'success');
+        addToast(`Fatura totalmente paga! (R$ ${currency(total)})`, 'success');
       } else {
-        addToast(`Pagamento de R$ ${currency(total)} registrado! Faltam R$ ${currency(devePagar - valorPago)} para quitar a fatura.`, 'info');
+        addToast(`Pagamento de R$ ${currency(pagamentoValor)} registrado! Faltam R$ ${currency(devePagar - valorPago)} para quitar a fatura.`, 'info');
       }
 
       setPayFatura(null);
