@@ -11,6 +11,7 @@ import { exportLancamentosCSV } from '@/lib/export';
 import { sumMoney } from '@/lib/money';
 import ImportarFaturaPdf from './ImportarFaturaPdf';
 import LancamentoForm from './LancamentoForm';
+import ChangeFaturaModal from './ChangeFaturaModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Plus, X, Pencil, Trash2, CreditCard, Check, Clock, ChevronLeft, ChevronRight, BarChart3, Repeat, Ban, FileUp, Download } from 'lucide-react';
 
@@ -68,6 +69,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [importFatura, setImportFatura] = useState<Fatura | null>(null);
   const [deleteEntryConfirm, setDeleteEntryConfirm] = useState<EntryDeleteTarget | null>(null);
   const [editingEntry, setEditingEntry] = useState<Lancamento | null>(null);
+  const [changingFatura, setChangingFatura] = useState<Lancamento | null>(null);
   const [deletingEntry, setDeletingEntry] = useState(false);
   const [deleteFaturaConfirm, setDeleteFaturaConfirm] = useState<Fatura | null>(null);
   const [deletingFatura, setDeletingFatura] = useState(false);
@@ -639,6 +641,13 @@ export default function CartoesCredito({ userId }: { userId: string }) {
                         <span className="text-sm font-semibold text-rose-600">-{currency(Number(e.valor))}</span>
                       )}
                       <button
+                        onClick={() => setChangingFatura(e)}
+                        className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        title="Mudar fatura"
+                      >
+                        🔄
+                      </button>
+                      <button
                         onClick={() => setEditingEntry(e)}
                         className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                         title="Editar lançamento"
@@ -804,6 +813,15 @@ export default function CartoesCredito({ userId }: { userId: string }) {
         confirmText={deletingFatura ? 'Apagando...' : 'Apagar'}
         danger
       />
+
+      {changingFatura && (
+        <ChangeFaturaModal
+          lancamento={changingFatura}
+          faturas={faturas}
+          onClose={() => setChangingFatura(null)}
+          onSaved={() => { setChangingFatura(null); loadData(); addToast('Fatura atualizada!', 'success'); }}
+        />
+      )}
     </main>
   );
 }

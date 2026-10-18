@@ -100,7 +100,6 @@ export default function Dashboard({ userId }: { userId: string }) {
   const PAGE_SIZE = 20;
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'lancamento'; id: number } | null>(null);
-  const [changingFatura, setChangingFatura] = useState<Lancamento | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -1114,7 +1113,6 @@ export default function Dashboard({ userId }: { userId: string }) {
                         <td className={`px-5 py-3 text-right font-semibold tabular-nums ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}</td>
                         <td className="px-5 py-3 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            {e.cartao_id && <button onClick={(ev) => { ev.stopPropagation(); setChangingFatura(e); }} className="text-slate-300 hover:text-blue-600 p-1 text-xs" title="Mudar fatura">🔄</button>}
                             <button onClick={(ev) => { ev.stopPropagation(); openEditEntry(e); }} className="text-slate-300 hover:text-violet-600 p-1"><Pencil size={14} /></button>
                             <button onClick={(ev) => { ev.stopPropagation(); setDeleteConfirm({ type: 'lancamento', id: e.id }); }} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
                           </div>
@@ -1230,15 +1228,6 @@ export default function Dashboard({ userId }: { userId: string }) {
         onConfirm={removeSelected}
         onCancel={() => setBulkDeleteConfirm(false)}
       />
-
-      {changingFatura && (
-        <ChangeFaturaModal
-          lancamento={changingFatura}
-          faturas={faturas}
-          onClose={() => setChangingFatura(null)}
-          onSaved={() => { setChangingFatura(null); loadData(); }}
-        />
-      )}
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
