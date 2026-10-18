@@ -263,6 +263,7 @@ export default function ImportarFaturaPdf({
     if (!faturaAlvo) return false;
     setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: true, failed: null } : l)));
     try {
+      console.log('CRIANDO LANÇAMENTO COM TIPO:', 'entrada');
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         cartao_id: cartao.id,
