@@ -56,6 +56,46 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
     // "DD/MM DESCRICAO ... R$ VALOR"
     // "| DD/MM | DESCRICAO | R$ VALOR |"
     // "DD/MM | DESCRICAO | VALOR"
+    // Detectar se há múltiplas transações na mesma linha (layout de duas colunas)
+    const allDates = line.match(/(\d{2}\/\d{2})/g) || [];
+    const allValues = line.match(/(-?\d{1,3}(?:\.\d{3})*,\d{2})/g) || [];
+
+    // Se há múltiplas datas e valores, tentar split por padrão de duas colunas
+    if (allDates.length >= 2 && allValues.length >= 2 && (inCurrentTransactions || inNextTransactions)) {
+      // Padrão: "DD/MM DESC VAL DD/MM DESC VAL" ou com pipes
+      const doubleMatch = line.match(/(\d{2}\/\d{2})\s+([^,]*?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s*\|?\s*(\d{2}\/\d{2})\s+([^,]*?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})/);
+      if (doubleMatch) {
+        // Processar duas transações
+        const transacoes = [
+          { data: doubleMatch[1], desc: doubleMatch[2], valor: doubleMatch[3] },
+          { data: doubleMatch[4], desc: doubleMatch[5], valor: doubleMatch[6] },
+        ];
+
+        for (const tx of transacoes) {
+          const data = inferirData(tx.data, competencia);
+          if (!data) continue;
+
+          const valorNum = parseBRNumber(tx.valor);
+          if (valorNum === null || valorNum === 0) continue;
+
+          const { texto: descSemParcela, parcela } = extrairParcela(tx.desc.trim());
+          const descricaoBase = normalizeDescricao(descSemParcela);
+          const descricao = parcela ? `${descricaoBase} (${parcela})` : descricaoBase;
+
+          if (/total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas/i.test(descricao)) continue;
+
+          const chave = `${data}|${valorNum.toFixed(2)}|${descricao}`;
+          if (vistos.has(chave)) continue;
+          vistos.add(chave);
+
+          const stmt: StatementLine = { data, hora: null, descricao, valor: Math.abs(valorNum) };
+          if (inCurrentTransactions) atual.push(stmt);
+          else if (inNextTransactions) proximaFatura.push(stmt);
+        }
+        continue;
+      }
+    }
+
     const transacaoMatch = line.match(/\|?\s*(\d{2}\/\d{2})\s+\|?\s*(.+?)\s+\|?\s*(-?R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*\|?\s*$/);
     if (transacaoMatch && (inCurrentTransactions || inNextTransactions)) {
       const [, dataRaw, descRaw, valorRaw] = transacaoMatch;
