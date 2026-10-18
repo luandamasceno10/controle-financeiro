@@ -66,8 +66,12 @@ export default function ConciliacaoBancaria({
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
 
   const totalDaFatura = (faturaId: number) => {
-    // Apenas compras no cartão (cartao_id), não pagamentos (que têm vinculo)
-    const compras = entries.filter((e) => e.fatura_id === faturaId && !!e.cartao_id && !e.vinculo);
+    // Apenas compras: tem fatura_id e cartao_id, mas NÃO é 'Cartão de crédito' (que são pagamentos)
+    const compras = entries.filter((e) =>
+      e.fatura_id === faturaId &&
+      !!e.cartao_id &&
+      e.categoria !== 'Cartão de crédito'
+    );
     return sumMoney(compras.map((e) => Number(e.valor)));
   };
 
