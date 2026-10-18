@@ -66,7 +66,10 @@ export default function ConciliacaoBancaria({
   const [abaterFaturaId, setAbaterFaturaId] = useState<number | null>(null);
   const [abatendoFatura, setAbatendoFatura] = useState(false);
 
-  const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
+  const contaEntries = useMemo(() =>
+    entries.filter((e) => e.conta_id === conta.id && !e.fatura_id && !e.vinculo),
+    [entries, conta.id]
+  );
 
   const totalDaFatura = (faturaId: number) =>
     sumMoney(entries.filter((e) => e.fatura_id === faturaId && !e.vinculo).map((e) => Number(e.valor)));
@@ -97,9 +100,6 @@ export default function ConciliacaoBancaria({
     const lineDescNorm = line.descricao.toLowerCase().trim();
 
     const correspondencias = contaEntries.filter((e) => {
-      // Excluir lançamentos já processados (associados a faturas ou abatimentos)
-      if (e.fatura_id || e.vinculo) return false;
-
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
