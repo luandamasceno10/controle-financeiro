@@ -727,7 +727,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
           categoriasEntrada={categoriasEntrada}
           categoriasSaida={categoriasSaida}
           contas={contas}
-          cartoes={cartoesAtivos}
+          cartoes={[detailCartao]}
           editingEntry={null}
           faturasPendentes={[{ fatura: criacaoFatura, cartao: detailCartao, total: 0 }]}
           onClose={() => setCriacaoFatura(null)}
