@@ -276,10 +276,10 @@ export default function ImportarFaturaPdf({
         valor: line.valor,
         vinculo: null,
       };
-      console.log('📝 Criando lançamento (COMPRA):', { descricao: lancamento.descricao, valor: lancamento.valor, vinculo: lancamento.vinculo, tipo: lancamento.tipo });
-      const { error: insertError } = await supabase.from('lancamentos').insert([lancamento]);
+      console.log('📝 Criando lançamento (COMPRA):', { descricao: lancamento.descricao, valor: lancamento.valor, vinculo: lancamento.vinculo, tipo: lancamento.tipo, fatura_id: lancamento.fatura_id });
+      const { data: inserted, error: insertError } = await supabase.from('lancamentos').insert([lancamento]).select();
       if (insertError) throw insertError;
-      console.log('✅ Lançamento criado com sucesso');
+      console.log('✅ Lançamento criado:', { descricao: inserted?.[0]?.descricao, vinculo: inserted?.[0]?.vinculo, tipo: inserted?.[0]?.tipo });
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: false, created: true, matched: true, failed: null } : l)));
       onImported();
       return true;
