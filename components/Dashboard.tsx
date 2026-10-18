@@ -303,9 +303,20 @@ export default function Dashboard({ userId }: { userId: string }) {
     const saida = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').reduce((s, e) => s + Number(e.valor), 0);
     const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
     // Para cálculo de disponível (Regime de Caixa): apenas pagamentos de fatura
-    const cartao = monthEntries.filter(e => !e.cartao_id && e.categoria === 'Cartão de crédito' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    const cartaoFiltered = monthEntries.filter(e => !e.cartao_id && e.categoria === 'Cartão de crédito' && e.tipo === 'saida');
+    const cartao = cartaoFiltered.reduce((s, e) => s + Number(e.valor), 0);
+
+    if (currentMonth === '2026-08') {
+      console.log(`🔍 DEBUG ${currentMonth} - PAGAMENTOS DE CARTÃO:`);
+      console.log(`Total de pagamentos encontrados: ${cartaoFiltered.length}`);
+      console.log(`Soma total: R$ ${cartao}`);
+      cartaoFiltered.forEach(e => {
+        console.log(`  ✓ ${e.data} | ${e.descricao} | R$ ${e.valor} | vinculo=${e.vinculo}`);
+      });
+    }
+
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
-  }, [monthEntries]);
+  }, [monthEntries, currentMonth]);
 
   // Saldo inicial = saldo base + acumulado até o mês anterior
   const carryOver = useMemo(() => {
