@@ -194,7 +194,7 @@ export default function LancamentoForm({
         }
       }
 
-      const payload = {
+      const payload: any = {
         data: form.date,
         hora: form.hora,
         descricao: form.desc,
@@ -207,8 +207,12 @@ export default function LancamentoForm({
         fatura_id: faturaId,
         valor: parseFloat(form.amount),
         tipo_gasto_override: form.type === 'saida' ? (form.tipoGastoOverride ?? resolverTipoGasto(form.category)) : null,
-        vinculo: (form.vinculo === 'fatura' || form.vinculo === 'fatura_parcial') ? form.vinculo_fatura_id : null,
       };
+
+      // Adicionar vinculo apenas se houver (para evitar constraint violation)
+      if (form.vinculo === 'fatura' || form.vinculo === 'fatura_parcial') {
+        payload.vinculo = form.vinculo_fatura_id;
+      }
 
       if (editingEntry) {
         const { error } = await supabase.from('lancamentos').update(payload).eq('id', editingEntry.id);
