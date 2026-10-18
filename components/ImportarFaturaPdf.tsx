@@ -196,19 +196,11 @@ export default function ImportarFaturaPdf({
       setAbatimentoAtual(parsed.abatimentos);
       setAbatimentoCategoria(categoriaPadrao());
 
-      let linhasFutura: MatchedLine[] = [];
-      if (parsed.proximaFatura.length > 0) {
-        const competenciaFutura = shiftCompetencia(fatura.competencia, 1);
-        const futura = await ensureFatura(cartao, competenciaFutura, userId);
-        setFaturaFutura(futura);
-        const futuraEntriesAgora = entries.filter((e) => e.fatura_id === futura.id);
-        linhasFutura = parsed.proximaFatura.map((l) => toMatched(l, futuraEntriesAgora)).sort(pendentesPrimeiro);
-        setLinesFutura(linhasFutura);
-        setSobrandoFutura(futuraEntriesAgora.filter((e) => !matchEntry(e, parsed.proximaFatura) && !ehAgregadoConhecido(e, 0, parsed.abatimentosProximaFatura)));
-        setAbatimentoFutura(parsed.abatimentosProximaFatura);
-      } else {
-        setLinesFutura([]);
-      }
+      // Apenas importa lançamentos da fatura atual, não da próxima fatura
+      setLinesFutura([]);
+      setFaturaFutura(null);
+      setSobrandoFutura([]);
+      setAbatimentoFutura(0);
 
       // Sem memória pra essas linhas: tenta a IA em segundo plano, uma a uma
       // — sem memória batendo (grátis e mais confiável), vale a chamada.
@@ -263,7 +255,6 @@ export default function ImportarFaturaPdf({
     if (!faturaAlvo) return false;
     setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, creating: true, failed: null } : l)));
     try {
-      console.log('CRIANDO LANÇAMENTO COM TIPO:', 'entrada');
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         cartao_id: cartao.id,
