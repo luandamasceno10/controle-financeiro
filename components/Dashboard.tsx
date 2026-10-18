@@ -514,7 +514,9 @@ export default function Dashboard({ userId }: { userId: string }) {
     monthEntries.filter(e => e.tipo === 'saida' && e.categoria !== 'Cartão de crédito').forEach(e => {
       const nome = rollupCategoriaNome(e.categoria, e.tipo);
       if (!grouped[nome]) grouped[nome] = { category: nome, pix: 0, cartao: 0, icone: categoriaByName[`saida|${nome}`]?.icone };
-      grouped[nome][e.forma_pagamento] += Number(e.valor);
+      // Se tem cartao_id, é uma compra no cartão; se não, usa forma_pagamento
+      const metodo = !!e.cartao_id ? 'cartao' : e.forma_pagamento;
+      grouped[nome][metodo] += Number(e.valor);
     });
     return Object.values(grouped).sort((a, b) => (b.pix + b.cartao) - (a.pix + a.cartao));
   }, [monthEntries, categoriaByName, categoriaById]);
