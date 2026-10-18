@@ -27,7 +27,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
     const line = lines[i].trim();
 
     // Detectar seções
-    if (/lançamentos.*compras.*saques/i.test(line) && !inNextTransactions) {
+    if (/lançamentos.*compras.*saques|compras\s+e\s+saques/i.test(line) && !inNextTransactions) {
       inCurrentTransactions = true;
       inNextTransactions = false;
       inChargesSection = false;
@@ -39,15 +39,24 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
       inChargesSection = false;
       continue;
     }
-    if (/encargos cobrados nesta fatura/i.test(line)) {
+    if (/encargos cobrados nesta fatura|lançamentos internacionais/i.test(line)) {
       inCurrentTransactions = false;
       inNextTransactions = false;
       inChargesSection = true;
       continue;
     }
 
-    // Parse linha de transação: "DD/MM DESCRICAO ... R$ VALOR"
-    const transacaoMatch = line.match(/^(\d{2}\/\d{2})\s+(.+?)\s+R?\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})\s*$/);
+    // Skip linhas que são separadores de tabela ou headers
+    if (/^\|?\s*---+\s*\|?|^\|?\s*data|^\|?\s*descrição/i.test(line)) {
+      continue;
+    }
+
+    // Parse linha de transação - flexível para tabelas e texto
+    // Formatos suportados:
+    // "DD/MM DESCRICAO ... R$ VALOR"
+    // "| DD/MM | DESCRICAO | R$ VALOR |"
+    // "DD/MM | DESCRICAO | VALOR"
+    const transacaoMatch = line.match(/\|?\s*(\d{2}\/\d{2})\s+\|?\s*(.+?)\s+\|?\s*(-?R?\$?\s*\d{1,3}(?:\.\d{3})*,\d{2})\s*\|?\s*$/);
     if (transacaoMatch && (inCurrentTransactions || inNextTransactions)) {
       const [, dataRaw, descRaw, valorRaw] = transacaoMatch;
 
@@ -55,7 +64,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
       if (!data) continue;
 
       const negativo = valorRaw.includes('-');
-      const valorNum = parseBRNumber(valorRaw.replace('-', ''));
+      const valorNum = parseBRNumber(valorRaw.replace(/R?\$|\s/g, ''));
       if (valorNum === null || valorNum === 0) continue;
 
       // Extrair parcela
@@ -65,9 +74,8 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
 
       // Filtrar descrições conhecidas a ignorar
       if (
-        /total/i.test(descricao) ||
-        /saldo/i.test(descricao) ||
-        /limite/i.test(descricao)
+        /total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas/i.test(descricao) ||
+        /total|saldo|limite|compras dessa fatura|lançamentos no cartão|próxima fatura|demais faturas/i.test(descRaw)
       ) {
         continue;
       }
@@ -103,7 +111,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
 
     // Parse encargos: "IOF de financiamento ... R$ XX,XX"
     if (inChargesSection) {
-      const encargosMatch = line.match(/IOF de financiamento.*?R?\$?\s*(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
+      const encargosMatch = line.match(/IOF de financiamento.*?(-?\d{1,3}(?:\.\d{3})*,\d{2})/i);
       if (encargosMatch) {
         const v = parseBRNumber(encargosMatch[1]);
         if (v !== null) encargos = Math.abs(v);
