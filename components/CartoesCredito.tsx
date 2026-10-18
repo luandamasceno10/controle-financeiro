@@ -148,11 +148,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   );
   const detailTotal = detailFatura ? totalDaFatura(detailFatura.id) : 0;
   const detailEntries = useMemo(
-    () => (detailFatura ? entries.filter((e) => e.fatura_id === detailFatura.id && e.tipo === 'entrada').sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || ''))) : []),
-    [detailFatura, entries]
-  );
-  const detailPayments = useMemo(
-    () => (detailFatura ? entries.filter((e) => e.fatura_id === detailFatura.id && e.tipo === 'saida').sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || ''))) : []),
+    () => (detailFatura ? entries.filter((e) => e.fatura_id === detailFatura.id).sort((a, b) => (b.data + (b.hora || '')).localeCompare(a.data + (a.hora || ''))) : []),
     [detailFatura, entries]
   );
   const detailCompetenciaAtual = detailCartao ? competenciaAtualDoCartao(detailCartao) : '';
@@ -667,40 +663,6 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               )}
             </div>
 
-            <div className="flex items-center justify-between mb-2 mt-6">
-              <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pagamentos dessa fatura</h4>
-            </div>
-            <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
-              {detailPayments.length === 0 ? (
-                <div className="p-4 text-center text-xs text-slate-400 dark:text-slate-500">Nenhum pagamento registrado.</div>
-              ) : (
-                detailPayments.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-50 last:border-0 bg-slate-50 dark:bg-slate-700/30">
-                    <div className="min-w-0">
-                      <p className="text-sm text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(e.data)}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-semibold text-emerald-600">-{currency(Number(e.valor))}</span>
-                      <button
-                        onClick={() => setEditingEntry(e)}
-                        className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-                        title="Editar lançamento"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteEntryConfirm({ id: e.id, descricao: e.descricao })}
-                        className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-rose-600 hover:bg-rose-50"
-                        title="Excluir lançamento"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         </div>
       )}

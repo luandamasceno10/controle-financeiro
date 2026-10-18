@@ -27,7 +27,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
     const line = lines[i].trim();
 
     // Detectar seções
-    if (/lançamentos.*compras.*saques|compras\s+e\s+saques|lançamentos.*produtos.*serviços/i.test(line) && !inNextTransactions) {
+    if (/lançamentos.*compras.*saques|lançamentos.*produtos.*serviços/i.test(line) && !inNextTransactions) {
       inCurrentTransactions = true;
       inNextTransactions = false;
       inChargesSection = false;
@@ -53,11 +53,7 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
 
     // Se estamos em uma seção de transações
     if (inCurrentTransactions || inNextTransactions) {
-      // Usar estratégia agressiva: encontrar TODAS as transações (data + valor) na linha
-      // Regex: captura DATA, tudo até o valor, e o VALOR
-      // Padrão: DD/MM ... VVVV,VV - podendo haver próxima data colada (VVVV,VVDD/MM)
-
-      // Remover conteúdo com conhecidas palavras inúteis
+      // Estratégia agressiva: remover metadados conhecidos e extrair TODAS as transações
       let workLine = line
         .replace(/DATA\s+ESTABELECIMENTO\s+VALOR\s+EM\s+R\$/gi, ' ')
         .replace(/EDUCAÇÃO\s+\.\S+/gi, ' ')
@@ -73,15 +69,12 @@ export function parseFaturaMd(content: string, competencia?: string): FaturaPars
         .replace(/Lançamentos no cartão.*?(?=\d{2}\/\d{2}|\d+\.\d+|$)/gi, ' ')
         .replace(/\s{2,}/g, ' ');
 
-      // Estratégia: encontrar TODAS as ocorrências de (DATA DESCRICAO VALOR)
-      // Quando há valor colado à data (29,0015/08), precisamos separar
-
-      // Primeiro: normalizar valores colados à data seguinte (29,0015/08 -> 29,00 15/08)
+      // Normalizar valores colados à data seguinte (29,0015/08 -> 29,00 15/08)
       workLine = workLine.replace(/(\d{2}),(\d{2})(\d{2}\/\d{2})/g, '$1,$2 $3');
 
-      // Agora extrair transações: buscar por (DD/MM) ... (VVVV,VV)
-      // Uso lookahead para não consumir a próxima data
-      const transactionPattern = /(\d{2}\/\d{2})\s+([^0-9]+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|\||$)/g;
+      // Extrair TODAS as transações: (DD/MM) ... (VVVV,VV) com global regex
+      // Usar (.+?) para capturar descrição (inclusive números como "AMAZON PRIME BR 12/12")
+      const transactionPattern = /(\d{2}\/\d{2})\s+(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(?=\s|\||$)/g;
       let match;
       while ((match = transactionPattern.exec(workLine)) !== null) {
         const [, dataRaw, descRaw, valorRaw] = match;

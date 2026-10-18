@@ -101,6 +101,7 @@ export default function LancamentoForm({
       const { fatura, cartao } = faturasPendentes[0];
       setForm(f => ({
         ...f,
+        type: 'entrada',
         payment: 'cartao',
         cartao_id: cartao.id,
         vinculo: 'fatura',
@@ -341,7 +342,7 @@ export default function LancamentoForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setForm(f => ({ ...f, type: 'entrada', category: categoriasEntrada.find(c => !c.parent_id)?.nome || '', payment: 'pix' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'entrada' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Entrada</button>
-            <button type="button" onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida.find(c => !c.parent_id)?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>Saída</button>
+            <button type="button" disabled={faturasPendentes.length > 0} onClick={() => setForm(f => ({ ...f, type: 'saida', category: categoriasSaida.find(c => !c.parent_id)?.nome || '' }))} className={`py-2.5 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 ${form.type === 'saida' ? 'bg-rose-500 text-white border-rose-500' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`} title={faturasPendentes.length > 0 ? 'Pagamentos de fatura devem ser feitos via conciliação bancária' : ''}>Saída</button>
           </div>
           <div>
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Descrição {sugerindo && <span className="text-violet-400 font-normal">· sugerindo categoria...</span>}</label>
