@@ -298,7 +298,8 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   const totals = useMemo(() => {
     // Entrada/Saida normais + caixa real de cartão (pagamentos), pix
-    const entrada = monthEntries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
+    // Exclui compras em cartão (cartao_id) do cálculo de entradas
+    const entrada = monthEntries.filter(e => e.tipo === 'entrada' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
     const saida = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').reduce((s, e) => s + Number(e.valor), 0);
     const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
     // Para cálculo de disponível (Regime de Caixa): apenas pagamentos de fatura
