@@ -66,11 +66,12 @@ export default function ConciliacaoBancaria({
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
 
   const totalDaFatura = (faturaId: number) => {
-    // Apenas compras: tem fatura_id e cartao_id, mas NÃO é 'Cartão de crédito' (que são pagamentos)
+    // Apenas compras: tem fatura_id, cartao_id e SEM vinculo
+    // Pagamentos têm vinculo preenchido ('fatura_completa' ou 'fatura_parcial')
     const compras = entries.filter((e) =>
       e.fatura_id === faturaId &&
       !!e.cartao_id &&
-      e.categoria !== 'Cartão de crédito'
+      !e.vinculo
     );
     return sumMoney(compras.map((e) => Number(e.valor)));
   };
@@ -99,8 +100,10 @@ export default function ConciliacaoBancaria({
     const lineDescNorm = line.descricao.toLowerCase().trim();
 
     const correspondencias = contaEntries.filter((e) => {
-      // Excluir lançamentos que já foram associados a uma fatura (já processados)
-      if (e.cartao_id && e.fatura_id) return false;
+      // Excluir lançamentos que já foram processados:
+      // - Têm fatura_id (foram vinculados a uma fatura)
+      // - Têm vinculo preenchido (são pagamentos ou abatimentos)
+      if (e.fatura_id || e.vinculo) return false;
 
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
