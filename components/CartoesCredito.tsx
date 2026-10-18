@@ -59,6 +59,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const [selectedCartao, setSelectedCartao] = useState<CartaoCredito | null>(null);
   const [payFatura, setPayFatura] = useState<Fatura | null>(null);
   const [payContaId, setPayContaId] = useState<number | null>(null);
+  const [payAmount, setPayAmount] = useState<string>('');
   const [payDataPagamento, setPayDataPagamento] = useState<string>('');
   const [paying, setPaying] = useState(false);
   const [reverting, setReverting] = useState(false);
@@ -274,24 +275,31 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   const openPayFatura = (fatura: Fatura) => {
     setPayFatura(fatura);
     setPayContaId(contas[0]?.id ?? null);
+    setPayAmount(String(totalDaFatura(fatura.id)));
   };
 
   const confirmPayFatura = async () => {
-    if (!payFatura || !payContaId || !selectedCartao || !payDataPagamento) return;
+    if (!payFatura || !payContaId || !selectedCartao || !payDataPagamento || !payAmount) return;
     setPaying(true);
     try {
+      const pagamentoValor = parseFloat(payAmount);
       const total = totalDaFatura(payFatura.id);
+      if (pagamentoValor <= 0 || pagamentoValor > total) {
+        alert(`Valor deve ser maior que 0 e menor ou igual a ${currency(total)}`);
+        setPaying(false);
+        return;
+      }
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: payContaId,
         fatura_id: payFatura.id,
         data: payDataPagamento,
         hora: nowTime(),
-        descricao: `Pagamento fatura ${selectedCartao.nome} — ${payFatura.competencia}`,
+        descricao: `Pagamento ${pagamentoValor === total ? 'completo' : 'parcial'} fatura ${selectedCartao.nome} — ${payFatura.competencia}`,
         tipo: 'saida',
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
-        valor: total,
+        valor: pagamentoValor,
       }]);
       if (insertError) throw insertError;
 
@@ -314,6 +322,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
       }
 
       setPayFatura(null);
+      setPayAmount('');
       await loadData();
     } catch (err: any) {
       addToast('Erro ao pagar fatura: ' + err.message, 'error');
@@ -672,7 +681,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
           <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="font-semibold text-slate-800 dark:text-slate-100">Pagar fatura</h3>
-              <button onClick={() => setPayFatura(null)} disabled={paying}><X size={18} /></button>
+              <button onClick={() => { setPayFatura(null); setPayAmount(''); }} disabled={paying}><X size={18} /></button>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">{selectedCartao.nome} · {payFatura.competencia}</p>
             <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">{currency(totalDaFatura(payFatura.id))}</p>
@@ -680,6 +689,11 @@ export default function CartoesCredito({ userId }: { userId: string }) {
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Data do pagamento</label>
               <input type="date" value={payDataPagamento} onChange={(e) => setPayDataPagamento(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={paying} />
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Quando foi o pagamento no extrato? (Deixa como hoje se foi hoje)</p>
+            </div>
+            <div className="mb-4">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Valor do pagamento (R$)</label>
+              <input type="number" step="0.01" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-800" disabled={paying} placeholder="0,00" />
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Total: {currency(totalDaFatura(payFatura?.id ?? 0))} | Digite o valor para pagamento parcial</p>
             </div>
             <div className="mb-4">
               <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Debitar da conta</label>
