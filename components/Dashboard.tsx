@@ -296,12 +296,11 @@ export default function Dashboard({ userId }: { userId: string }) {
   }, [entries, currentMonth]);
 
   const totals = useMemo(() => {
-    // Compras no cartão: (1) lançamentos com cartao_id (compras não pagas) ou
-    // (2) lançamentos com categoria "Cartão de crédito" (faturas pagas)
+    // Saídas via Cartão = apenas PAGAMENTOS de faturas (categoria 'Cartão de crédito', sem cartao_id)
     const entrada = monthEntries.filter(e => e.tipo === 'entrada').reduce((s, e) => s + Number(e.valor), 0);
     const saida = monthEntries.filter(e => e.tipo === 'saida' && !e.cartao_id && e.categoria !== 'Cartão de crédito').reduce((s, e) => s + Number(e.valor), 0);
     const pix = monthEntries.filter(e => e.forma_pagamento === 'pix' && e.tipo === 'saida' && !e.cartao_id).reduce((s, e) => s + Number(e.valor), 0);
-    const cartao = monthEntries.filter(e => (!!e.cartao_id || e.categoria === 'Cartão de crédito') && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
+    const cartao = monthEntries.filter(e => !e.cartao_id && e.categoria === 'Cartão de crédito' && e.tipo === 'saida').reduce((s, e) => s + Number(e.valor), 0);
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
 
