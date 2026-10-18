@@ -126,7 +126,7 @@ export default function CartoesCredito({ userId }: { userId: string }) {
   };
 
   const totalDaFatura = (faturaId: number) =>
-    sumMoney(entries.filter((e) => e.fatura_id === faturaId).map((e) => Number(e.valor)));
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId && !e.vinculo).map((e) => Number(e.valor)));
 
   const valorPagoDaFatura = (faturaId: number) =>
     sumMoney(entries.filter((e) => e.fatura_id === faturaId && e.tipo === 'saida').map((e) => Number(e.valor)));
