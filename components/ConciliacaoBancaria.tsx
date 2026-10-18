@@ -345,9 +345,20 @@ export default function ConciliacaoBancaria({
       }]);
       if (insertError) throw insertError;
 
-      // Verificar se fatura ficou 100% paga somando todos os pagamentos
-      const pagamentos = entries.filter((e) => e.fatura_id === alvo.fatura.id && e.vinculo);
-      const totalPago = Math.abs(sumMoney(pagamentos.map((e) => Number(e.valor))));
+      // Recarregar dados ANTES de verificar se fatura está paga
+      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
+      setAbatendoFaturaIdx(null);
+      await onCreated();
+
+      // DEPOIS de recarregar, verifica se fatura ficou 100% paga
+      // Buscar dados atualizados diretamente do Supabase para garantir que o novo pagamento está incluído
+      const { data: pagamentosAtualizados } = await supabase
+        .from('lancamentos')
+        .select('valor')
+        .eq('fatura_id', alvo.fatura.id)
+        .not('vinculo', 'is', null);
+
+      const totalPago = Math.abs(sumMoney((pagamentosAtualizados || []).map((e: any) => Number(e.valor))));
       const totalAbsoluto = Math.abs(alvo.total);
       console.log(`💳 DEBUG FATURA: totalPago=${totalPago}, total=${totalAbsoluto}, paga=${totalPago >= totalAbsoluto}`);
       if (totalPago >= totalAbsoluto) {
@@ -361,10 +372,6 @@ export default function ConciliacaoBancaria({
       } else {
         console.log(`⏳ Fatura ainda pendente: ${totalAbsoluto - totalPago} para pagar`);
       }
-
-      setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, matched: true, created: true } : l)));
-      setAbatendoFaturaIdx(null);
-      await onCreated();
     } catch (err: any) {
       setLines((prev) => prev && prev.map((l, i) => (i === idx ? { ...l, failed: err.message } : l)));
     } finally {
