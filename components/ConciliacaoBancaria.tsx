@@ -66,7 +66,7 @@ export default function ConciliacaoBancaria({
   const contaEntries = useMemo(() => entries.filter((e) => e.conta_id === conta.id), [entries, conta.id]);
 
   const totalDaFatura = (faturaId: number) =>
-    sumMoney(entries.filter((e) => e.fatura_id === faturaId).map((e) => Number(e.valor)));
+    sumMoney(entries.filter((e) => e.fatura_id === faturaId && !e.vinculo).map((e) => Number(e.valor)));
 
   // Só oferece faturas que já fecharam (aguardando pagamento) — a fatura ainda
   // acumulando compras deste mês não deve aparecer aqui como se já pudesse ser paga.
