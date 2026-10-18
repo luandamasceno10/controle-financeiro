@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-// Force cache purge: 2026-10-18
+// Force cache purge: 2026-10-18T15:30:00Z
 const nextConfig = {
   reactStrictMode: true,
   // @react-pdf/renderer usa o pdfkit por baixo dos panos, que carrega os
