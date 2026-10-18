@@ -220,7 +220,6 @@ export default function ImportarFaturaPdf({
         });
       };
       categorizarComIA('atual', linhasAtual);
-      categorizarComIA('futura', linhasFutura);
     } catch (err: any) {
       setError('Erro ao ler o PDF: ' + err.message);
       // Detalhe técnico pra diagnosticar erros que só acontecem em aparelhos
