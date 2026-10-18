@@ -105,8 +105,8 @@ export default function LancamentoForm({
         category: categoriasSaida.find(c => !c.parent_id)?.nome || '',
         payment: 'cartao',
         cartao_id: cartao.id,
-        vinculo: 'fatura',
-        vinculo_fatura_id: fatura.id,
+        vinculo: 'nenhum',
+        vinculo_fatura_id: null,
       }));
     }
   }, [faturasPendentes.length, editingEntry, categoriasSaida]);
@@ -208,11 +208,6 @@ export default function LancamentoForm({
         valor: parseFloat(form.amount),
         tipo_gasto_override: form.type === 'saida' ? (form.tipoGastoOverride ?? resolverTipoGasto(form.category)) : null,
       };
-
-      // Adicionar vinculo apenas se houver (para evitar constraint violation)
-      if (form.vinculo === 'fatura' || form.vinculo === 'fatura_parcial') {
-        payload.vinculo = form.vinculo_fatura_id;
-      }
 
       if (editingEntry) {
         const { error } = await supabase.from('lancamentos').update(payload).eq('id', editingEntry.id);
