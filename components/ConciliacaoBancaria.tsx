@@ -15,6 +15,9 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// DEBUG: Verificar se nova versão foi carregada
+console.log('✅ ConciliacaoBancaria.tsx carregado - Versão com filtro de vinculo');
+
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
