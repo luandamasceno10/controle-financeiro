@@ -305,23 +305,17 @@ export default function Dashboard({ userId }: { userId: string }) {
     return { entrada, saida, saldo: entrada - saida, pix, cartao };
   }, [monthEntries]);
 
-  // Saldo inicial do mês = saldo base + lançamentos até o final do mês ANTERIOR
+  // Saldo inicial = saldo base + lançamentos até o final do mês ANTERIOR
   const carryOver = useMemo(() => {
     const base = contas.reduce((s, c) => s + Number(c.saldo_inicial), 0);
     const [y, m] = currentMonth.split('-').map(Number);
-    const ultimoDiaMesAnterior = m === 1 ? new Date(y - 1, 11, 31).getTime() : new Date(y, m - 1, 0).getTime();
+    const mesAnterior = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
 
-    // Soma lançamentos até o final do mês anterior
     const lancamentosAnteriores = entries
-      .filter(e => {
-        const dataTime = new Date(e.data + 'T00:00:00').getTime();
-        return dataTime <= ultimoDiaMesAnterior;
-      })
+      .filter(e => monthKey(e.data) < currentMonth)
       .reduce((s, e) => s + (e.tipo === 'entrada' ? Number(e.valor) : -Number(e.valor)), 0);
 
-    const result = base + lancamentosAnteriores;
-    console.log(`✓ SALDO INICIAL ${currentMonth}: base=${base} + lancamentos_ant=${lancamentosAnteriores} = ${result}`);
-    return result;
+    return base + lancamentosAnteriores;
   }, [contas, entries, currentMonth]);
 
   const commitment = useMemo(() => {
