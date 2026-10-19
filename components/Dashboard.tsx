@@ -217,6 +217,11 @@ export default function Dashboard({ userId }: { userId: string }) {
     return map;
   }, [categorias]);
 
+  const limitarNome = (descricao: string, numPalavras: number = 2): string => {
+    const palavras = descricao.split(' ');
+    return palavras.slice(0, numPalavras).join(' ');
+  };
+
   const catMeta = (nome: string, tipo: 'entrada' | 'saida' = 'saida'): { color: string } | undefined => {
     const c = categoriaByName[`${tipo}|${nome}`];
     return c ? { color: c.cor } : undefined;
@@ -1062,7 +1067,7 @@ export default function Dashboard({ userId }: { userId: string }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
-                    <th className="px-5 py-3 font-medium w-8">
+                    <th className="px-3 py-2 font-medium w-8">
                       <input
                         type="checkbox"
                         className="w-4 h-4 accent-rose-600"
@@ -1077,7 +1082,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                         }}
                       />
                     </th>
-                    <th className="px-5 py-3 font-medium">Data</th><th className="px-5 py-3 font-medium">Descrição</th><th className="px-5 py-3 font-medium">Categoria</th><th className="px-5 py-3 font-medium">Pagamento</th><th className="px-5 py-3 font-medium text-right">Valor</th><th className="px-5 py-3 font-medium w-16"></th>
+                    <th className="px-3 py-2 font-medium">Data</th><th className="px-3 py-2 font-medium">Descrição</th><th className="px-3 py-2 font-medium">Categoria</th><th className="px-3 py-2 font-medium">Pagamento</th><th className="px-3 py-2 font-medium text-right">Valor</th><th className="px-3 py-2 font-medium w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1104,20 +1109,20 @@ export default function Dashboard({ userId }: { userId: string }) {
                       : () => openEditEntry(e);
                     return (
                       <tr key={e.id} onClick={handleRowClick} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
-                        <td className="px-5 py-3" onClick={(ev) => ev.stopPropagation()}>
+                        <td className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
                           <input type="checkbox" className="w-4 h-4 accent-rose-600" checked={selected} onChange={() => toggleSelect(e.id)} />
                         </td>
-                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{fmtDate(e.data)}</td>
-                        <td className="px-5 py-3 font-medium text-slate-700 dark:text-slate-200">
+                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{fmtDate(e.data)}</td>
+                        <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-200 text-xs">
                           <span className="inline-flex items-center gap-1.5">
-                            {e.descricao}
+                            {limitarNome(e.descricao)}
                             {e.anexo_path && <Paperclip size={11} className="text-slate-300 dark:text-slate-500 shrink-0" />}
                           </span>
                         </td>
-                        <td className="px-5 py-3"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td>
-                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
-                        <td className={`px-5 py-3 text-right font-semibold tabular-nums ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}</td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td>
+                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
+                        <td className={`px-3 py-2 text-right font-semibold tabular-nums text-xs ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}</td>
+                        <td className="px-3 py-2 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
                             <button onClick={(ev) => { ev.stopPropagation(); openEditEntry(e); }} className="text-slate-300 hover:text-violet-600 p-1"><Pencil size={14} /></button>
                             <button onClick={(ev) => { ev.stopPropagation(); setDeleteConfirm({ type: 'lancamento', id: e.id }); }} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
