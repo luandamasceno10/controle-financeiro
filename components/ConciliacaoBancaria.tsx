@@ -104,9 +104,11 @@ export default function ConciliacaoBancaria({
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
       const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
-      // Não permitir match entre meses diferentes (máx 5 dias de diferença)
-      // Para permitir transações que aparecem 1-2 dias atrasadas no banco
-      if (dias > 5) return false;
+
+      // Lançamentos com vinculo (abatimentos, pagamentos) podem ter sido criados há mais tempo
+      // Usar tolerância maior para eles (30 dias)
+      const maxDias = e.vinculo ? 30 : 5;
+      if (dias > maxDias) return false;
 
       // Para lançamentos com vinculo (abatimentos, pagamentos), data e valor já são únicos o suficiente
       // Descrição pode variar (ex: "Venda X (abatimento)" vs "Cliente Y" no extrato)
