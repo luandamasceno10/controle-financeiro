@@ -65,11 +65,31 @@ export default function ConciliacaoBancaria({
   const [abatendoFaturaIdx, setAbatendoFaturaIdx] = useState<number | null>(null);
   const [abaterFaturaId, setAbaterFaturaId] = useState<number | null>(null);
   const [abatendoFatura, setAbatendoFatura] = useState(false);
+  const [showMatchedEntry, setShowMatchedEntry] = useState<Lancamento | null>(null);
 
   const contaEntries = useMemo(() =>
     entries.filter((e) => e.conta_id === conta.id && !e.fatura_id),
     [entries, conta.id]
   );
+
+  const findMatchingEntry = (line: StatementLine): Lancamento | null => {
+    const alvoCentavos = Math.round(Math.abs(line.valor) * 100);
+    const idEsperado = criarIdentificadorConciliacao(line.data, line.valor);
+
+    // Procura em TODAS as entradas (não só desta conta) para encontrar o lançamento
+    const allMatches = entries.filter((e) => {
+      const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
+      const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
+      if (!mesmoValor || !mesmoTipo) return false;
+      if (temIdentificadorConciliacao(e.descricao)) {
+        const idConcil = extrairIdentificadorConciliacao(e.descricao);
+        return idConcil === idEsperado;
+      }
+      return false;
+    });
+
+    return allMatches.length > 0 ? allMatches[0] : null;
+  };
 
   const totalDaFatura = (faturaId: number) =>
     sumMoney(entries.filter((e) => e.fatura_id === faturaId && !e.vinculo).map((e) => Number(e.valor)));
@@ -516,9 +536,9 @@ export default function ConciliacaoBancaria({
                       {line.valor >= 0 ? '+' : '-'}{currency(Math.abs(line.valor))}
                     </span>
                     {line.matched || line.created ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md shrink-0">
+                      <button onClick={() => setShowMatchedEntry(findMatchingEntry(line) || null)} className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 px-2 py-1 rounded-md shrink-0 transition-colors cursor-pointer">
                         <CheckCircle2 size={12} /> {line.created ? 'Criado' : 'Já lançado'}
-                      </span>
+                      </button>
                     ) : (
                       <div className="flex items-center gap-1.5 shrink-0">
                         {line.valor >= 0 && receivable.length > 0 && (
@@ -629,6 +649,54 @@ export default function ConciliacaoBancaria({
           </>
         )}
       </div>
+
+      {showMatchedEntry ? (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-800 dark:text-slate-100">Lançamento encontrado</h3>
+              <button onClick={() => setShowMatchedEntry(null)}><X size={18} /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Data</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{fmtDate(showMatchedEntry.data)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Descrição</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100 break-words">{showMatchedEntry.descricao}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Categoria</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{showMatchedEntry.categoria}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Tipo</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-100 capitalize">{showMatchedEntry.tipo}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Valor</p>
+                <p className={`text-sm font-semibold ${showMatchedEntry.tipo === 'entrada' ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-100'}`}>
+                  {showMatchedEntry.tipo === 'entrada' ? '+' : '-'}{currency(Number(showMatchedEntry.valor))}
+                </p>
+              </div>
+              {showMatchedEntry.vinculo && (
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">⚠️ Vinculado: {showMatchedEntry.vinculo}</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-1">Este lançamento está vinculado a um abatimento ou pagamento.</p>
+                </div>
+              )}
+              <div className="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                <p className="text-xs text-slate-600 dark:text-slate-400"><strong>Conta:</strong> {conta.nome}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1"><strong>Forma de pagamento:</strong> {showMatchedEntry.forma_pagamento}</p>
+              </div>
+            </div>
+            <button onClick={() => setShowMatchedEntry(null)} className="w-full mt-4 text-xs font-semibold text-white bg-slate-700 hover:bg-slate-600 px-3 py-2.5 rounded-lg">
+              Fechar
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
