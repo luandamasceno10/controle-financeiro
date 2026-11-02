@@ -95,23 +95,42 @@ export default function ConciliacaoBancaria({
   // dá 0.009999999999990905 em JS, não 0.01 exato — passa no "< 0.01" e trata
   // duas transações DIFERENTES (por só 1 centavo) como se fossem a mesma.
   // Arredondar pra centavos inteiros antes de comparar evita essa armadilha.
+  // Identificador único para vinculação permanente
+  const criarIdentificadorConciliacao = (data: string, valor: number): string => {
+    const dataParts = data.split('/');
+    const dataYYYYMMDD = `${dataParts[2]}${dataParts[1]}${dataParts[0]}`;
+    const valorFormatado = Math.round(Math.abs(valor) * 100).toString().padStart(8, '0');
+    return `[concil_${dataYYYYMMDD}_${valorFormatado}]`;
+  };
+
+  const temIdentificadorConciliacao = (descricao: string): boolean => /\[concil_\d{8}_\d{8}\]/.test(descricao);
+  const extrairIdentificadorConciliacao = (descricao: string): string | null => {
+    const match = descricao.match(/\[concil_\d{8}_\d{8}\]/);
+    return match ? match[0] : null;
+  };
+
   const matchLine = (line: StatementLine, lineIndex: number, allLines: StatementLine[]): boolean => {
     const alvoCentavos = Math.round(Math.abs(line.valor) * 100);
     const lineDescNorm = line.descricao.toLowerCase().trim();
+    const idEsperado = criarIdentificadorConciliacao(line.data, line.valor);
 
     const correspondencias = contaEntries.filter((e) => {
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
-      const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
 
-      // Lançamentos com vinculo (abatimentos, pagamentos) podem ter sido criados há mais tempo
-      // Usar tolerância maior para eles (30 dias)
+      // PRIMEIRO: procurar por identificador de conciliação (match absoluto, não pode falhar)
+      if (temIdentificadorConciliacao(e.descricao)) {
+        const idConcil = extrairIdentificadorConciliacao(e.descricao);
+        // Se tem ID e bate, é definitivamente o mesmo lançamento
+        // Se tem ID mas não bate, significa que foi editado/deletado e não é mais válido
+        return idConcil === idEsperado;
+      }
+
+      const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
       const maxDias = e.vinculo ? 30 : 5;
       if (dias > maxDias) return false;
 
-      // Para lançamentos com vinculo (abatimentos, pagamentos), data e valor já são únicos o suficiente
-      // Descrição pode variar (ex: "Venda X (abatimento)" vs "Cliente Y" no extrato)
       if (e.vinculo) return true;
 
       const descNorm = e.descricao.toLowerCase().trim();
@@ -194,12 +213,14 @@ export default function ConciliacaoBancaria({
         console.log(`🚀 CRIANDO LANÇAMENTO: data="${line.data}" | valor=${line.valor} | desc="${line.descricao}"`);
       }
 
+      const idConciliacao = criarIdentificadorConciliacao(line.data, line.valor);
+      const descricaoComId = `${line.descricao} ${idConciliacao}`;
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
         hora: line.hora,
-        descricao: line.descricao,
+        descricao: descricaoComId,
         tipo,
         categoria,
         categoria_id,
@@ -249,12 +270,13 @@ export default function ConciliacaoBancaria({
 
     setAbatendo(true);
     try {
+      const idConciliacaoAbatimento = criarIdentificadorConciliacao(line.data, line.valor);
       const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
         hora: line.hora,
-        descricao: `${contaReceber.descricao} (abatimento)`,
+        descricao: `${contaReceber.descricao} (abatimento) ${idConciliacaoAbatimento}`,
         tipo: 'entrada',
         categoria: categoriaPadrao('entrada'),
         categoria_id: categoriaIdPadrao('entrada'),
@@ -299,12 +321,13 @@ export default function ConciliacaoBancaria({
 
     setAbatendoPagar(true);
     try {
+      const idConciliacaoPagar = criarIdentificadorConciliacao(line.data, line.valor);
       const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
         hora: line.hora,
-        descricao: `${contaPagar.descricao} (abatimento)`,
+        descricao: `${contaPagar.descricao} (abatimento) ${idConciliacaoPagar}`,
         tipo: 'saida',
         categoria: contaPagar.categoria || categoriaPadrao('saida'),
         categoria_id: contaPagar.categoria_id ?? categoriaIdPadrao('saida'),
@@ -356,13 +379,14 @@ export default function ConciliacaoBancaria({
     setAbatendoFatura(true);
     try {
       const valorPagamento = Math.abs(line.valor);
+      const idConciliacaoFatura = criarIdentificadorConciliacao(line.data, line.valor);
 
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
         hora: line.hora,
-        descricao: `Fatura ${alvo.cartao.nome} — ${alvo.fatura.competencia}`,
+        descricao: `Fatura ${alvo.cartao.nome} — ${alvo.fatura.competencia} ${idConciliacaoFatura}`,
         tipo: 'saida',
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
