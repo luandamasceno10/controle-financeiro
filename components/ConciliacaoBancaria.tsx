@@ -169,23 +169,27 @@ export default function ConciliacaoBancaria({
       }
 
       const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
-      const maxDias = e.vinculo ? 30 : 5;
-      if (dias > maxDias) return false;
 
       // Para lançamentos com vinculo (abatimentos/pagamentos), SEMPRE validar pelo identificador
-      // não pode apenas retornar true cegamente
       if (e.vinculo) {
+        const maxDias = 30;
+        if (dias > maxDias) return false;
         // Se tem ID e bate, é definitivamente o mesmo
-        // Se tem ID mas não bate, não é o mesmo lançamento
         if (temIdentificadorConciliacao(e.descricao)) {
           const idConcil = extrairIdentificadorConciliacao(e.descricao);
           return idConcil === idEsperado;
         }
-        // Se não tem ID (lançamento antigo), faz matching por descrição como fallback
+        // Se não tem ID (lançamento antigo), faz matching rigoroso por descrição + data próxima
         const descNorm = e.descricao.toLowerCase().trim();
         const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
-        return mesmaDesc;
+        // Para vinculados, exige data bem próxima se não tem ID
+        return mesmaDesc && dias <= 2;
       }
+
+      // Para lançamentos normais SEM identificador:
+      // Exigir EXATA correspondência de data para evitar false positives
+      // (duas transações iguais em datas diferentes não devem ser confundidas)
+      if (dias !== 0) return false;
 
       const descNorm = e.descricao.toLowerCase().trim();
       const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
