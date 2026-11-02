@@ -164,7 +164,7 @@ export default function ConciliacaoBancaria({
       if (temIdentificadorConciliacao(e.descricao)) {
         const idConcil = extrairIdentificadorConciliacao(e.descricao);
         // Se tem ID e bate, é definitivamente o mesmo lançamento
-        // Se tem ID mas não bate, significa que foi editado/deletado e não é mais válido
+        // Se tem ID mas não bata, significa que foi editado/deletado e não é mais válido
         return idConcil === idEsperado;
       }
 
@@ -178,6 +178,11 @@ export default function ConciliacaoBancaria({
       const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
       return mesmaDesc;
     });
+
+    // DEBUG: Mostrar qual lançamento foi encontrado (se houver)
+    if (correspondencias.length > 0 && line.descricao.toLowerCase().includes('porto')) {
+      console.log(`🔍 [MATCH DEBUG] ${line.descricao} (${line.valor}):`, correspondencias.map(c => `${c.descricao} [vinculo:${c.vinculo}]`));
+    }
 
     if (correspondencias.length === 0) return false;
 
