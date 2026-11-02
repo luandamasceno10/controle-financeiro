@@ -1064,13 +1064,13 @@ export default function Dashboard({ userId }: { userId: string }) {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm md:text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
-                    <th className="px-3 py-2 font-medium w-8">
+                  <tr className="text-left text-xs md:text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-2 md:px-3 py-3 md:py-2 font-medium w-10 md:w-8">
                       <input
                         type="checkbox"
-                        className="w-4 h-4 accent-rose-600"
+                        className="w-5 h-5 md:w-4 md:h-4 accent-rose-600 cursor-pointer"
                         checked={paginated.length > 0 && paginated.every(e => selectedIds.has(e.id))}
                         onChange={(ev) => {
                           setSelectedIds((prev) => {
@@ -1082,12 +1082,12 @@ export default function Dashboard({ userId }: { userId: string }) {
                         }}
                       />
                     </th>
-                    <th className="px-3 py-2 font-medium">Data</th><th className="px-3 py-2 font-medium">Descrição</th><th className="px-3 py-2 font-medium">Categoria</th><th className="px-3 py-2 font-medium">Pagamento</th><th className="px-3 py-2 font-medium text-right">Valor</th><th className="px-3 py-2 font-medium w-16"></th>
+                    <th className="px-2 md:px-3 py-3 md:py-2 font-medium text-xs">Data</th><th className="px-2 md:px-3 py-3 md:py-2 font-medium text-xs">Descrição</th><th className="px-2 md:px-3 py-3 md:py-2 font-medium text-xs hidden sm:table-cell">Categoria</th><th className="px-2 md:px-3 py-3 md:py-2 font-medium text-xs hidden md:table-cell">Pagamento</th><th className="px-2 md:px-3 py-3 md:py-2 font-medium text-right text-xs">Valor</th><th className="px-2 md:px-3 py-3 md:py-2 font-medium w-20 md:w-16"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} className="px-5 py-12 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhum lançamento encontrado.</td></tr>
+                    <tr><td colSpan={7} className="px-4 md:px-5 py-12 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhum lançamento encontrado.</td></tr>
                   )}
                   {paginated.map((e) => {
                     const meta = catMeta(e.categoria, e.tipo);
@@ -1108,24 +1108,24 @@ export default function Dashboard({ userId }: { userId: string }) {
                         }
                       : () => openEditEntry(e);
                     return (
-                      <tr key={e.id} onClick={handleRowClick} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
-                        <td className="px-3 py-2" onClick={(ev) => ev.stopPropagation()}>
-                          <input type="checkbox" className="w-4 h-4 accent-rose-600" checked={selected} onChange={() => toggleSelect(e.id)} />
+                      <tr key={e.id} onClick={handleRowClick} className={`border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${selected ? 'bg-rose-50/60 dark:bg-rose-500/10' : ''}`}>
+                        <td className="px-2 md:px-3 py-3 md:py-2" onClick={(ev) => ev.stopPropagation()}>
+                          <input type="checkbox" className="w-5 h-5 md:w-4 md:h-4 accent-rose-600 cursor-pointer" checked={selected} onChange={() => toggleSelect(e.id)} />
                         </td>
-                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{fmtDate(e.data)}</td>
-                        <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-200 text-xs">
-                          <span className="inline-flex items-center gap-1.5">
+                        <td className="px-2 md:px-3 py-3 md:py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs md:text-xs font-medium">{fmtDate(e.data)}</td>
+                        <td className="px-2 md:px-3 py-3 md:py-2 font-medium text-slate-700 dark:text-slate-200 text-xs md:text-xs break-words max-w-[150px] md:max-w-none">
+                          <span className="inline-flex items-center gap-1 md:gap-1.5">
                             {limitarNome(e.descricao)}
-                            {e.anexo_path && <Paperclip size={11} className="text-slate-300 dark:text-slate-500 shrink-0" />}
+                            {e.anexo_path && <Paperclip size={13} className="text-slate-300 dark:text-slate-500 shrink-0" />}
                           </span>
                         </td>
-                        <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td>
-                        <td className="px-3 py-2 text-slate-500 dark:text-slate-400"><span className="inline-flex items-center gap-1.5 text-xs"><PayIcon size={13} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
-                        <td className={`px-3 py-2 text-right font-semibold tabular-nums text-xs ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}</td>
-                        <td className="px-3 py-2 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <button onClick={(ev) => { ev.stopPropagation(); openEditEntry(e); }} className="text-slate-300 hover:text-violet-600 p-1"><Pencil size={14} /></button>
-                            <button onClick={(ev) => { ev.stopPropagation(); setDeleteConfirm({ type: 'lancamento', id: e.id }); }} className="text-slate-300 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                        <td className="px-2 md:px-3 py-3 md:py-2 hidden sm:table-cell"><span className="inline-flex items-center gap-1 md:gap-1.5 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={13} className="hidden md:inline" />}{e.categoria}</span></td>
+                        <td className="px-2 md:px-3 py-3 md:py-2 text-slate-500 dark:text-slate-400 hidden md:table-cell"><span className="inline-flex items-center gap-1 md:gap-1.5 text-xs whitespace-nowrap"><PayIcon size={14} />{e.forma_pagamento === 'pix' ? 'Pix' : 'Cartão'}</span></td>
+                        <td className={`px-2 md:px-3 py-3 md:py-2 text-right font-semibold tabular-nums text-xs md:text-xs ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>{e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}</td>
+                        <td className="px-2 md:px-3 py-3 md:py-2 text-right">
+                          <div className="flex items-center justify-end gap-1 md:gap-1">
+                            <button onClick={(ev) => { ev.stopPropagation(); openEditEntry(e); }} className="text-slate-400 hover:text-violet-600 dark:text-slate-500 dark:hover:text-violet-400 p-1.5 md:p-1 hover:bg-violet-50 dark:hover:bg-violet-500/10 rounded-lg transition-colors" title="Editar"><Pencil size={16} className="md:w-3.5 md:h-3.5" /></button>
+                            <button onClick={(ev) => { ev.stopPropagation(); setDeleteConfirm({ type: 'lancamento', id: e.id }); }} className="text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400 p-1.5 md:p-1 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors" title="Excluir"><Trash2 size={16} className="md:w-3.5 md:h-3.5" /></button>
                           </div>
                         </td>
                       </tr>
@@ -1204,8 +1204,8 @@ export default function Dashboard({ userId }: { userId: string }) {
                 </div>
                 <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm"><tbody>
-                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); const catObj = categoriaByName[`${e.tipo}|${e.categoria}`]; const CatIcon = catObj ? ICONS[catObj.icone] : null; return (<tr key={e.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0"><td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">{fmtDate(e.data)}</td><td className="px-4 py-2.5 font-medium text-slate-700 dark:text-slate-200">{e.descricao}</td><td className="px-4 py-2.5"><span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={12} />}{e.categoria}</span></td><td className="px-4 py-2.5 text-right font-semibold tabular-nums text-slate-700 dark:text-slate-200">{currency(Number(e.valor))}</td></tr>); })}
+                  <table className="w-full text-xs md:text-sm"><tbody>
+                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); const catObj = categoriaByName[`${e.tipo}|${e.categoria}`]; const CatIcon = catObj ? ICONS[catObj.icone] : null; return (<tr key={e.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors"><td className="px-3 md:px-4 py-3 md:py-2.5 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap font-medium">{fmtDate(e.data)}</td><td className="px-3 md:px-4 py-3 md:py-2.5 font-medium text-slate-700 dark:text-slate-200 text-xs md:text-sm truncate">{e.descricao}</td><td className="px-3 md:px-4 py-3 md:py-2.5 hidden sm:table-cell"><span className="inline-flex items-center gap-1 md:gap-1.5 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={13} className="hidden md:inline" />}{e.categoria}</span></td><td className="px-3 md:px-4 py-3 md:py-2.5 text-right font-semibold tabular-nums text-slate-700 dark:text-slate-200 text-xs md:text-sm">{currency(Number(e.valor))}</td></tr>); })}
                   </tbody></table>
                 </div>
               </>
@@ -1305,15 +1305,15 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800"><h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Resumo mês a mês</h2></div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800"><th className="px-5 py-3 font-medium">Mês</th><th className="px-5 py-3 font-medium text-right">Entradas</th><th className="px-5 py-3 font-medium text-right">Saídas</th><th className="px-5 py-3 font-medium text-right">Saldo</th></tr></thead>
+          <table className="w-full text-sm md:text-sm">
+            <thead><tr className="text-left text-xs md:text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800"><th className="px-3 md:px-5 py-3 font-medium">Mês</th><th className="px-3 md:px-5 py-3 font-medium text-right text-xs">Entradas</th><th className="px-3 md:px-5 py-3 font-medium text-right text-xs">Saídas</th><th className="px-3 md:px-5 py-3 font-medium text-right text-xs">Saldo</th></tr></thead>
             <tbody>
               {yearData.map((m: any) => (
                 <tr key={m.key} className="border-b border-slate-50 hover:bg-slate-50/80 cursor-pointer transition-colors" onClick={() => onGoToMonth(m.key)}>
-                  <td className="px-5 py-2.5 font-medium text-slate-700 dark:text-slate-200">{m.label}</td>
-                  <td className="px-5 py-2.5 text-right text-emerald-600 font-semibold tabular-nums">{currency(m.entrada)}</td>
-                  <td className="px-5 py-2.5 text-right text-rose-600 font-semibold tabular-nums">{currency(m.saida)}</td>
-                  <td className={`px-5 py-2.5 text-right font-bold tabular-nums ${m.saldo >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{currency(m.saldo)}</td>
+                  <td className="px-3 md:px-5 py-3 font-medium text-slate-700 dark:text-slate-200 text-xs md:text-sm">{m.label}</td>
+                  <td className="px-3 md:px-5 py-3 text-right text-emerald-600 font-semibold tabular-nums text-xs md:text-sm">{currency(m.entrada)}</td>
+                  <td className="px-3 md:px-5 py-3 text-right text-rose-600 font-semibold tabular-nums text-xs md:text-sm">{currency(m.saida)}</td>
+                  <td className={`px-3 md:px-5 py-3 text-right font-bold tabular-nums text-xs md:text-sm ${m.saldo >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>{currency(m.saldo)}</td>
                 </tr>
               ))}
             </tbody>
