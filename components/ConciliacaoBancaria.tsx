@@ -172,7 +172,20 @@ export default function ConciliacaoBancaria({
       const maxDias = e.vinculo ? 30 : 5;
       if (dias > maxDias) return false;
 
-      if (e.vinculo) return true;
+      // Para lançamentos com vinculo (abatimentos/pagamentos), SEMPRE validar pelo identificador
+      // não pode apenas retornar true cegamente
+      if (e.vinculo) {
+        // Se tem ID e bate, é definitivamente o mesmo
+        // Se tem ID mas não bate, não é o mesmo lançamento
+        if (temIdentificadorConciliacao(e.descricao)) {
+          const idConcil = extrairIdentificadorConciliacao(e.descricao);
+          return idConcil === idEsperado;
+        }
+        // Se não tem ID (lançamento antigo), faz matching por descrição como fallback
+        const descNorm = e.descricao.toLowerCase().trim();
+        const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
+        return mesmaDesc;
+      }
 
       const descNorm = e.descricao.toLowerCase().trim();
       const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
