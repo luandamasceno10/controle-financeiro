@@ -75,9 +75,10 @@ export default function ConciliacaoBancaria({
   const findMatchingEntry = (line: StatementLine): Lancamento | null => {
     const alvoCentavos = Math.round(Math.abs(line.valor) * 100);
     const idEsperado = criarIdentificadorConciliacao(line.data, line.valor);
+    const lineDescNorm = line.descricao.toLowerCase().trim();
 
-    // Procura em TODAS as entradas (não só desta conta) para encontrar o lançamento
-    const allMatches = entries.filter((e) => {
+    // Primeiro: procura por identificador (match absoluto)
+    const withId = entries.find((e) => {
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
       const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
       if (!mesmoValor || !mesmoTipo) return false;
@@ -88,7 +89,27 @@ export default function ConciliacaoBancaria({
       return false;
     });
 
-    return allMatches.length > 0 ? allMatches[0] : null;
+    if (withId) return withId;
+
+    // Fallback: procura por valor + tipo + data/descrição (para lançamentos sem ID)
+    const byValueAndType = entries.filter((e) => {
+      const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
+      const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
+      if (!mesmoValor || !mesmoTipo) return false;
+
+      // Tenta match por data (tolerância de 5 dias)
+      const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
+      if (dias <= 5) {
+        // Se a data bate, verifica descrição
+        const descNorm = e.descricao.toLowerCase().trim();
+        const mesmaDesc = descNorm.includes(lineDescNorm.split(' ')[0]) || lineDescNorm.includes(descNorm.split(' ')[0]);
+        if (mesmaDesc) return true;
+      }
+
+      return false;
+    });
+
+    return byValueAndType.length > 0 ? byValueAndType[0] : null;
   };
 
   const totalDaFatura = (faturaId: number) =>
