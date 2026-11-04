@@ -9,11 +9,25 @@ import { SkeletonList } from './Skeleton';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Plus, X, Pencil, Trash2, Tag, CornerDownRight, ChevronRight } from 'lucide-react';
 
+// Palavras-chave que indicam que uma categoria é saída, não entrada
+const PALAVRAS_CHAVE_SAIDA = [
+  'taxa', 'juros', 'multa', 'tarifa', 'comissão', 'imposto',
+  'custo', 'despesa', 'gasto', 'pagamento', 'transferência',
+  'saque', 'retirada', 'devolução', 'reembolso', 'abatimento',
+  'desconto', 'crédito', 'débito', 'empréstimo', 'manutenção'
+];
+
+const isCategoriaProvavelmenteSaida = (nome: string): boolean => {
+  const nomeNorm = nome.toLowerCase().trim();
+  return PALAVRAS_CHAVE_SAIDA.some(palavra => nomeNorm.includes(palavra));
+};
+
 export default function CategoriaEditor({ userId }: { userId: string }) {
   const { toasts, addToast, removeToast } = useToast();
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'saida' | 'entrada'>('saida');
+  const [avisoTipo, setAvisoTipo] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Categoria | null>(null);
@@ -63,18 +77,27 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
     e.preventDefault();
     if (!form.nome) return;
 
+    // Validar se tipo está correto para a categoria
+    const probvelmenteSaida = isCategoriaProvavelmenteSaida(form.nome);
+    if (probvelmenteSaida && form.tipo === 'entrada') {
+      setAvisoTipo('saida');
+      return;
+    }
+
     setSaving(true);
     try {
+      const tipoFinal = probvelmenteSaida ? 'saida' : form.tipo;
+
       if (editing) {
         const { error } = await supabase.from('categorias').update({
-          nome: form.nome, tipo: form.tipo, cor: form.cor, icone: form.icone, parent_id: form.parent_id,
+          nome: form.nome, tipo: tipoFinal, cor: form.cor, icone: form.icone, parent_id: form.parent_id,
         }).eq('id', editing.id);
         if (error) throw error;
         addToast('Categoria atualizada!', 'success');
       } else {
-        const maxOrdem = Math.max(0, ...categorias.filter(c => c.tipo === form.tipo).map(c => c.ordem));
+        const maxOrdem = Math.max(0, ...categorias.filter(c => c.tipo === tipoFinal).map(c => c.ordem));
         const { error } = await supabase.from('categorias').insert([{
-          user_id: userId, nome: form.nome, tipo: form.tipo, cor: form.cor,
+          user_id: userId, nome: form.nome, tipo: tipoFinal, cor: form.cor,
           icone: form.icone, parent_id: form.parent_id, ordem: maxOrdem + 1,
         }]);
         if (error) throw error;
@@ -82,6 +105,7 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
       }
       await loadData();
       setShowForm(false);
+      setAvisoTipo(null);
     } catch (err: any) {
       addToast('Erro ao salvar: ' + err.message, 'error');
     } finally {
@@ -189,6 +213,37 @@ export default function CategoriaEditor({ userId }: { userId: string }) {
           })
         )}
       </div>
+
+      {avisoTipo && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-3">⚠️ Tipo de categoria incorreto</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              "{form.nome}" parece ser uma <strong>{avisoTipo === 'saida' ? 'SAÍDA' : 'ENTRADA'}</strong>, mas você a está criando como <strong>{form.tipo === 'saida' ? 'SAÍDA' : 'ENTRADA'}</strong>.
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              Deseja corrigir automaticamente para <strong>{avisoTipo}</strong>?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setForm(f => ({ ...f, tipo: avisoTipo as 'entrada' | 'saida' }));
+                  setAvisoTipo(null);
+                }}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold py-2.5 rounded-lg text-sm transition-colors"
+              >
+                ✓ Corrigir para {avisoTipo}
+              </button>
+              <button
+                onClick={() => setAvisoTipo(null)}
+                className="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-semibold py-2.5 rounded-lg text-sm transition-colors"
+              >
+                Manter como está
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
