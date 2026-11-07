@@ -334,17 +334,19 @@ export default function ConciliacaoBancaria({
     setAbatendo(true);
     try {
       const idConciliacaoAbatimento = criarIdentificadorConciliacao(line.data, line.valor);
+      const tipoAbatimento = line.valor < 0 ? 'saida' : 'entrada';
+      const valorComSinal = line.valor < 0 ? -valor : valor;
       const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
         hora: line.hora,
         descricao: `${contaReceber.descricao} (abatimento) ${idConciliacaoAbatimento}`,
-        tipo: 'entrada',
-        categoria: categoriaPadrao('entrada'),
-        categoria_id: categoriaIdPadrao('entrada'),
+        tipo: tipoAbatimento,
+        categoria: categoriaPadrao(tipoAbatimento),
+        categoria_id: categoriaIdPadrao(tipoAbatimento),
         forma_pagamento: 'pix',
-        valor,
+        valor: valorComSinal,
         vinculo: 'abatimento_receber',
       }]).select().single();
       if (lancError) throw lancError;
@@ -385,17 +387,19 @@ export default function ConciliacaoBancaria({
     setAbatendoPagar(true);
     try {
       const idConciliacaoPagar = criarIdentificadorConciliacao(line.data, line.valor);
+      const tipoPagamento = line.valor < 0 ? 'saida' : 'entrada';
+      const valorComSinal = line.valor < 0 ? -valor : valor;
       const { data: lanc, error: lancError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
         conta_id: conta.id,
         data: line.data,
         hora: line.hora,
         descricao: `${contaPagar.descricao} (abatimento) ${idConciliacaoPagar}`,
-        tipo: 'saida',
-        categoria: contaPagar.categoria || categoriaPadrao('saida'),
-        categoria_id: contaPagar.categoria_id ?? categoriaIdPadrao('saida'),
+        tipo: tipoPagamento,
+        categoria: contaPagar.categoria || categoriaPadrao(tipoPagamento),
+        categoria_id: contaPagar.categoria_id ?? categoriaIdPadrao(tipoPagamento),
         forma_pagamento: 'pix',
-        valor,
+        valor: valorComSinal,
         vinculo: 'abatimento_pagar',
       }]).select().single();
       if (lancError) throw lancError;
@@ -443,6 +447,8 @@ export default function ConciliacaoBancaria({
     try {
       const valorPagamento = Math.abs(line.valor);
       const idConciliacaoFatura = criarIdentificadorConciliacao(line.data, line.valor);
+      const tipoFatura = line.valor < 0 ? 'saida' : 'entrada';
+      const valorComSinal = line.valor < 0 ? -valorPagamento : valorPagamento;
 
       const { error: insertError } = await supabase.from('lancamentos').insert([{
         user_id: userId,
@@ -450,10 +456,10 @@ export default function ConciliacaoBancaria({
         data: line.data,
         hora: line.hora,
         descricao: `Fatura ${alvo.cartao.nome} — ${alvo.fatura.competencia} ${idConciliacaoFatura}`,
-        tipo: 'saida',
+        tipo: tipoFatura,
         categoria: 'Cartão de crédito',
         forma_pagamento: 'pix',
-        valor: valorPagamento,
+        valor: valorComSinal,
         fatura_id: alvo.fatura.id,
         vinculo: valorPagamento >= Math.abs(alvo.total) ? 'fatura_completa' : 'fatura_parcial',
       }]);
