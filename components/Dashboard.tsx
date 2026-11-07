@@ -8,6 +8,7 @@ import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBa
 import { computeRelatorioMensal } from '@/lib/relatorioCalculos';
 import { competenciaForPurchase } from '@/lib/faturas';
 import { sumMoney } from '@/lib/money';
+import { gerarInsights } from '@/lib/dashboardInsights';
 import RelatorioPDF from './RelatorioPDF';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
@@ -600,6 +601,13 @@ export default function Dashboard({ userId }: { userId: string }) {
     return Object.entries(map).map(([name, value]) => ({ name, value, color: catMeta(name)?.color || '#64748B' })).sort((a, b) => b.value - a.value);
   }, [entries, currentYear, categoriaByName, categoriaById]);
 
+  // Insights do mês
+  const insights = useMemo(() => {
+    const mesAnterior = `${currentYear}-${String(Number(currentMonth.slice(5)) - 1).padStart(2, '0')}`;
+    const lancamentosAnterior = entries.filter(e => monthKey(e.data) === mesAnterior);
+    return gerarInsights(monthEntries, lancamentosAnterior, orcamentos, categorias);
+  }, [monthEntries, entries, currentMonth, currentYear, orcamentos, categorias]);
+
   const openNewEntry = () => {
     setEditingEntry(null);
     setShowForm(true);
@@ -820,6 +828,25 @@ export default function Dashboard({ userId }: { userId: string }) {
               tooltip={`É o "disponível" (${currency(commitment.disponivel)}) descontado do que ainda vai pagar neste mês (${currency(billTotals.aPagar)}) e somado ao que ainda vai receber neste mês (${currency(billTotals.aReceber)}) — uma prévia de como seu saldo deve fechar o mês. Contas de outros meses não entram aqui.`}
             />
           </div>
+
+          {insights.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {insights.map((insight, idx) => {
+                const bgColor = insight.tipo === 'positiva' ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20' :
+                               insight.tipo === 'negativa' ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20' :
+                               'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20';
+                const textColor = insight.tipo === 'positiva' ? 'text-emerald-700 dark:text-emerald-400' :
+                                 insight.tipo === 'negativa' ? 'text-rose-700 dark:text-rose-400' :
+                                 'text-blue-700 dark:text-blue-400';
+                return (
+                  <div key={idx} className={`rounded-lg border p-3 ${bgColor}`}>
+                    <p className={`text-sm font-semibold ${textColor} mb-1`}>{insight.titulo}</p>
+                    <p className={`text-xs ${textColor} opacity-80`}>{insight.descricao}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {(billTotals.aPagar > 0 || billTotals.aReceber > 0) && (
             <Link href="/pagar-receber" className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
