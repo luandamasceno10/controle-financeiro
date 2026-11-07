@@ -127,6 +127,13 @@ export default function LancamentoForm({
     e.preventDefault();
     if (!form.desc || !form.amount) return;
 
+    // Validação: lançamentos em faturas DEVEM ser saídas (compras no cartão)
+    if (editingEntry?.fatura_id && form.type === 'entrada') {
+      alert('⚠️ Lançamentos de fatura devem ser SAÍDAS (são compras no cartão). Corrigindo automaticamente...');
+      setForm(f => ({ ...f, type: 'saida' }));
+      return;
+    }
+
     setSaving(true);
     try {
       const categoriaId = categoriaByName[`${form.type}|${form.category}`]?.id ?? null;
