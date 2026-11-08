@@ -502,7 +502,7 @@ export default function ContasPagarReceber({ userId }: { userId: string }) {
                     {billForm.tipoRepeticao === 'parcelado' && (
                       <div>
                         <label className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nº de parcelas</label>
-                        <input type="number" min={2} max={60} value={billForm.parcelas} onChange={(e) => setBillForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={savingBill} />
+                        <input type="number" min={2} value={billForm.parcelas} onChange={(e) => setBillForm(f => ({ ...f, parcelas: e.target.value }))} className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100" disabled={savingBill} />
                       </div>
                     )}
                   </div>
