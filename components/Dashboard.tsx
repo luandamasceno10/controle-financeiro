@@ -606,7 +606,9 @@ export default function Dashboard({ userId }: { userId: string }) {
 
   // Insights do mês
   const insights = useMemo(() => {
-    const mesAnterior = `${currentYear}-${String(Number(currentMonth.slice(5)) - 1).padStart(2, '0')}`;
+    const d = new Date(currentYear, Number(currentMonth.slice(5)) - 2, 1);
+    const anoAnterior = d.getFullYear();
+    const mesAnterior = `${anoAnterior}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     const lancamentosAnterior = entries.filter(e => monthKey(e.data) === mesAnterior);
     return gerarInsights(monthEntries, lancamentosAnterior, orcamentos, categorias);
   }, [monthEntries, entries, currentMonth, currentYear, orcamentos, categorias]);
