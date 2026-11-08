@@ -35,19 +35,38 @@ export default function Auditoria({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const LIMIT = 50;
 
-  useEffect(() => {
-    (async () => {
+  const loadMore = async (newOffset: number = offset) => {
+    if (newOffset === 0) setLoading(true);
+    else setLoadingMore(true);
+
+    try {
       const { data, error } = await supabase
         .from('lancamentos_auditoria')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(200);
-      if (error) setErro(error.message);
-      else setRegistros(data || []);
-      setLoading(false);
-    })();
+        .range(newOffset, newOffset + LIMIT - 1);
+
+      if (error) {
+        setErro(error.message);
+      } else {
+        setRegistros((prev) => newOffset === 0 ? (data || []) : [...prev, ...(data || [])]);
+        setHasMore((data?.length ?? 0) === LIMIT);
+        setOffset(newOffset + LIMIT);
+      }
+    } finally {
+      if (newOffset === 0) setLoading(false);
+      else setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMore(0);
   }, [userId]);
 
   const registrosFiltrados = useMemo(() => {
@@ -159,6 +178,15 @@ export default function Auditoria({ userId }: { userId: string }) {
               </div>
             );
           })}
+          {hasMore && (
+            <button
+              onClick={() => loadMore()}
+              disabled={loadingMore}
+              className="w-full mt-4 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition-colors"
+            >
+              {loadingMore ? 'Carregando...' : '📥 Carregar mais registros'}
+            </button>
+          )}
         </div>
       )}
     </main>
