@@ -173,7 +173,7 @@ export interface Ativo {
   id: number;
   user_id: string;
   nome: string;
-  tipo: 'renda_fixa' | 'acoes_fundos' | 'imovel' | 'veiculo' | 'outro';
+  tipo: 'renda_fixa' | 'acoes_fundos' | 'imovel' | 'veiculo' | 'empresa' | 'outro';
   saldo_atual: number;
   cor: string | null;
   ativo: boolean;
