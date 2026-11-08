@@ -462,7 +462,7 @@ CREATE TABLE ativos (
   id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   nome TEXT NOT NULL,
-  tipo TEXT NOT NULL CHECK (tipo IN ('renda_fixa', 'acoes_fundos', 'imovel', 'veiculo', 'outro')),
+  tipo TEXT NOT NULL CHECK (tipo IN ('renda_fixa', 'acoes_fundos', 'imovel', 'veiculo', 'empresa', 'outro')),
   saldo_atual DECIMAL(14, 2) NOT NULL DEFAULT 0,
   cor TEXT,
   ativo BOOLEAN NOT NULL DEFAULT true,

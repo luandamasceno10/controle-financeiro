@@ -6,7 +6,7 @@ import type { Ativo, ContaBancaria, ContaPagar, ContaReceber } from '@/lib/supab
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
-import { Plus, X, Pencil, Trash2, PiggyBank, Building2, Car, TrendingUp, CircleEllipsis, Wallet, CreditCard as DebtIcon } from 'lucide-react';
+import { Plus, X, Pencil, Trash2, PiggyBank, Building2, Car, TrendingUp, CircleEllipsis, Wallet, CreditCard as DebtIcon, Briefcase } from 'lucide-react';
 
 function currency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -21,6 +21,7 @@ const TIPO_META: Record<Ativo['tipo'], { label: string; icon: any; cor: string }
   acoes_fundos: { label: 'Ações e fundos', icon: TrendingUp, cor: '#2563EB' },
   imovel: { label: 'Imóvel', icon: Building2, cor: '#7C3AED' },
   veiculo: { label: 'Veículo', icon: Car, cor: '#EA580C' },
+  empresa: { label: 'Empresa', icon: Briefcase, cor: '#DC2626' },
   outro: { label: 'Outro', icon: CircleEllipsis, cor: '#64748B' },
 };
 
