@@ -11,6 +11,7 @@ import { sumMoney } from '@/lib/money';
 import { gerarInsights } from '@/lib/dashboardInsights';
 import RelatorioPDF from './RelatorioPDF';
 import AdminCleanup from './AdminCleanup';
+import GlobalSearch from './GlobalSearch';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
@@ -720,6 +721,7 @@ export default function Dashboard({ userId }: { userId: string }) {
             </div>
             {view === 'mensal' && (
               <>
+                <GlobalSearch userId={userId} />
                 <div className="flex items-center gap-2">
                   <button onClick={baixarRelatorioPDF} title="Baixar relatório do mês em PDF" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm px-3 py-2.5 rounded-lg transition-colors">
                     <FileDown size={16} /> Relatório

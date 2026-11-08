@@ -1,130 +1,261 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useState, useMemo } from 'react';
+import { Search, X, Wallet, Tag, Building2, FileText, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Lancamento, Categoria } from '@/lib/supabase';
-import { ICONS } from '@/lib/categorias';
-import { Search, QrCode, CreditCard, Loader } from 'lucide-react';
+import type { Lancamento, Categoria, ContaBancaria, ContaPagar, ContaReceber } from '@/lib/supabase';
 
-function currency(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+interface SearchResults {
+  lancamentos: Lancamento[];
+  categorias: Categoria[];
+  contas: ContaBancaria[];
+  contas_pagar: ContaPagar[];
+  contas_receber: ContaReceber[];
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
+export default function GlobalSearch({ userId, onSelectLancamento }: { userId: string; onSelectLancamento?: (l: Lancamento) => void }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'todos' | 'lancamentos' | 'categorias' | 'contas' | 'pendentes'>('todos');
+  const [results, setResults] = useState<SearchResults>({ lancamentos: [], categorias: [], contas: [], contas_pagar: [], contas_receber: [] });
+  const [loading, setLoading] = useState(false);
 
-export default function GlobalSearch({ userId }: { userId: string }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Lancamento[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
-
-  useEffect(() => {
-    supabase.from('categorias').select('*').eq('user_id', userId).then(({ data }) => {
-      if (data) setCategorias(data);
-    });
-  }, [userId]);
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setSearched(false);
+  const handleSearch = async (query: string) => {
+    setSearch(query);
+    if (!query.trim()) {
+      setResults({ lancamentos: [], categorias: [], contas: [], contas_pagar: [], contas_receber: [] });
       return;
     }
-    setSearching(true);
-    const timeout = setTimeout(async () => {
-      // Busca sem limite de período — é justamente o ponto: encontrar um
-      // lançamento de qualquer época, não só do mês/ano em exibição no Dashboard.
-      const { data } = await supabase
-        .from('lancamentos')
-        .select('*')
-        .eq('user_id', userId)
-        .ilike('descricao', `%${q}%`)
-        .order('data', { ascending: false })
-        .limit(100);
-      setResults(data || []);
-      setSearching(false);
-      setSearched(true);
-    }, 350);
-    return () => clearTimeout(timeout);
-  }, [query, userId]);
 
-  const categoriaByName = useMemo(() => {
-    const map: Record<string, Categoria> = {};
-    categorias.forEach((c) => { map[`${c.tipo}|${c.nome}`] = c; });
-    return map;
-  }, [categorias]);
+    setLoading(true);
+    try {
+      const q = `%${query}%`;
+      const [lancRes, catRes, contasRes, pagarRes, receberRes] = await Promise.all([
+        supabase.from('lancamentos').select('*').eq('user_id', userId).ilike('descricao', q).limit(10),
+        supabase.from('categorias').select('*').eq('user_id', userId).ilike('nome', q).limit(10),
+        supabase.from('contas_bancarias').select('*').eq('user_id', userId).ilike('nome', q).limit(10),
+        supabase.from('contas_pagar').select('*').eq('user_id', userId).ilike('descricao', q).eq('status', 'pendente').limit(10),
+        supabase.from('contas_receber').select('*').eq('user_id', userId).ilike('descricao', q).eq('status', 'pendente').limit(10),
+      ]);
+
+      setResults({
+        lancamentos: lancRes.data || [],
+        categorias: catRes.data || [],
+        contas: contasRes.data || [],
+        contas_pagar: pagarRes.data || [],
+        contas_receber: receberRes.data || [],
+      });
+    } catch (err) {
+      console.error('Erro na busca:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalResults = results.lancamentos.length + results.categorias.length + results.contas.length + results.contas_pagar.length + results.contas_receber.length;
+
+  const filteredResults = useMemo(() => {
+    switch (tab) {
+      case 'lancamentos':
+        return { lancamentos: results.lancamentos, categorias: [], contas: [], contas_pagar: [], contas_receber: [] };
+      case 'categorias':
+        return { lancamentos: [], categorias: results.categorias, contas: [], contas_pagar: [], contas_receber: [] };
+      case 'contas':
+        return { lancamentos: [], categorias: [], contas: results.contas, contas_pagar: [], contas_receber: [] };
+      case 'pendentes':
+        return { lancamentos: [], categorias: [], contas: [], contas_pagar: results.contas_pagar, contas_receber: results.contas_receber };
+      default:
+        return results;
+    }
+  }, [tab, results]);
 
   return (
-    <main className="max-w-2xl mx-auto px-5 py-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center">
-          <Search size={16} />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Buscar lançamentos</h1>
-          <p className="text-xs text-slate-400 dark:text-slate-500">Procura em todo o histórico, não só no mês em exibição</p>
-        </div>
-      </div>
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="hidden md:flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs text-slate-600 dark:text-slate-400 transition-colors"
+      >
+        <Search size={14} />
+        Buscar...
+      </button>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" />
-        <input
-          type="text"
-          autoFocus
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Digite ao menos 2 letras da descrição..."
-          className="w-full border border-slate-200 dark:border-slate-700 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white dark:bg-slate-700 dark:text-slate-100"
-        />
-      </div>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[70vh] flex flex-col border border-slate-200 dark:border-slate-700">
+            {/* Header com Input */}
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Buscar lançamentos, categorias, contas, débitos..."
+                  value={search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full pl-9 pr-9 py-2.5 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button onClick={() => setOpen(false)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
 
-      {searching && (
-        <div className="flex items-center justify-center gap-2 text-sm text-slate-400 dark:text-slate-500 py-8">
-          <Loader size={14} className="animate-spin" /> Buscando...
-        </div>
-      )}
+            {/* Tabs */}
+            {search && (
+              <div className="flex border-b border-slate-200 dark:border-slate-700 px-4 gap-1 overflow-x-auto">
+                {[
+                  { id: 'todos', label: `Tudo (${totalResults})` },
+                  { id: 'lancamentos', label: `Lançamentos (${results.lancamentos.length})` },
+                  { id: 'categorias', label: `Categorias (${results.categorias.length})` },
+                  { id: 'contas', label: `Contas (${results.contas.length})` },
+                  { id: 'pendentes', label: `Pendentes (${results.contas_pagar.length + results.contas_receber.length})` },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setTab(t.id as any)}
+                    className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                      tab === t.id
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-      {!searching && searched && results.length === 0 && (
-        <p className="text-center text-sm text-slate-400 dark:text-slate-500 py-8">Nenhum lançamento encontrado para "{query}".</p>
-      )}
+            {/* Resultados */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {loading && <p className="text-xs text-slate-400 text-center py-8">Procurando...</p>}
 
-      {!searching && results.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
-          {results.map((e) => {
-            const catObj = categoriaByName[`${e.tipo}|${e.categoria}`];
-            const CatIcon = catObj ? ICONS[catObj.icone] : null;
-            const PayIcon = e.forma_pagamento === 'pix' ? QrCode : CreditCard;
-            return (
-              <Link
-                key={e.id}
-                href={`/dashboard?mes=${e.data.slice(0, 7)}`}
-                className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ color: catObj?.cor, backgroundColor: `${catObj?.cor || '#64748B'}15` }}
-                >
-                  {CatIcon ? <CatIcon size={14} /> : <Search size={14} />}
+              {!search && !loading && (
+                <div className="text-center py-12">
+                  <Search size={32} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Digite para buscar</p>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-                    {fmtDate(e.data)} · {e.categoria} · <PayIcon size={11} className="inline" />
-                  </p>
+              )}
+
+              {search && !loading && totalResults === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum resultado encontrado</p>
                 </div>
-                <span className={`text-sm font-semibold tabular-nums shrink-0 ${e.tipo === 'entrada' || Number(e.valor) < 0 ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
-                  {e.tipo === 'entrada' || Number(e.valor) < 0 ? '+' : '-'}{currency(Math.abs(Number(e.valor)))}
-                </span>
-              </Link>
-            );
-          })}
+              )}
+
+              {/* Lançamentos */}
+              {filteredResults.lancamentos.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 px-2 flex items-center gap-2">
+                    <FileText size={13} /> Lançamentos
+                  </h3>
+                  <div className="space-y-1">
+                    {filteredResults.lancamentos.map((l) => (
+                      <button
+                        key={l.id}
+                        onClick={() => {
+                          onSelectLancamento?.(l);
+                          setOpen(false);
+                        }}
+                        className="w-full text-left p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{l.descricao}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{l.data} · {l.categoria}</p>
+                          </div>
+                          <p className={`text-sm font-semibold whitespace-nowrap tabular-nums ${l.tipo === 'entrada' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {l.tipo === 'entrada' ? '+' : '-'}R${Math.abs(Number(l.valor)).toFixed(2).replace('.', ',')}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Categorias */}
+              {filteredResults.categorias.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 px-2 flex items-center gap-2">
+                    <Tag size={13} /> Categorias
+                  </h3>
+                  <div className="space-y-1">
+                    {filteredResults.categorias.map((c) => (
+                      <button
+                        key={c.id}
+                        className="w-full text-left p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{c.nome}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{c.tipo}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contas Bancárias */}
+              {filteredResults.contas.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 px-2 flex items-center gap-2">
+                    <Wallet size={13} /> Contas Bancárias
+                  </h3>
+                  <div className="space-y-1">
+                    {filteredResults.contas.map((c) => (
+                      <button key={c.id} className="w-full text-left p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{c.nome}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{c.banco}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contas Pendentes */}
+              {filteredResults.contas_pagar.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 px-2 flex items-center gap-2">
+                    <Building2 size={13} /> A Pagar
+                  </h3>
+                  <div className="space-y-1">
+                    {filteredResults.contas_pagar.map((c) => (
+                      <button key={c.id} className="w-full text-left p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{c.descricao}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{c.data_vencimento}</p>
+                          </div>
+                          <p className="text-sm font-semibold text-rose-600 tabular-nums">R${Number(c.valor).toFixed(2).replace('.', ',')}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {filteredResults.contas_receber.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-2 px-2 flex items-center gap-2">
+                    <Building2 size={13} /> A Receber
+                  </h3>
+                  <div className="space-y-1">
+                    {filteredResults.contas_receber.map((c) => (
+                      <button key={c.id} className="w-full text-left p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{c.descricao}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{c.data_vencimento}</p>
+                          </div>
+                          <p className="text-sm font-semibold text-emerald-600 tabular-nums">R${Number(c.valor).toFixed(2).replace('.', ',')}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
-    </main>
+    </>
   );
 }
