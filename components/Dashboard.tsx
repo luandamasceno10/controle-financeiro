@@ -10,6 +10,7 @@ import { competenciaForPurchase } from '@/lib/faturas';
 import { sumMoney } from '@/lib/money';
 import { gerarInsights } from '@/lib/dashboardInsights';
 import RelatorioPDF from './RelatorioPDF';
+import AdminCleanup from './AdminCleanup';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
@@ -1347,6 +1348,7 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
           </table>
         </div>
       </div>
+      <AdminCleanup userId={userId} />
     </main>
   );
 }
