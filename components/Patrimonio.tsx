@@ -49,7 +49,7 @@ export default function Patrimonio({ userId }: { userId: string }) {
       const [ativosResult, contasResult, dividasResult, saldoResult] = await Promise.all([
         supabase.from('ativos').select('*').eq('user_id', userId).eq('ativo', true).order('created_at'),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
-        supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('eh_divida', true).eq('status', 'pendente'),
+        supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente'),
         supabase.rpc('saldo_por_conta', { p_cutoff: todayISO() }),
       ]);
       if (ativosResult.data) setAtivos(ativosResult.data);
