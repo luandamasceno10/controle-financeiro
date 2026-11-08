@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Ativo, ContaBancaria, ContaPagar } from '@/lib/supabase';
+import type { Ativo, ContaBancaria, ContaPagar, ContaReceber } from '@/lib/supabase';
 import { useToast, ToastContainer } from './Toast';
 import { ConfirmDialog } from './ConfirmDialog';
 import { SkeletonList } from './Skeleton';
@@ -31,6 +31,7 @@ export default function Patrimonio({ userId }: { userId: string }) {
   const [contas, setContas] = useState<ContaBancaria[]>([]);
   const [saldoContas, setSaldoContas] = useState(0);
   const [dividas, setDividas] = useState<ContaPagar[]>([]);
+  const [aReceber, setAReceber] = useState<ContaReceber[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showForm, setShowForm] = useState(false);
@@ -46,15 +47,17 @@ export default function Patrimonio({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [ativosResult, contasResult, dividasResult, saldoResult] = await Promise.all([
+      const [ativosResult, contasResult, dividasResult, aReceberResult, saldoResult] = await Promise.all([
         supabase.from('ativos').select('*').eq('user_id', userId).eq('ativo', true).order('created_at'),
         supabase.from('contas_bancarias').select('*').eq('user_id', userId).eq('ativa', true),
         supabase.from('contas_pagar').select('*').eq('user_id', userId).eq('status', 'pendente'),
+        supabase.from('contas_receber').select('*').eq('user_id', userId).eq('status', 'pendente'),
         supabase.rpc('saldo_por_conta', { p_cutoff: todayISO() }),
       ]);
       if (ativosResult.data) setAtivos(ativosResult.data);
       if (contasResult.data) setContas(contasResult.data);
       if (dividasResult.data) setDividas(dividasResult.data);
+      if (aReceberResult.data) setAReceber(aReceberResult.data);
       if (saldoResult.data) {
         const base = (contasResult.data || []).reduce((s, c) => s + Number(c.saldo_inicial), 0);
         const soma = saldoResult.data.reduce((s: number, r: { saldo: number }) => s + Number(r.saldo), 0);
@@ -69,7 +72,8 @@ export default function Patrimonio({ userId }: { userId: string }) {
 
   const totalAtivos = useMemo(() => ativos.reduce((s, a) => s + Number(a.saldo_atual), 0), [ativos]);
   const totalDividas = useMemo(() => dividas.reduce((s, d) => s + Number(d.valor), 0), [dividas]);
-  const patrimonioLiquido = saldoContas + totalAtivos - totalDividas;
+  const totalAReceber = useMemo(() => aReceber.reduce((s, r) => s + Number(r.valor), 0), [aReceber]);
+  const patrimonioLiquido = saldoContas + totalAtivos + totalAReceber - totalDividas;
 
   const openNew = () => {
     setEditing(null);
@@ -153,7 +157,7 @@ export default function Patrimonio({ userId }: { userId: string }) {
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Patrimônio líquido</p>
           <p className={`text-2xl font-bold tabular-nums mb-4 ${patrimonioLiquido >= 0 ? 'text-slate-800 dark:text-slate-100' : 'text-rose-600'}`}>{currency(patrimonioLiquido)}</p>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-2 gap-3 text-center">
             <div>
               <div className="w-8 h-8 rounded-lg bg-cyan-50 dark:bg-cyan-500/10 flex items-center justify-center mx-auto mb-1.5"><Wallet size={14} className="text-cyan-600" /></div>
               <p className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200">{currency(saldoContas)}</p>
@@ -163,6 +167,11 @@ export default function Patrimonio({ userId }: { userId: string }) {
               <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mx-auto mb-1.5"><PiggyBank size={14} className="text-emerald-600" /></div>
               <p className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200">{currency(totalAtivos)}</p>
               <p className="text-[11px] text-slate-400 dark:text-slate-500">Ativos</p>
+            </div>
+            <div>
+              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mx-auto mb-1.5"><Wallet size={14} className="text-blue-600" /></div>
+              <p className="text-sm font-bold tabular-nums text-blue-600">{currency(totalAReceber)}</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">Contas a receber</p>
             </div>
             <div>
               <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center mx-auto mb-1.5"><DebtIcon size={14} className="text-rose-600" /></div>
