@@ -32,6 +32,11 @@ export interface Lancamento {
   created_at: string;
 }
 
+// Função helper para exibir descrição sem identificador de conciliação
+export const descricaoExibicao = (descricao: string): string => {
+  return descricao.replace(/\s*\[concil_\d{8}_\d{8}\]$/, '').trim();
+};
+
 export type TipoRepeticao = 'nenhuma' | 'recorrente' | 'parcelado';
 export type PeriodoRepeticao = 'semanal' | 'quinzenal' | 'mensal';
 

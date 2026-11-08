@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { Search, X, Wallet, Tag, Building2, FileText, ChevronRight } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, descricaoExibicao } from '@/lib/supabase';
 import type { Lancamento, Categoria, ContaBancaria, ContaPagar, ContaReceber } from '@/lib/supabase';
 
 interface SearchResults {
@@ -160,7 +160,7 @@ export default function GlobalSearch({ userId, onSelectLancamento }: { userId: s
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{l.descricao}</p>
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{descricaoExibicao(l.descricao)}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">{l.data} · {l.categoria}</p>
                           </div>
                           <p className={`text-sm font-semibold whitespace-nowrap tabular-nums ${l.tipo === 'entrada' ? 'text-emerald-600' : 'text-rose-600'}`}>

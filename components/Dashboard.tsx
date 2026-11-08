@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabase, descricaoExibicao } from '@/lib/supabase';
 import type { Lancamento, ContaPagar, ContaReceber, Previsao, Categoria, ContaBancaria, CartaoCredito, OrcamentoCategoria, Meta, CompraRecorrente, Fatura } from '@/lib/supabase';
 import { computeRelatorioMensal } from '@/lib/relatorioCalculos';
 import { competenciaForPurchase } from '@/lib/faturas';
@@ -1052,7 +1052,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                       <div key={e.id} className="flex items-center gap-3 py-1">
                         {Icon ? <Icon size={14} className="text-emerald-500 shrink-0" /> : <CircleEllipsis size={14} className="text-emerald-500 shrink-0" />}
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{e.descricao}</p>
+                          <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{descricaoExibicao(e.descricao)}</p>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">{fmtDate(e.data)} · {e.categoria}</p>
                         </div>
                         <span className="text-xs font-semibold tabular-nums text-emerald-600 shrink-0">+{currency(Number(e.valor))}</span>
@@ -1149,7 +1149,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                         <td className="px-2 md:px-3 py-3 md:py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs md:text-xs font-medium">{fmtDate(e.data)}</td>
                         <td className="px-2 md:px-3 py-3 md:py-2 font-medium text-slate-700 dark:text-slate-200 text-xs md:text-xs break-words max-w-[150px] md:max-w-none">
                           <span className="inline-flex items-center gap-1 md:gap-1.5">
-                            {limitarNome(e.descricao)}
+                            {limitarNome(descricaoExibicao(e.descricao))}
                             {e.anexo_path && <Paperclip size={13} className="text-slate-300 dark:text-slate-500 shrink-0" />}
                           </span>
                         </td>
@@ -1239,7 +1239,7 @@ export default function Dashboard({ userId }: { userId: string }) {
                 <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Compras no cartão</h4>
                 <div className="border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
                   <table className="w-full text-xs md:text-sm"><tbody>
-                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); const catObj = categoriaByName[`${e.tipo}|${e.categoria}`]; const CatIcon = catObj ? ICONS[catObj.icone] : null; return (<tr key={e.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors"><td className="px-3 md:px-4 py-3 md:py-2.5 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap font-medium">{fmtDate(e.data)}</td><td className="px-3 md:px-4 py-3 md:py-2.5 font-medium text-slate-700 dark:text-slate-200 text-xs md:text-sm truncate">{e.descricao}</td><td className="px-3 md:px-4 py-3 md:py-2.5 hidden sm:table-cell"><span className="inline-flex items-center gap-1 md:gap-1.5 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={13} className="hidden md:inline" />}{e.categoria}</span></td><td className="px-3 md:px-4 py-3 md:py-2.5 text-right font-semibold tabular-nums text-slate-700 dark:text-slate-200 text-xs md:text-sm">{currency(Number(e.valor))}</td></tr>); })}
+                    {cardEntries.map((e) => { const meta = catMeta(e.categoria, e.tipo); const catObj = categoriaByName[`${e.tipo}|${e.categoria}`]; const CatIcon = catObj ? ICONS[catObj.icone] : null; return (<tr key={e.id} className="border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors"><td className="px-3 md:px-4 py-3 md:py-2.5 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap font-medium">{fmtDate(e.data)}</td><td className="px-3 md:px-4 py-3 md:py-2.5 font-medium text-slate-700 dark:text-slate-200 text-xs md:text-sm truncate">{descricaoExibicao(e.descricao)}</td><td className="px-3 md:px-4 py-3 md:py-2.5 hidden sm:table-cell"><span className="inline-flex items-center gap-1 md:gap-1.5 text-xs font-medium px-2 py-1 rounded-md whitespace-nowrap" style={{ color: meta?.color, backgroundColor: `${meta?.color}15` }}>{CatIcon && <CatIcon size={13} className="hidden md:inline" />}{e.categoria}</span></td><td className="px-3 md:px-4 py-3 md:py-2.5 text-right font-semibold tabular-nums text-slate-700 dark:text-slate-200 text-xs md:text-sm">{currency(Number(e.valor))}</td></tr>); })}
                   </tbody></table>
                 </div>
               </>
