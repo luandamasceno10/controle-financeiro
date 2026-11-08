@@ -1,16 +1,18 @@
 'use client';
 
 import { useMemo } from 'react';
-import { AlertTriangle, TrendingUp } from 'lucide-react';
-import type { OrcamentoCategoria, Lancamento } from '@/lib/supabase';
+import { AlertTriangle } from 'lucide-react';
+import type { OrcamentoCategoria, Lancamento, Categoria } from '@/lib/supabase';
 
 export default function BudgetAlert({
   lancamentos,
   orcamentos,
+  categorias,
   currentMonth,
 }: {
   lancamentos: Lancamento[];
   orcamentos: OrcamentoCategoria[];
+  categorias: Categoria[];
   currentMonth: string;
 }) {
   const alerts = useMemo(() => {
@@ -25,18 +27,20 @@ export default function BudgetAlert({
         })
         .reduce((sum, l) => sum + Math.abs(Number(l.valor)), 0);
 
-      const limite = Number(orc.limite);
+      const categoria = categorias.find((c) => c.id === orc.categoria_id);
+      const nomCategoria = categoria?.nome || 'Sem nome';
+      const limite = Number(orc.valor_limite);
       const pct = (gastos / limite) * 100;
 
       if (pct >= 100) {
-        alrts.push({ tipo: 'excedido', categoria: orc.categoria_nome || 'Sem nome', pct, valor: gastos, limite });
+        alrts.push({ tipo: 'excedido', categoria: nomCategoria, pct, valor: gastos, limite });
       } else if (pct >= 80) {
-        alrts.push({ tipo: 'risco', categoria: orc.categoria_nome || 'Sem nome', pct, valor: gastos, limite });
+        alrts.push({ tipo: 'risco', categoria: nomCategoria, pct, valor: gastos, limite });
       }
     }
 
     return alrts.sort((a, b) => b.pct - a.pct);
-  }, [lancamentos, orcamentos, currentMonth]);
+  }, [lancamentos, orcamentos, categorias, currentMonth]);
 
   if (alerts.length === 0) return null;
 

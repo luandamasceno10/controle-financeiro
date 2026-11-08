@@ -10,7 +10,6 @@ import { competenciaForPurchase } from '@/lib/faturas';
 import { sumMoney } from '@/lib/money';
 import { gerarInsights } from '@/lib/dashboardInsights';
 import RelatorioPDF from './RelatorioPDF';
-import AdminCleanup from './AdminCleanup';
 import GlobalSearch from './GlobalSearch';
 import BudgetAlert from './BudgetAlert';
 import { ICONS } from '@/lib/categorias';
@@ -854,7 +853,7 @@ export default function Dashboard({ userId }: { userId: string }) {
             </div>
           )}
 
-          <BudgetAlert lancamentos={monthEntries} orcamentos={orcamentos} currentMonth={currentMonth} />
+          <BudgetAlert lancamentos={monthEntries} orcamentos={orcamentos} categorias={categorias} currentMonth={currentMonth} />
 
           {(billTotals.aPagar > 0 || billTotals.aReceber > 0) && (
             <Link href="/pagar-receber" className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
@@ -1355,7 +1354,6 @@ function AnnualView({ yearData, yearTotals, yearCategoryData, patrimonioEvolucao
           </table>
         </div>
       </div>
-      <AdminCleanup userId={userId} />
     </main>
   );
 }

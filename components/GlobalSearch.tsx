@@ -222,7 +222,7 @@ export default function GlobalSearch({ userId, onSelectLancamento }: { userId: s
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{c.descricao}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{c.data_vencimento}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{c.vencimento}</p>
                           </div>
                           <p className="text-sm font-semibold text-rose-600 tabular-nums">R${Number(c.valor).toFixed(2).replace('.', ',')}</p>
                         </div>
@@ -243,7 +243,7 @@ export default function GlobalSearch({ userId, onSelectLancamento }: { userId: s
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{c.descricao}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{c.data_vencimento}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{c.vencimento}</p>
                           </div>
                           <p className="text-sm font-semibold text-emerald-600 tabular-nums">R${Number(c.valor).toFixed(2).replace('.', ',')}</p>
                         </div>
