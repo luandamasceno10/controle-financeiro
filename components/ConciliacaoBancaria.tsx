@@ -157,16 +157,18 @@ export default function ConciliacaoBancaria({
 
     const correspondencias = contaEntries.filter((e) => {
       const mesmoValor = Math.round(Number(e.valor) * 100) === alvoCentavos;
-      const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
-      if (!mesmoValor || !mesmoTipo) return false;
+      if (!mesmoValor) return false;
 
       // PRIMEIRO: procurar por identificador de conciliação (match absoluto, não pode falhar)
+      // O identificador SOZINHO é suficiente para validar — não precisa checar tipo
       if (temIdentificadorConciliacao(e.descricao)) {
         const idConcil = extrairIdentificadorConciliacao(e.descricao);
-        // Se tem ID e bate, é definitivamente o mesmo lançamento
-        // Se tem ID mas não bata, significa que foi editado/deletado e não é mais válido
         return idConcil === idEsperado;
       }
+
+      // Se NÃO tem identificador, aí sim precisa validar tipo
+      const mesmoTipo = (line.valor >= 0 && e.tipo === 'entrada') || (line.valor < 0 && e.tipo === 'saida');
+      if (!mesmoTipo) return false;
 
       const dias = Math.abs((new Date(e.data + 'T00:00:00').getTime() - new Date(line.data + 'T00:00:00').getTime()) / 86400000);
 
