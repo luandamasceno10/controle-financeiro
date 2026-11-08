@@ -12,6 +12,7 @@ import { gerarInsights } from '@/lib/dashboardInsights';
 import RelatorioPDF from './RelatorioPDF';
 import GlobalSearch from './GlobalSearch';
 import BudgetAlert from './BudgetAlert';
+import ChatIA from './ChatIA';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
@@ -1275,6 +1276,7 @@ export default function Dashboard({ userId }: { userId: string }) {
       />
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+      <ChatIA userId={userId} mesAtual={currentMonth} />
     </div>
   );
 }
