@@ -12,6 +12,7 @@ import { gerarInsights } from '@/lib/dashboardInsights';
 import RelatorioPDF from './RelatorioPDF';
 import AdminCleanup from './AdminCleanup';
 import GlobalSearch from './GlobalSearch';
+import BudgetAlert from './BudgetAlert';
 import { ICONS } from '@/lib/categorias';
 import { sortByDataHora } from '@/lib/sort';
 import { exportLancamentosCSV, exportLancamentosPDF } from '@/lib/export';
@@ -850,6 +851,8 @@ export default function Dashboard({ userId }: { userId: string }) {
               })}
             </div>
           )}
+
+          <BudgetAlert lancamentos={monthEntries} orcamentos={orcamentos} currentMonth={currentMonth} />
 
           {(billTotals.aPagar > 0 || billTotals.aReceber > 0) && (
             <Link href="/pagar-receber" className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:border-slate-300 dark:hover:border-slate-600 transition-colors">
